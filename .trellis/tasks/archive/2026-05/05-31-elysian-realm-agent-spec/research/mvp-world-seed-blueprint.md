@@ -14,6 +14,7 @@ This is not application code and does not implement fixtures. It is a seed bluep
 | `persona-spec-source-mapping.md` | Mapping from research notes to implemented `PersonaSpec v1` fields and validation constraints. |
 | `bilibili-part-event-catalog.md` | Safe BV/part locators for character events, recollections, object memories, and relationship-map references. |
 | `story-event-taxonomy.md` | Lore categories, future event kinds, memory mappings, provenance labels. |
+| `mvp-event-memory-seed-draft.md` | Follow-up implementation draft for startup event order, sparse memory records, first perception/plan events, conversation scenarios, interventions, operation failures, validators, and replay assertions. |
 | `official-version-chapter-timeline.md` | Release-order anchors and ER/Elysium Everlasting feature context. |
 | `src/shared/contracts/simulation.ts` | Current shared TypeScript shape for world, agents, events, memories, conversations, inputs, and operations. |
 | `.trellis/spec/backend/agent-simulation.md` | Backend authority, tick loop, event log, concurrency, replay rules. |
@@ -113,7 +114,7 @@ Do not include raw conversation messages in active world state events. Message b
 
 ## Memory Seed Boundaries
 
-Initial memory records should be sparse and evidence-linked. They must not be embedded in `PersonaSpec`.
+Initial memory records should be sparse and evidence-linked. They must not be embedded in `PersonaSpec`. The more detailed implementation draft for exact seed IDs, source events, metadata keys, and replay assertions lives in `mvp-event-memory-seed-draft.md`.
 
 | Seed ID | Agent | Type | Visibility | Importance | Source event / locator | Content rule |
 |---|---|---|---|---:|---|---|
@@ -202,7 +203,7 @@ Provenance badges:
 
 ## Deterministic Smoke Test Storyboard
 
-A future no-network smoke test can assert this sequence:
+A future no-network smoke test can assert this sequence. Use `mvp-event-memory-seed-draft.md` for the exact event IDs, memory IDs, conversation branches, operation failure expectations, and validator backlog:
 
 1. Create world seed with 3 agents and 6 locations.
 2. Step from 06:00 to 06:05.
@@ -250,5 +251,6 @@ Recommended defaults:
 
 - Read current shared simulation contracts and domain enums.
 - Cross-checked backend simulation authority/replay rules and frontend observation-terminal requirements.
+- Linked follow-up event/memory implementation detail to `mvp-event-memory-seed-draft.md` so this blueprint remains high-level while future code work has exact seed matrices.
 - Aligned location, agent, plan, event, memory, conversation, intervention, and UI projection seeds with current contracts.
 - Kept all content as project-authored summaries and implementation guidance; no official story text, dialogue, subtitles, images, audio, or extracted assets were stored.

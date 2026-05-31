@@ -191,6 +191,7 @@ The chosen stack is TypeScript full-stack. Future implementation should define c
 - `research/persona-spec-source-mapping.md`: mapping from research notes to current `PersonaSpec v1` fixture fields.
 - `research/persona-spec-v1-mvp-trio-draft.md`: review-only `PersonaSpec v1`-shaped draft for Elysia, Pardofelis, and Hua.
 - `research/mvp-world-seed-blueprint.md`: observation-terminal MVP world seed blueprint.
+- `research/mvp-event-memory-seed-draft.md`: deterministic MVP startup/event, memory seed, conversation scenario, intervention, operation-failure, validator, and replay draft.
 - `research/implementation-research-handoff.md`: research-to-implementation slice handoff, validation gates, and risk controls.
 - `research/pre-implementation-open-decisions.md`: implementation-entry decision register and recommended defaults before code work.
 - `.trellis/spec/backend/agent-simulation.md`: backend simulation rules.

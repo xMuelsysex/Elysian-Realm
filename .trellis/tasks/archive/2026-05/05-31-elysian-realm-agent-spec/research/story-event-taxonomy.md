@@ -134,7 +134,8 @@ Future observation-terminal UI can expose these filters:
 
 ## Next Content Tasks
 
-1. Convert the MVP trio event seeds into future persona fixture routine placeholders after implementation starts.
-2. Build a directed relationship seed table for `elysia`, `pardofelis`, and `hua` first.
-3. Revisit official relationship-map URL with browser/manual review if needed, storing only summaries and source IDs.
-4. Confirm exact Bilibili IDs for Elysian Realm-specific `崩坏3剧情讲堂` episodes; current web search was rate-limited and direct API search returned general ER results first.
+1. Use `mvp-event-memory-seed-draft.md` as the next implementation-facing detail layer for MVP event order, sparse memory seeds, conversation branches, interventions, operation failures, validators, and replay assertions.
+2. Convert the MVP trio event seeds into future persona fixture routine placeholders after implementation starts.
+3. Build a directed relationship seed table for `elysia`, `pardofelis`, and `hua` first.
+4. Revisit official relationship-map URL with browser/manual review if needed, storing only summaries and source IDs.
+5. Confirm exact Bilibili IDs for Elysian Realm-specific `崩坏3剧情讲堂` episodes; current web search was rate-limited and direct API search returned general ER results first.

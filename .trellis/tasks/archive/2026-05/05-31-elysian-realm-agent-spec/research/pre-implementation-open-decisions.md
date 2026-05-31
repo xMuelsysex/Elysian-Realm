@@ -255,13 +255,14 @@ If the user approves implementation start, follow this exact order:
 1. Keep `sourceNotes` as string.
 2. Use the research MVP roster: `elysia`, `pardofelis`, `hua`.
 3. Use research location IDs from `mvp-world-seed-blueprint.md`.
-4. Update persona fixtures and validation tests only.
-5. If world fixtures are included, validate that persona routine locations exist.
-6. Do not add LLM calls.
-7. Do not add memory retrieval.
-8. Do not add frontend UI.
-9. Run targeted persona validation tests / `npm test`.
-10. Re-open planning if fixture validation exposes schema gaps.
+4. Use `mvp-event-memory-seed-draft.md` as the source for future startup event order, sparse memory seeds, first conversation scenarios, validator backlog, and replay assertions.
+5. Update persona fixtures and validation tests only.
+6. If world fixtures are included, validate that persona routine locations exist and that every seeded memory has a source event.
+7. Do not add LLM calls.
+8. Do not add memory retrieval.
+9. Do not add frontend UI.
+10. Run targeted persona validation tests / `npm test`.
+11. Re-open planning if fixture validation exposes schema gaps.
 
 ## Verification Checklist
 
@@ -270,12 +271,13 @@ Before starting implementation, confirm:
 - `implementation-research-handoff.md` is read.
 - `persona-spec-source-mapping.md` is read.
 - `mvp-world-seed-blueprint.md` is read if location/world fixtures are touched.
+- `mvp-event-memory-seed-draft.md` is read if event, memory, conversation, intervention, operation, validator, or replay seeds are touched.
 - `PersonaSpec` validator constraints are known.
 - No official text/assets are being pasted.
 - The user explicitly approved implementation start.
 
 ## Verification Log
 
-- Consolidated open decisions from `persona-spec-source-mapping.md`, `mvp-world-seed-blueprint.md`, `implementation-research-handoff.md`, and `implement.md`.
+- Consolidated open decisions from `persona-spec-source-mapping.md`, `mvp-world-seed-blueprint.md`, `mvp-event-memory-seed-draft.md`, `implementation-research-handoff.md`, and `implement.md`.
 - Preserved planning-only status and implementation review gate.
 - Kept all recommendations within current shared contracts unless marked as future migration.

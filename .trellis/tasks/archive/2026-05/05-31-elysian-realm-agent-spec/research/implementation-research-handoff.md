@@ -20,10 +20,12 @@ This document is planning-only. It does not authorize implementation work. Per t
 | Artifact | Status | Primary owner slice | Use |
 |---|---|---|---|
 | `honkai-elysian-realm-lore-sources.md` | Active index | All slices | Canon/source boundary, source lists, artifact index, verification log. |
+| `../../../../05-31-elysian-realm-lore-research/research/lore-research-supplement-2026-05-31.md` | Complete supplement | All slices | Confirmed 泛式 #11/#12 BVs, Moegirl system/arc anchors, GitHub alias/plugin metadata, and unsafe corpus boundaries. |
 | `thirteen-flame-chasers-character-matrix.md` | Complete baseline | Slice 1, Slice 7 | Full roster identity/signets/relationship hooks/persona constraints. |
 | `mvp-pilot-persona-seeds.md` | Complete baseline | Slice 1 | Elysia/Pardofelis/Hua research seeds, routines, relationships, locations, event seeds. |
 | `persona-spec-source-mapping.md` | Complete baseline | Slice 1 | Maps research seeds to current `PersonaSpec v1` fields and validation constraints. |
 | `mvp-world-seed-blueprint.md` | Complete baseline | Slice 2, Slice 6 | World ID, locations, runtime state, event sequence, memory boundaries, UI projection, smoke test. |
+| `mvp-event-memory-seed-draft.md` | Complete baseline | Slice 2, Slice 3, Slice 4, Slice 5, Slice 6 | Deterministic startup events, sparse memory seeds, first perception/plan events, conversation scenarios, interventions, operation failures, validator backlog, replay assertions. |
 | `story-event-taxonomy.md` | Complete baseline | Slice 2, Slice 3, Slice 4, Slice 6 | Provenance labels, lore categories, future event kinds, memory mappings, debug filters. |
 | `bilibili-elysian-realm-story-index.md` | Complete baseline | Slice 1, Slice 3, Slice 7 | Story/navigation source overview and safe Bilibili usage. |
 | `bilibili-part-event-catalog.md` | Complete baseline | Slice 1, Slice 3, Slice 4, Slice 7 | BV/part locators for recollections, character events, signets, objects, relationship map. |
@@ -39,6 +41,7 @@ This document is planning-only. It does not authorize implementation work. Per t
 - `thirteen-flame-chasers-character-matrix.md`
 - `bilibili-part-event-catalog.md`
 - `official-version-chapter-timeline.md`
+- `../../../../05-31-elysian-realm-lore-research/research/lore-research-supplement-2026-05-31.md`
 
 ### Code areas likely touched
 
@@ -55,6 +58,7 @@ This document is planning-only. It does not authorize implementation work. Per t
 3. Keep `sourceNotes` as a string unless a schema migration is explicitly included.
 4. Use source locators and project-authored summaries only.
 5. Align persona routine `locationId` values with the world seed location IDs.
+6. Use the 2026-05-31 supplement as locator-only input for confirmed 泛式 `BV19S4y1h7ot` / `BV1fa411P7M5`, Klein/admin-adjacent hooks, Herrscher glossary labels, and GitHub alias metadata; do not import source prose, dialogue, guide images, or corpus rows.
 
 ### Validation gate
 
@@ -75,6 +79,7 @@ This document is planning-only. It does not authorize implementation work. Per t
 ### Research inputs
 
 - `mvp-world-seed-blueprint.md`
+- `mvp-event-memory-seed-draft.md`
 - `story-event-taxonomy.md`
 - `official-version-chapter-timeline.md`
 - `github-agent-simulation-specs.md`
@@ -92,9 +97,10 @@ This document is planning-only. It does not authorize implementation work. Per t
 1. Implement one authoritative world-state owner.
 2. Use `world_elysian_observation_mvp` or an equivalent stable seed ID for deterministic tests.
 3. Seed six shared locations from `mvp-world-seed-blueprint.md`.
-4. Create startup events explicitly: `world.created`, `agent.spawned`, `agent.startedRoutine`.
+4. Create startup events explicitly using `mvp-event-memory-seed-draft.md` as the event-order source: `world.created`, `agent.spawned`, `world.timeAdvanced`, `agent.startedRoutine`, and `memory.seeded` or equivalent.
 5. If seeded memories are needed, create `memory.seeded` or equivalent events first so every memory has a source event.
 6. Keep raw high-volume conversation messages outside active world state.
+7. Add shared event validators/projections before frontend code relies on these event kinds.
 
 ### Validation gate
 
@@ -113,6 +119,7 @@ This document is planning-only. It does not authorize implementation work. Per t
 
 ### Research inputs
 
+- `mvp-event-memory-seed-draft.md`
 - `story-event-taxonomy.md`
 - `bilibili-part-event-catalog.md`
 - `persona-spec-source-mapping.md`
@@ -130,8 +137,9 @@ This document is planning-only. It does not authorize implementation work. Per t
 1. Keep source-derived recollections as short project-authored summaries with source locators.
 2. Create memory records outside persona specs.
 3. Use `sourceEventIds` for all memories.
-4. Keep conversation messages separate from summarized `conversation` memories.
-5. Implement deterministic fake embedding/relevance for tests before live providers.
+4. Start from the sparse memory seeds in `mvp-event-memory-seed-draft.md`; do not embed seeded memories inside persona fixtures.
+5. Keep conversation messages separate from summarized `conversation` memories.
+6. Implement deterministic fake embedding/relevance for tests before live providers.
 
 ### Validation gate
 
@@ -188,6 +196,7 @@ This document is planning-only. It does not authorize implementation work. Per t
 ### Research inputs
 
 - `mvp-world-seed-blueprint.md`
+- `mvp-event-memory-seed-draft.md`
 - `mvp-pilot-persona-seeds.md`
 - `story-event-taxonomy.md`
 
@@ -205,6 +214,8 @@ First scenarios:
 1. Elysia checks on Pardo at `pardo_shop`.
 2. Hua gives Pardo practical guidance.
 3. Elysia visits Hua after training, with refusal/defer as valid outcomes.
+
+Use `mvp-event-memory-seed-draft.md` for lifecycle event order, memory IDs, summary-memory expectations, pair cooldowns, and operation-failure handling.
 
 Conversation lifecycle must remain explicit:
 
