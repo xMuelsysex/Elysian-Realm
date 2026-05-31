@@ -45,3 +45,36 @@ Planned and initialized the Elysian Realm multi-agent observation-terminal proje
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Archive bootstrap guidelines
+
+**Date**: 2026-05-31
+**Task**: Archive bootstrap guidelines
+**Branch**: `main`
+
+### Summary
+
+Verified the completed Trellis bootstrap guidelines task, marked its checklist complete, archived 00-bootstrap-guidelines, and confirmed the quality gate passed with typecheck, tests, build, and task validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5bf092f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
