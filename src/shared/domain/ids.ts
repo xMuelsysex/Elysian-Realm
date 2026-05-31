@@ -1,0 +1,10 @@
+export type WorldId = string;
+export type AgentId = string;
+export type PersonaId = string;
+export type LocationId = string;
+export type ConversationId = string;
+export type MemoryId = string;
+export type PlanId = string;
+export type EventId = string;
+export type InputId = string;
+export type OperationId = string;
