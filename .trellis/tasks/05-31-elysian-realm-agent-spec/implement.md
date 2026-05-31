@@ -181,6 +181,18 @@ The chosen stack is TypeScript full-stack. Future implementation should define c
 - `prd.md`: requirements, scope, acceptance criteria, open questions.
 - `design.md`: architecture, data contracts, trade-offs.
 - `research/github-agent-simulation-specs.md`: source-backed GitHub spec extraction.
+- `research/honkai-elysian-realm-lore-sources.md`: source index and safe-use policy for Elysian Realm / Flame-Chaser lore research.
+- `research/thirteen-flame-chasers-character-matrix.md`: 13-character source matrix and persona constraints.
+- `research/mvp-pilot-persona-seeds.md`: MVP trio seeds for Elysia, Pardofelis, and Hua.
+- `research/bilibili-elysian-realm-story-index.md`: Bilibili story/navigation and analysis source index.
+- `research/bilibili-part-event-catalog.md`: Bilibili BV/part-level event locator catalog.
+- `research/story-event-taxonomy.md`: lore-to-simulation category and provenance taxonomy.
+- `research/official-version-chapter-timeline.md`: version/chapter release-order timeline and official URL anchors.
+- `research/persona-spec-source-mapping.md`: mapping from research notes to current `PersonaSpec v1` fixture fields.
+- `research/persona-spec-v1-mvp-trio-draft.md`: review-only `PersonaSpec v1`-shaped draft for Elysia, Pardofelis, and Hua.
+- `research/mvp-world-seed-blueprint.md`: observation-terminal MVP world seed blueprint.
+- `research/implementation-research-handoff.md`: research-to-implementation slice handoff, validation gates, and risk controls.
+- `research/pre-implementation-open-decisions.md`: implementation-entry decision register and recommended defaults before code work.
 - `.trellis/spec/backend/agent-simulation.md`: backend simulation rules.
 - `.trellis/spec/backend/persona-memory.md`: persona/memory rules.
 - `.trellis/spec/backend/llm-orchestration.md`: LLM/provider rules.

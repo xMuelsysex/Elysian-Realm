@@ -75,6 +75,28 @@ This document is an index and summary only. Do not copy video transcripts, offic
 - `relationshipLocator`: Dusk Street, Sakura/Kalpas/Pardo/Aponia, Elysia/Eden/Kevin threads.
 - `objectMemoryLocator`: P22 and P34 point to object/recollection text but must remain index-only.
 
+## Additional Story / Official Media Locators
+
+### `BV1kM4y1K733` — 档案Archivare ER event flow collection
+
+- URL: https://www.bilibili.com/video/BV1kM4y1K733/
+- Creator: 档案Archivare
+- Public metadata date: 2021-07-15
+- Runtime: about 24h 14m across 26 parts
+- Primary value: alternate long-form event flow collection for the Elysian Realm activity up to the uploader's recorded chapter range.
+- Project use: secondary navigation source for cross-checking early ER part ordering and analysis-friendly chapter labels.
+- Boundary: the public part titles are uploader-authored stylized summaries; treat them as navigation aids, not official chapter names.
+
+### `BV1fY4y1F7GL` — Official animation short locator
+
+- URL: https://www.bilibili.com/video/BV1fY4y1F7GL/
+- Creator: 崩坏3第一偶像爱酱
+- Public metadata date: 2022-08-12
+- Runtime: about 8m 26s
+- Topic: official animation short 「因你而在的故事」.
+- Project use: official media URL for late Elysian Realm / Flame-Chaser emotional tone and character roster cross-check.
+- Boundary: do not copy official description text, lyrics, subtitles, images, music, or animation frames. Store only URL, title, and project-authored summary.
+
 ## Analysis and Context Sources
 
 ### `BV1o8411G7zH` — Previous Era salvation plans analysis
@@ -108,6 +130,13 @@ Search results previously indicated the playlist includes later Elysian Realm / 
 - Project use: navigation pointer for late Everlasting Elysium / Elysia vs Corruption context.
 - Boundary: clip-level pointer only; prefer full chapter/story index for broad research.
 
+## Part-Level Catalog Artifact
+
+- `bilibili-part-event-catalog.md` expands the three checked long-form story/navigation videos into a safe part-level event catalog.
+- It maps `BV1vg411Y7si`, `BV1ff4y1L7hv`, and `BV1kM4y1K733` public part labels to lore categories, character/topic tags, and future project usage notes.
+- It stores metadata only: BV IDs, URLs, creator names, page counts, part numbers, public labels, categories, and project-authored usage notes.
+- It does not store subtitles, transcripts, official dialogue, story scripts, images, audio, or extracted assets.
+
 ## Mapping To Future Simulation Data
 
 ### Event Categories
@@ -136,12 +165,14 @@ Use Bilibili part titles to locate content, then summarize in project-authored w
 ## Recommended Next Pass
 
 1. Confirm exact Bilibili IDs for the Elysian Realm-specific 泛式剧情讲堂 episodes via Bilibili playlist/search.
-2. Create a `story-event-taxonomy.md` file mapping the above categories to future event schema enums and provenance labels.
-3. For the recommended MVP trio (`elysia`, `pardofelis`, `hua`), identify 3-5 safe, project-authored daily-life event seeds each using `BV1vg411Y7si` part categories plus Moegirl summaries.
+2. If implementation needs exact replay locators, manually add timestamps to `bilibili-part-event-catalog.md` while keeping transcript/dialogue text out of the repository.
+3. For the recommended MVP trio (`elysia`, `pardofelis`, `hua`), keep persona fixtures tied to source locators rather than copied story text.
 4. Keep all future use as indexes and summaries; no official dialogue or transcript extraction.
 
 ## Verification Log
 
-- Queried Bilibili public `x/web-interface/view` metadata for `BV1vg411Y7si`, `BV1ff4y1L7hv`, `BV1o8411G7zH`, `BV1KT411L7WD`, `BV1fZ4y1f7U4`, and `BV1bt411i7LL`.
+- Queried Bilibili public `x/web-interface/view` metadata for `BV1vg411Y7si`, `BV1ff4y1L7hv`, `BV1kM4y1K733`, `BV1fY4y1F7GL`, `BV1o8411G7zH`, `BV1KT411L7WD`, `BV1fZ4y1f7U4`, and `BV1bt411i7LL`.
+- Queried Bilibili public search API for Elysian Realm / Human Herrscher / 泛式剧情讲堂 terms; exact ER-specific 泛式 episode BV IDs remain unconfirmed.
 - Extracted title, creator, duration, public part labels, and project-useful categories.
+- Created `bilibili-part-event-catalog.md` from public part metadata for the three long-form navigation sources.
 - Did not store transcripts, official dialogue, images, audio, or complete plot text.

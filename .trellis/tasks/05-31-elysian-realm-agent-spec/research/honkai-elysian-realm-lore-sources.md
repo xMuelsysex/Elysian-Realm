@@ -22,6 +22,7 @@ Collect verifiable, fan-research-oriented sources for Honkai Impact 3rd's **Elys
 | 「往世空梦」5.6版本更新公告 | https://honkaiimpact3.hoyoverse.com/asia/zh-cn/news/107344?cate=542&cateLabel= | Confirms 5.6 Elysian Realm third-chapter update context | JS-rendered in `web_fetch`; use as official URL plus third-party readable announcements. |
 | 爱酱情报站——往世乐土等内容迎来大型更新 | https://honkaiimpact3.hoyoverse.com/asia/zh-cn/news/107293 | Official update/news source | JS-rendered; useful as canonical URL. |
 | 《崩坏3》「英桀关系网」 | https://webstatic.mihoyo.com/bh3/event/e20200310rolemap/index.html | Official relationship graph reference | `web_fetch` sees bundled JS only; use the URL as primary official reference, avoid copying images. |
+| Global version update URLs v5.0-v6.0 | `news/14838`, `15805`, `16625`, `17390`, `18597`, `19703`, `20435`, `20917`, `21799`, `22673`, `23655` under HoYoverse/miHoYo official domains | Official URL anchors for ER launch, ER chapter updates, Elysium Everlasting, and Flame-Chaser battlesuit releases | `web_fetch` returned `Loading...`; keep as `official-url` anchors and cross-check with readable secondary pages. |
 | 5.0 version update references | TapTap/3DM/other reposts of 5.0 update | Confirms Elysian Realm launched as large permanent mode in 5.0 | Official page access is JS-limited; use reposts only as secondary confirmation. |
 | 黄金庭院：冬日里的新年愿望 PV/official reposts | 4399/news mirrors and Bilibili/YouTube official uploads | Slice-of-life tone reference for Flame-Chasers in Golden Courtyard setting | Use for tone inspiration, not asset/dialogue extraction. |
 
@@ -129,10 +130,24 @@ For future persona JSON/YAML, store **summaries like these**, not official lines
 ## Completed Research Artifacts
 
 - `thirteen-flame-chasers-character-matrix.md`: per-character source matrix for all 13 Flame-Chasers, with official/wiki/Bilibili source anchors, relationship hooks, persona constraints, and MVP pilot selection notes.
+- `bilibili-elysian-realm-story-index.md`: Bilibili story/navigation index based on public BV metadata and part labels, including story collections, analysis videos, official short locator, and safe usage boundaries.
+- `bilibili-part-event-catalog.md`: part-level Bilibili event catalog for `BV1vg411Y7si`, `BV1ff4y1L7hv`, and `BV1kM4y1K733`, mapping public part labels to safe lore categories and MVP source locators.
+- `story-event-taxonomy.md`: source-to-simulation taxonomy mapping main story, recollections, character events, object memories, relationship maps, system events, provenance labels, and MVP event seeds.
+- `mvp-pilot-persona-seeds.md`: project-authored MVP persona seeds for Elysia, Pardofelis, and Hua, including directed relationship seeds, routines, locations, event seeds, prompt boundaries, and future fixture tests.
+- `persona-spec-source-mapping.md`: mapping from research artifacts to the implemented `PersonaSpec v1` fields, including `authorship` enum caveats, `sourceNotes` formatting, relationship/routine fixture guidance, and validation checklist.
+- `persona-spec-v1-mvp-trio-draft.md`: review-only `PersonaSpec v1`-shaped draft for Elysia, Pardofelis, and Hua, using only project-authored placeholder summaries and current schema fields.
+- `mvp-world-seed-blueprint.md`: observation-terminal MVP world seed blueprint mapping the three pilot agents, six locations, initial runtime state, event log shape, memory boundaries, intervention model, UI projections, and deterministic smoke tests to current shared contracts.
+- `implementation-research-handoff.md`: implementation handoff that maps research artifacts to future Trellis slices, validation gates, risks, and forbidden shortcuts before code work starts.
+- `pre-implementation-open-decisions.md`: implementation-entry decision register covering roster transition, `sourceNotes`, location vocabulary, seeded memories, event validators, fake providers, and approval triggers.
+- `official-version-chapter-timeline.md`: release-order timeline for v5.0-v6.0, ER chapters, Elysium Everlasting chapters XXIX-XXXI, Flame-Chaser battlesuit focus, safe event seeds, and official-URL/secondary-source reliability notes.
 
 ## Recommended Next Research Passes
 
-- Inspect Bilibili full-story chapter timestamps and map them into event categories: main story, recollection, character event, item/object, relationship-map.
+- Cross-check official/version/chapter timeline with manual browser access or official announcement mirrors when exact official pages remain JS-only.
+- Confirm exact Bilibili IDs for Elysian Realm-specific 泛式剧情讲堂 episodes through manual playlist inspection or more targeted search.
+- If future implementation needs tighter replay/lore debug filters, inspect Bilibili full-story timestamps manually and add timestamps without transcripts or dialogue.
+- Before implementation changes persona fixtures, decide whether `sourceNotes` remains a string for MVP or receives a structured source-note schema migration.
+- Use `implementation-research-handoff.md`, `pre-implementation-open-decisions.md`, and `mvp-world-seed-blueprint.md` as the handoff guides before changing world/persona fixtures, because they record slice ownership, open decisions, validation gates, location IDs, runtime state, memory seed boundaries, and replay expectations.
 - Collect official/news pages for versions 5.0, 5.1, 5.4, 5.6, 5.8-6.0 where Elysian Realm chapters, signets, and playable Flame-Chaser suits were added.
 - If exact official pages remain JS-only, use browser automation or manual browser capture later; do not enable browser-cookie access unless explicitly approved.
 - Create `personas/research/*.md` or future persona fixtures from summaries only, with one provenance field per fact.
@@ -142,5 +157,14 @@ For future persona JSON/YAML, store **summaries like these**, not official lines
 - Queried web search for Moegirl, Bilibili, official HoYoverse, and GitHub sources.
 - Fetched readable Bilibili metadata for `BV1vg411Y7si` and `BV1o8411G7zH`.
 - Fetched readable Moegirl pages covering the full Flame-Chaser roster: 逐火之蛾, 爱莉希雅, 凯文·卡斯兰娜, 阿波尼亚, 伊甸, 维尔薇, 千劫, 苏, 樱, 科斯魔, 梅比乌斯, 格蕾修, 符华/华, 帕朵菲莉丝.
+- Queried Bilibili public metadata/search APIs for core Elysian Realm story collections and analysis/media locators: `BV1vg411Y7si`, `BV1ff4y1L7hv`, `BV1kM4y1K733`, `BV1fY4y1F7GL`, `BV1o8411G7zH`, `BV1KT411L7WD`, `BV1fZ4y1f7U4`, and `BV1bt411i7LL`.
+- Built `bilibili-part-event-catalog.md` from public Bilibili `x/web-interface/view` metadata for `BV1vg411Y7si`, `BV1ff4y1L7hv`, and `BV1kM4y1K733`; stored only BV IDs, titles, creators, page counts, part labels, categories, and project-authored usage notes.
+- Mapped current research artifacts to implemented `PersonaSpec v1` fields in `persona-spec-source-mapping.md`, including validation constraints from `src/shared/contracts/persona.ts` and `src/server/personas/validation.ts`.
+- Created `persona-spec-v1-mvp-trio-draft.md` as a non-code review artifact shaped to current `PersonaSpec v1` fields; verified it stores only locator strings, schema notes, and project-authored summaries, not official text or runtime memories.
+- Created `mvp-world-seed-blueprint.md` after reading current shared simulation contracts, backend authority/replay rules, and frontend observation-terminal rules.
+- Created `implementation-research-handoff.md` to map research artifacts to future Trellis implementation slices, validation gates, and risk controls while preserving the planning-only review gate.
+- Created `pre-implementation-open-decisions.md` to capture implementation-entry defaults and approval triggers before code work.
 - Fetched GitHub repositories `MskTmi/Bh3-ElysianRealm-Strategy`, `MskTmi/ElysianRealm-Data`, `risbi0/Elysian-Realm`, and `ButteryRafa/elysian-realm`.
+- Fetched readable Fandom version pages v5.0-v6.0 plus Chapter XXIX, Chapter XXX, Chapter XXXI, `Elysian Realm`, `Elysium Everlasting`, and `Update Log`; stored only release-order summaries and source URLs.
+- Rechecked HoYoverse official global update URLs for v5.0, v5.1, v5.6, v5.7, v5.8, v5.9, and v6.0; `web_fetch` returned `Loading...`, so they remain official URL anchors.
 - Confirmed official HoYoverse pages and miHoYo relationship map are JS-heavy in `web_fetch`; recorded URLs and used accessible cross-checks.
