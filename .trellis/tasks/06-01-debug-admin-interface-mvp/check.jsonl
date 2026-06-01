@@ -1,0 +1,15 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality gate for admin API."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Check backend module placement and ownership."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Check simulation authority, input/event contracts, and no direct state patches."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check structured errors and visible validation failures."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check backend tests and forbidden fallbacks."}
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend quality gate."}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Check feature folder structure and shared boundaries."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Check required timeline/debug/intervention UI behavior."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check component accessibility, provenance, and failure display."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check frontend does not own backend simulation state."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Check shared contract usage and no repeated raw payload casts."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check frontend tests/review requirements."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check admin API/UI data flow and projection boundaries."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check centralized formatting/projection helpers."}
+{"file":".trellis/tasks/06-01-debug-admin-interface-mvp/research/ui-ux-admin-dashboard-guidance.md","reason":"Check UI/UX accessibility, dashboard, form, and control quality from UI/UX Pro Max guidance."}

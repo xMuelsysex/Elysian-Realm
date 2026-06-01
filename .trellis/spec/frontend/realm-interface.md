@@ -154,6 +154,133 @@ Use badges, labels, or separate sections. Do not blend official-inspired base su
 - Long generated text should preserve paragraph breaks and support copy/debug inspection.
 - Auto-updating timelines should not steal focus.
 
+## Implemented Debug Admin Dashboard MVP Contract
+
+### 1. Scope / Trigger
+
+The first browser UI is a local-only Vite + React dashboard under `src/app/**`. Future frontend debug/admin work must preserve this contract because it is the first implementation of backend-owned simulation projections, typed intervention forms, and diagnostics rendering.
+
+### 2. Signatures
+
+Current source paths:
+
+- `src/app/main.tsx`
+- `src/app/App.tsx`
+- `src/app/adminApi.ts`
+- `src/app/realm/**`
+- `src/app/interventions/InterventionPanel.tsx`
+- `src/app/diagnostics/DebugPanel.tsx`
+- `src/app/shared/viewModels.ts`
+- `tests/adminViewModels.test.ts`
+
+Current API helper signatures:
+
+```ts
+export function fetchAdminState(): Promise<AdminStateResponse>;
+export function stepAdminSimulation(): Promise<AdminStateResponse>;
+export function resetAdminSimulation(): Promise<AdminStateResponse>;
+export function submitAdminInput(
+  input: SubmitAdminInputRequest,
+): Promise<AdminStateResponse>;
+```
+
+Current view-model helper signatures:
+
+```ts
+export function groupAgentsByLocation(
+  locations: readonly LocationRef[],
+  agents: readonly AgentRuntimeState[],
+): LocationGroup[];
+
+export function createTimelineItems(
+  events: readonly SimulationEvent[],
+  timeline: readonly TimelineEntry[],
+): TimelineItem[];
+
+export function latestDiagnostics(
+  diagnostics: readonly AdminDiagnostic[],
+): AdminDiagnostic[];
+```
+
+### 3. Contracts
+
+- The UI reads `AdminStateResponse` from `/api/admin/state` and replaces its server state only with backend responses.
+- Local React state is limited to loading/error flags and form drafts.
+- Components render typed DTOs or view models. Event payload summary formatting lives in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection but must not infer simulation rules from payload fields.
+- `InterventionPanel` is the only MVP owner of debug command forms. It submits `SubmitAdminInputRequest` for pause, resume, set time scale, realm event, and direct private message.
+- `DebugPanel` renders backend diagnostics, replay summary, and queued inputs for inspection; it must not hide rejected inputs.
+- Source/provenance badges must render text labels for `system`, `user`, `agent`, `llm`, and `test` when those sources appear.
+
+### 4. Validation & Error Matrix
+
+- initial state request pending -> loading panel with text feedback
+- failed fetch/command -> visible error banner; do not mutate local snapshot optimistically
+- invalid time scale form value -> field-level form error, no request sent
+- missing realm event target/kind -> field-level form error, no request sent
+- missing direct-message target/text -> field-level form error, no request sent
+- backend structured error -> display the backend error message
+- empty timeline -> explicit empty state
+- empty diagnostics -> explicit no-diagnostics state
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```tsx
+const timelineItems = createTimelineItems(state.events, state.timeline);
+return <EventTimeline items={timelineItems} />;
+```
+
+Base:
+
+```tsx
+await runCommand(() => fetchAdminState());
+// Replace the dashboard state with the returned AdminStateResponse.
+```
+
+Bad:
+
+```tsx
+// Do not parse event payloads in component render logic.
+const timeScale = (event.payload as { timeScale: number }).timeScale;
+
+// Do not optimistically patch backend-owned state.
+state.snapshot.status = "running";
+```
+
+### 6. Tests Required
+
+Frontend/admin UI tests must assert:
+
+- agents are grouped from backend snapshot locations;
+- timeline items are created through centralized payload formatting;
+- diagnostics are ordered newest-first for display;
+- typecheck covers React components and API helper contracts;
+- production build emits the Vite frontend assets.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```tsx
+<button onClick={() => setState({ ...state, snapshot: { ...state.snapshot, status: "running" } })}>
+  Resume
+</button>
+```
+
+#### Correct
+
+```tsx
+<button onClick={() => submitAdminInput({
+  kind: "observerCommand",
+  targetIds: [state.snapshot.id],
+  payload: { action: "resume" },
+  source: "user",
+})}>
+  Resume
+</button>
+```
+
 ## Visual Roadmap
 
 Recommended MVP is text/timeline-first.

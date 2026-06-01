@@ -230,6 +230,163 @@ const stepped = stepSimulationEngine(queued);
 const errors = validateSimulationEvent(stepped.events[0]);
 ```
 
+## Implemented Local Admin API Contract
+
+### 1. Scope / Trigger
+
+The debug/admin interface introduced a local development-only API boundary under `src/server/admin/**`. Future management surfaces, test controls, or browser debug tools must preserve this contract because it is the first cross-layer control surface around the authoritative simulation engine.
+
+### 2. Signatures
+
+Current source paths:
+
+- `src/server/admin/adminContracts.ts`
+- `src/server/admin/adminController.ts`
+- `src/server/admin/adminServer.ts`
+- `src/server/admin/index.ts`
+- `tests/adminController.test.ts`
+
+Current public API:
+
+```ts
+export interface AdminController {
+  getState(): AdminStateResponse;
+  step(): AdminStateResponse;
+  reset(): AdminStateResponse;
+  submitInput(request: unknown): AdminRouteResult;
+}
+
+export function createAdminController(
+  initialState?: SimulationEngineState,
+): AdminController;
+
+export function createAdminStateResponse(
+  state: SimulationEngineState,
+): AdminStateResponse;
+
+export function createAdminServer(options?: AdminServerOptions): Server;
+export function startAdminServer(options?: AdminServerOptions): Server;
+```
+
+HTTP routes are intentionally narrow:
+
+- `GET /api/admin/state`
+- `POST /api/admin/step`
+- `POST /api/admin/reset`
+- `POST /api/admin/input`
+
+### 3. Contracts
+
+`AdminStateResponse` is the browser-facing read model:
+
+```ts
+interface AdminStateResponse {
+  snapshot: WorldSnapshot;
+  events: SimulationEvent[];
+  timeline: TimelineEntry[];
+  replay: ReplaySummary;
+  diagnostics: AdminDiagnostic[];
+}
+```
+
+`SubmitAdminInputRequest` is the only state-changing request body accepted by `/api/admin/input`:
+
+```ts
+interface SubmitAdminInputRequest {
+  kind: InterventionKind;
+  targetIds: string[];
+  payload: Record<string, unknown>;
+  source?: EventSource; // defaults to user
+}
+```
+
+Runtime rules:
+
+- The controller owns exactly one in-memory `SimulationEngineState` per controller instance.
+- `step()` must call `stepSimulationEngine`.
+- `reset()` must call `createSimulationEngine`.
+- `submitInput()` must build a `SimulationInput`, call `queueSimulationInput`, then call `stepSimulationEngine` so UI feedback is immediate.
+- Admin DTOs clone snapshots/events before returning them to avoid exposing mutable engine internals.
+- Diagnostics include `simulation.inputRejected` events and `validateSimulationEvent` failures.
+- The default API bind target is local: `127.0.0.1:4317`. This API is not an auth or production boundary.
+
+### 4. Validation & Error Matrix
+
+- missing or non-object `/input` body -> `400 INVALID_ADMIN_INPUT_REQUEST`
+- unsupported `kind` -> `400 INVALID_ADMIN_INPUT_REQUEST`
+- empty or non-string `targetIds` -> `400 INVALID_ADMIN_INPUT_REQUEST`
+- non-object `payload` -> `400 INVALID_ADMIN_INPUT_REQUEST`
+- unsupported `source` -> `400 INVALID_ADMIN_INPUT_REQUEST`
+- malformed JSON request body -> `400 INVALID_JSON`
+- body over the configured byte limit -> `400 INVALID_JSON` with a body-size message
+- unknown admin route -> `404 NOT_FOUND`
+- unexpected server exception -> `500 ADMIN_SERVER_ERROR`
+- simulation-level input rejection -> return `200 AdminStateResponse`, emit `simulation.inputRejected`, and expose an `AdminDiagnostic`
+- event validation failure in the event log -> return `200 AdminStateResponse` with an `AdminDiagnostic`
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const result = controller.submitInput({
+  kind: "observerCommand",
+  targetIds: [state.snapshot.id],
+  payload: { action: "resume" },
+  source: "user",
+});
+// The input is queued and applied by stepSimulationEngine; the response contains the new snapshot and user-sourced event.
+```
+
+Base:
+
+```ts
+const controller = createAdminController();
+const response = controller.getState();
+// Deterministic seed snapshot, no events, empty diagnostics.
+```
+
+Bad:
+
+```ts
+// Do not patch admin state directly from an API handler.
+state.snapshot.status = "running";
+
+// Do not turn invalid requests into fake accepted intervention events.
+return { ok: true, body: fabricatedAcceptedResponse };
+```
+
+### 6. Tests Required
+
+Admin API tests must assert:
+
+- initial state exposes the deterministic observation seed;
+- `step()` advances through `stepSimulationEngine` and returns timeline entries;
+- `reset()` returns the deterministic seed;
+- valid observer input changes state only through the engine and emits a `source: user` event;
+- malformed admin requests return structured errors;
+- simulation validation failures remain visible as diagnostics;
+- event validation failures remain visible as diagnostics;
+- HTTP routes expose state, step, input submission, and JSON parse errors.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Handler owns simulation rules and bypasses the engine.
+if (body.payload.action === "resume") {
+  state.snapshot.status = "running";
+}
+```
+
+#### Correct
+
+```ts
+const input = buildSimulationInput(body, state.snapshot);
+state = stepSimulationEngine(queueSimulationInput(state, input)).state;
+```
+
 ## Agent Cognitive Loop
 
 Each active agent follows this sequence when it needs to decide:

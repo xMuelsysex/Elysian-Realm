@@ -4,7 +4,7 @@
 
 ## Status
 
-No frontend source code exists yet. This file defines the target structure for the first implementation after the stack decision is made.
+The first local debug/admin React frontend is implemented under `src/app/**`. It uses Vite + React, renders backend-owned `AdminStateResponse` data, and submits typed admin inputs through `src/app/adminApi.ts`.
 
 ## Core Rule
 

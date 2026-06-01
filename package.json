@@ -4,12 +4,26 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run build:server && npm run build:ui",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/tests/*.test.js"
+    "test": "npm run build:server && node --test dist/tests/*.test.js",
+    "dev": "node scripts/dev-admin.mjs",
+    "admin": "npm run dev",
+    "dev:api": "npm run build:server && node dist/src/server/admin/adminServer.js",
+    "dev:ui": "vite --host 127.0.0.1 --port 5173",
+    "build:server": "tsc",
+    "build:ui": "vite build"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "typescript": "^5.4.5"
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^5.4.5",
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   }
 }

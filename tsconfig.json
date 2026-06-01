@@ -9,7 +9,20 @@
     "skipLibCheck": true,
     "rootDir": ".",
     "outDir": "dist",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "vite.config.ts"
+  ]
 }
