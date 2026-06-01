@@ -145,3 +145,36 @@ Implemented and committed the local debug/admin interface MVP with Node http adm
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Event Detail Projection Optimization
+
+**Date**: 2026-06-02
+**Task**: Event Detail Projection Optimization
+**Branch**: `main`
+
+### Summary
+
+Implemented and committed centralized event-kind-specific timeline detail projections with user/debug modes, debug-only payload JSON, bilingual copy, tests, and frontend spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bb67205` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

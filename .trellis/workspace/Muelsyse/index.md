@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
+- **Total Sessions**: 5
 - **Last Active**: 2026-06-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~147 | Active |
+| `journal-1.md` | ~180 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-06-02 | Event Detail Projection Optimization | `bb67205` | `main` |
 | 4 | 2026-06-02 | Debug Admin Interface MVP | `7b65cc8` | `main` |
 | 3 | 2026-06-01 | Add offline simulation engine MVP | `004f622`, `856288b` | `main` |
 | 2 | 2026-05-31 | Archive bootstrap guidelines | `5bf092f` | `main` |
