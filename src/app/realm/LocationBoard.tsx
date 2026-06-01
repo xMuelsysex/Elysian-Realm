@@ -6,9 +6,11 @@ import { formatAgentStatusLabel, formatLocationDescription, formatLocationName, 
 interface LocationBoardProps {
   language: AppLanguage;
   groups: LocationGroup[];
+  selectedAgentId?: string;
+  onSelectAgent: (agentId: string) => void;
 }
 
-export function LocationBoard({ language, groups }: LocationBoardProps) {
+export function LocationBoard({ language, groups, selectedAgentId, onSelectAgent }: LocationBoardProps) {
   const copy = getCopy(language);
 
   return (
@@ -29,14 +31,28 @@ export function LocationBoard({ language, groups }: LocationBoardProps) {
               <p className="muted">{copy.locations.emptyAgents}</p>
             ) : (
               <ul className="agent-list">
-                {group.agents.map((agent) => (
-                  <li key={agent.id}>
-                    <strong>{agent.displayName}</strong>
-                    <span>{agent.id}</span>
-                    <Badge tone="agent">{formatAgentStatusLabel(language, agent.status)}</Badge>
-                    <small>{copy.locations.relationships}: {agent.relationshipRefs.join(", ") || copy.locations.none}</small>
-                  </li>
-                ))}
+                {group.agents.map((agent) => {
+                  const selected = agent.id === selectedAgentId;
+                  return (
+                    <li className={selected ? "agent-list-item agent-list-item--selected" : "agent-list-item"} key={agent.id}>
+                      <button
+                        type="button"
+                        className="agent-select-button"
+                        aria-pressed={selected}
+                        aria-label={`${copy.agents.selectAgent}: ${agent.displayName}`}
+                        onClick={() => onSelectAgent(agent.id)}
+                      >
+                        <span className="agent-list-title-row">
+                          <strong>{agent.displayName}</strong>
+                          {selected ? <span className="selected-marker">{copy.agents.selected}</span> : null}
+                        </span>
+                        <span>{agent.id}</span>
+                        <Badge tone="agent">{formatAgentStatusLabel(language, agent.status)}</Badge>
+                        <small>{copy.locations.relationships}: {agent.relationshipRefs.join(", ") || copy.locations.none}</small>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </article>

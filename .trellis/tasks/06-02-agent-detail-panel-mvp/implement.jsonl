@@ -1,0 +1,15 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend pre-development checklist and quality gate."}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Feature folder ownership for adding src/app/agents/AgentDetailPanel.tsx."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Agent profile/detail requirements, realm timeline behavior, and implemented admin dashboard contract."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Components must render typed view models, show provenance/status text, and avoid raw payload parsing."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Selected agent is local UI state; backend snapshot remains authoritative."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Shared contracts, event projection reuse, and no private payload/contract copies."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend test and review checklist for agent detail UI."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Simulation state ownership and AgentRuntimeState/event boundary constraints."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Avoid direct world-state mutation and hidden fallback behavior."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Cross-layer flow from AdminStateResponse snapshot/events to frontend view models."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Centralize related-agent and event filtering helpers instead of duplicating logic."}
+{"file":"src/shared/contracts/simulation.ts","reason":"AgentRuntimeState, WorldSnapshot, SimulationEvent, and related runtime contracts."}
+{"file":"src/app/realm/RealmDashboard.tsx","reason":"Dashboard owns local UI state and composes LocationBoard, timeline, controls, diagnostics."}
+{"file":"src/app/realm/LocationBoard.tsx","reason":"Existing location/agent rendering to make agent entries selectable."}
+{"file":"src/app/shared/viewModels.ts","reason":"Current grouping/timeline projection owner where selected-agent and related-event helpers should live."}

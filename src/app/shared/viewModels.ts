@@ -1,5 +1,5 @@
 import type { AdminDiagnostic } from "../../server/admin/index.js";
-import type { AgentRuntimeState, LocationRef, SimulationEvent } from "../../shared/contracts/index.js";
+import type { AgentRuntimeState, LocationRef, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { TimelineEntry } from "../../server/simulation/index.js";
 import {
   DEFAULT_LANGUAGE,
@@ -23,11 +23,95 @@ export interface TimelineItem {
   detail: string;
 }
 
+export type AgentDetailState = "empty" | "notFound" | "selected";
+
+export interface CooldownEntry {
+  key: string;
+  value: string;
+}
+
+export interface AgentDetailViewModel {
+  state: AgentDetailState;
+  selectedAgentId?: string;
+  agent?: AgentRuntimeState;
+  location?: LocationRef;
+  cooldownEntries: CooldownEntry[];
+  relatedEvents: TimelineItem[];
+}
+
+const DEFAULT_RELATED_EVENT_LIMIT = 5;
+
 export function groupAgentsByLocation(locations: readonly LocationRef[], agents: readonly AgentRuntimeState[]): LocationGroup[] {
   return locations.map((location) => ({
     location,
     agents: agents.filter((agent) => agent.locationId === location.id),
   }));
+}
+
+export function findSelectedAgent(
+  agents: readonly AgentRuntimeState[],
+  selectedAgentId: string | undefined,
+): AgentRuntimeState | undefined {
+  if (!selectedAgentId) return undefined;
+  return agents.find((agent) => agent.id === selectedAgentId);
+}
+
+export function findAgentLocation(
+  locations: readonly LocationRef[],
+  agent: AgentRuntimeState | undefined,
+): LocationRef | undefined {
+  if (!agent) return undefined;
+  return locations.find((location) => location.id === agent.locationId);
+}
+
+export function getCooldownEntries(agent: AgentRuntimeState | undefined): CooldownEntry[] {
+  if (!agent) return [];
+  return Object.entries(agent.cooldowns).map(([key, value]) => ({ key, value }));
+}
+
+export function filterRelatedTimelineItems(
+  items: readonly TimelineItem[],
+  selectedAgentId: string | undefined,
+  limit = DEFAULT_RELATED_EVENT_LIMIT,
+): TimelineItem[] {
+  if (!selectedAgentId) return [];
+  return items
+    .filter((item) => item.event.actorId === selectedAgentId || item.event.targetIds.includes(selectedAgentId))
+    .slice(0, limit);
+}
+
+export function createAgentDetailViewModel(
+  snapshot: WorldSnapshot,
+  selectedAgentId: string | undefined,
+  timelineItems: readonly TimelineItem[],
+  relatedEventLimit = DEFAULT_RELATED_EVENT_LIMIT,
+): AgentDetailViewModel {
+  if (!selectedAgentId) {
+    return {
+      state: "empty",
+      cooldownEntries: [],
+      relatedEvents: [],
+    };
+  }
+
+  const agent = findSelectedAgent(snapshot.agents, selectedAgentId);
+  if (!agent) {
+    return {
+      state: "notFound",
+      selectedAgentId,
+      cooldownEntries: [],
+      relatedEvents: [],
+    };
+  }
+
+  return {
+    state: "selected",
+    selectedAgentId,
+    agent,
+    location: findAgentLocation(snapshot.locations, agent),
+    cooldownEntries: getCooldownEntries(agent),
+    relatedEvents: filterRelatedTimelineItems(timelineItems, agent.id, relatedEventLimit),
+  };
 }
 
 export function createTimelineItems(

@@ -2,7 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { SimulationEvent } from "../src/shared/contracts/index.js";
-import { createTimelineItems, groupAgentsByLocation, latestDiagnostics, projectEventDetail } from "../src/app/shared/viewModels.js";
+import {
+  createAgentDetailViewModel,
+  createTimelineItems,
+  filterRelatedTimelineItems,
+  findAgentLocation,
+  findSelectedAgent,
+  groupAgentsByLocation,
+  latestDiagnostics,
+  projectEventDetail,
+} from "../src/app/shared/viewModels.js";
 import { createAdminController } from "../src/server/admin/index.js";
 
 const expectedStartupKinds = [
@@ -105,6 +114,85 @@ test("unknown event kinds use a safe localized payload fallback", () => {
 
   assert.equal(projectEventDetail(event, "zh", "user"), "时间倍率: 60 · customFact: visible");
   assert.equal(projectEventDetail(event, "en", "debug"), "timeScale: 60 · customFact: visible");
+});
+
+test("finds selected agent and current location from backend snapshot", () => {
+  const state = createAdminController().getState();
+  const agent = findSelectedAgent(state.snapshot.agents, "agent_elysia");
+  const location = findAgentLocation(state.snapshot.locations, agent);
+
+  assert.equal(agent?.displayName, "Elysia");
+  assert.equal(location?.id, "atrium");
+  assert.equal(findSelectedAgent(state.snapshot.agents, undefined), undefined);
+  assert.equal(findSelectedAgent(state.snapshot.agents, "missing_agent"), undefined);
+});
+
+test("creates empty and not-found agent detail view models", () => {
+  const state = createAdminController().getState();
+
+  const empty = createAgentDetailViewModel(state.snapshot, undefined, []);
+  assert.equal(empty.state, "empty");
+  assert.deepEqual(empty.relatedEvents, []);
+  assert.deepEqual(empty.cooldownEntries, []);
+
+  const notFound = createAgentDetailViewModel(state.snapshot, "missing_agent", []);
+  assert.equal(notFound.state, "notFound");
+  assert.equal(notFound.selectedAgentId, "missing_agent");
+  assert.deepEqual(notFound.relatedEvents, []);
+});
+
+test("filters related timeline items by selected agent actor or target", () => {
+  const controller = createAdminController();
+  const stepped = controller.step();
+  const messageResult = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["agent_elysia"],
+    payload: { message: "Hello Elysia." },
+  });
+  assert.equal(messageResult.ok, true);
+
+  const items = createTimelineItems(messageResult.body.events, messageResult.body.timeline, "zh", "debug");
+  const related = filterRelatedTimelineItems(items, "agent_elysia", 10);
+
+  assert.ok(stepped.events.some((event) => event.actorId === "agent_elysia"));
+  assert.ok(related.some((item) => item.event.actorId === "agent_elysia"));
+  assert.ok(related.some((item) => item.event.targetIds.includes("agent_elysia")));
+  assert.ok(related.every((item) => item.event.actorId === "agent_elysia" || item.event.targetIds.includes("agent_elysia")));
+  assert.equal(filterRelatedTimelineItems(items, undefined).length, 0);
+});
+
+test("creates selected agent detail view model with runtime state and capped related events", () => {
+  const controller = createAdminController();
+  const stepped = controller.step();
+  const items = createTimelineItems(stepped.events, stepped.timeline, "zh", "debug");
+  const snapshotWithCooldown = {
+    ...stepped.snapshot,
+    agents: stepped.snapshot.agents.map((agent) =>
+      agent.id === "agent_elysia"
+        ? {
+            ...agent,
+            cooldowns: {
+              conversation: "2026-05-31T07:00:00.000Z",
+              reflection: "2026-05-31T08:00:00.000Z",
+            },
+          }
+        : agent,
+    ),
+  };
+
+  const viewModel = createAgentDetailViewModel(snapshotWithCooldown, "agent_elysia", items, 2);
+
+  assert.equal(viewModel.state, "selected");
+  assert.equal(viewModel.agent?.id, "agent_elysia");
+  assert.equal(viewModel.agent?.personaId, "elysia");
+  assert.equal(viewModel.location?.id, "atrium");
+  assert.deepEqual(viewModel.cooldownEntries, [
+    { key: "conversation", value: "2026-05-31T07:00:00.000Z" },
+    { key: "reflection", value: "2026-05-31T08:00:00.000Z" },
+  ]);
+  assert.ok(viewModel.relatedEvents.length > 0);
+  assert.ok(viewModel.relatedEvents.length <= 2);
+  assert.ok(viewModel.relatedEvents.every((item) => item.event.actorId === "agent_elysia" || item.event.targetIds.includes("agent_elysia")));
 });
 
 test("latest diagnostics returns newest rejected input diagnostics first", () => {

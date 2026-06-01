@@ -38,6 +38,39 @@ interface CopyBundle {
     names: Record<string, string>;
     descriptions: Record<string, string>;
   };
+  agents: {
+    eyebrow: string;
+    title: string;
+    emptyTitle: string;
+    emptyDescription: string;
+    notFoundTitle: string;
+    notFoundDescription: string;
+    runtimeState: string;
+    runtimeNote: string;
+    selected: string;
+    selectAgent: string;
+    agentId: string;
+    personaId: string;
+    displayName: string;
+    status: string;
+    currentLocation: string;
+    relationships: string;
+    currentAction: string;
+    currentPlan: string;
+    operation: string;
+    cooldowns: string;
+    noRelationships: string;
+    noAction: string;
+    noPlan: string;
+    noOperation: string;
+    noCooldowns: string;
+    actionKind: string;
+    actionIntent: string;
+    actionTarget: string;
+    actionWindow: string;
+    relatedEvents: string;
+    noRelatedEvents: string;
+  };
   timeline: {
     eyebrow: string;
     title: string;
@@ -151,6 +184,39 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
         overlook: "远处的眺望点，适合观察、停顿和傍晚的注视。",
         quarters: "私人休息区域，供需要低打扰恢复的居民使用。",
       },
+    },
+    agents: {
+      eyebrow: "运行态详情",
+      title: "Agent 详情",
+      emptyTitle: "请选择一个角色",
+      emptyDescription: "在“位置与角色”中点击角色后，这里会显示运行态状态、位置、关系引用和最近相关事件。",
+      notFoundTitle: "未找到选中的角色",
+      notFoundDescription: "当前快照里没有这个 agent id，可能是世界已重置或数据已刷新。",
+      runtimeState: "运行态状态",
+      runtimeNote: "以下信息来自当前 WorldSnapshot；它不是配置人格设定，也不会修改模拟状态。",
+      selected: "已选择",
+      selectAgent: "选择角色",
+      agentId: "Agent ID",
+      personaId: "Persona ID",
+      displayName: "显示名",
+      status: "状态",
+      currentLocation: "当前位置",
+      relationships: "关系引用",
+      currentAction: "当前行动",
+      currentPlan: "当前计划",
+      operation: "进行中操作",
+      cooldowns: "冷却",
+      noRelationships: "暂无关系引用",
+      noAction: "当前没有行动",
+      noPlan: "当前没有计划",
+      noOperation: "当前没有进行中操作",
+      noCooldowns: "暂无冷却",
+      actionKind: "类型",
+      actionIntent: "意图",
+      actionTarget: "目标",
+      actionWindow: "时间窗口",
+      relatedEvents: "最近相关事件",
+      noRelatedEvents: "暂无相关事件",
     },
     timeline: {
       eyebrow: "回放日志",
@@ -299,6 +365,39 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       none: "none",
       names: {},
       descriptions: {},
+    },
+    agents: {
+      eyebrow: "Runtime detail",
+      title: "Agent detail",
+      emptyTitle: "Select an agent",
+      emptyDescription: "Click an agent in Locations & agents to inspect runtime state, location, relationship references, and recent related events.",
+      notFoundTitle: "Selected agent was not found",
+      notFoundDescription: "The current snapshot does not contain this agent id. The world may have reset or refreshed.",
+      runtimeState: "Runtime state",
+      runtimeNote: "This information comes from the current WorldSnapshot. It is not configured persona canon and does not mutate simulation state.",
+      selected: "Selected",
+      selectAgent: "Select agent",
+      agentId: "Agent ID",
+      personaId: "Persona ID",
+      displayName: "Display name",
+      status: "Status",
+      currentLocation: "Current location",
+      relationships: "Relationship refs",
+      currentAction: "Current action",
+      currentPlan: "Current plan",
+      operation: "In-progress operation",
+      cooldowns: "Cooldowns",
+      noRelationships: "No relationship refs",
+      noAction: "No current action",
+      noPlan: "No current plan",
+      noOperation: "No in-progress operation",
+      noCooldowns: "No cooldowns",
+      actionKind: "Kind",
+      actionIntent: "Intent",
+      actionTarget: "Target",
+      actionWindow: "Time window",
+      relatedEvents: "Recent related events",
+      noRelatedEvents: "No related events yet",
     },
     timeline: {
       eyebrow: "Replay log",

@@ -168,6 +168,7 @@ Current source paths:
 - `src/app/App.tsx`
 - `src/app/adminApi.ts`
 - `src/app/realm/**`
+- `src/app/agents/AgentDetailPanel.tsx`
 - `src/app/interventions/InterventionPanel.tsx`
 - `src/app/diagnostics/DebugPanel.tsx`
 - `src/app/shared/viewModels.ts`
@@ -192,6 +193,29 @@ export function groupAgentsByLocation(
   agents: readonly AgentRuntimeState[],
 ): LocationGroup[];
 
+export function findSelectedAgent(
+  agents: readonly AgentRuntimeState[],
+  selectedAgentId: string | undefined,
+): AgentRuntimeState | undefined;
+
+export function findAgentLocation(
+  locations: readonly LocationRef[],
+  agent: AgentRuntimeState | undefined,
+): LocationRef | undefined;
+
+export function filterRelatedTimelineItems(
+  items: readonly TimelineItem[],
+  selectedAgentId: string | undefined,
+  limit?: number,
+): TimelineItem[];
+
+export function createAgentDetailViewModel(
+  snapshot: WorldSnapshot,
+  selectedAgentId: string | undefined,
+  timelineItems: readonly TimelineItem[],
+  relatedEventLimit?: number,
+): AgentDetailViewModel;
+
 export type TimelineDetailMode = "user" | "debug";
 
 export function createTimelineItems(
@@ -209,9 +233,12 @@ export function latestDiagnostics(
 ### 3. Contracts
 
 - The UI reads `AdminStateResponse` from `/api/admin/state` and replaces its server state only with backend responses.
-- Local React state is limited to loading/error flags, form drafts, and UI-only preferences such as timeline `TimelineDetailMode`.
-- Components render typed DTOs or view models. Event detail projection lives in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection in debug mode but must not infer simulation rules from payload fields.
+- Local React state is limited to loading/error flags, form drafts, selected agent id, and UI-only preferences such as timeline `TimelineDetailMode`.
+- Components render typed DTOs or view models. Event detail projection and agent-detail lookup/filtering live in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection in debug mode but must not infer simulation rules from payload fields.
 - Timeline detail mode has two local UI modes: `user` shows natural sentences, while `debug` shows the sentence plus key facts and raw payload JSON.
+- `LocationBoard` may expose agent selection as accessible buttons, but selection only updates local `selectedAgentId`; it must not mutate `WorldSnapshot` or submit simulation commands.
+- `AgentDetailPanel` renders selected-agent runtime state from `WorldSnapshot`, clearly labeled as runtime/debug state rather than configured persona canon.
+- Agent related events are filtered centrally from projected `TimelineItem[]`; related means the selected agent is `event.actorId` or appears in `event.targetIds`.
 - `InterventionPanel` is the only MVP owner of debug command forms. It submits `SubmitAdminInputRequest` for pause, resume, set time scale, realm event, and direct private message.
 - `DebugPanel` renders backend diagnostics, replay summary, and queued inputs for inspection; it must not hide rejected inputs.
 - Source/provenance badges must render text labels for `system`, `user`, `agent`, `llm`, and `test` when those sources appear.
@@ -225,6 +252,10 @@ export function latestDiagnostics(
 - missing direct-message target/text -> field-level form error, no request sent
 - backend structured error -> display the backend error message
 - empty timeline -> explicit empty state
+- no selected agent -> explicit Agent detail empty state prompting selection
+- selected agent id missing from current snapshot -> explicit not-found Agent detail state
+- selected agent -> runtime identity/status/location/action/operation/relationships/cooldowns render from `WorldSnapshot`
+- related agent events -> actor/target event rows reuse centralized `TimelineItem` projection
 - user timeline mode -> natural event sentences without debug-style key/value fact lists
 - debug timeline mode -> sentence plus key facts and raw payload JSON inspector
 - empty diagnostics -> explicit no-diagnostics state
@@ -235,7 +266,8 @@ Good:
 
 ```tsx
 const timelineItems = createTimelineItems(state.events, state.timeline, language, detailMode);
-return <EventTimeline detailMode={detailMode} items={timelineItems} />;
+const agentDetail = createAgentDetailViewModel(state.snapshot, selectedAgentId, timelineItems);
+return <AgentDetailPanel viewModel={agentDetail} />;
 ```
 
 Base:
@@ -260,6 +292,9 @@ state.snapshot.status = "running";
 Frontend/admin UI tests must assert:
 
 - agents are grouped from backend snapshot locations;
+- selected-agent lookup, no-selection, and not-found states are covered;
+- current location mapping and cooldown entry projection are covered;
+- related agent events include actor and target matches through centralized helpers;
 - timeline items are created through centralized event detail projection;
 - each MVP event kind has user-mode and debug-mode detail coverage;
 - diagnostics are ordered newest-first for display;

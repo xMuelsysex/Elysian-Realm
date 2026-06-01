@@ -1,0 +1,15 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Check frontend quality gate and checklist compliance."}
+{"file":".trellis/spec/frontend/directory-structure.md","reason":"Check feature folder placement and shared boundary ownership."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Check agent detail/profile behavior and dashboard contract compliance."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check component props, accessibility, provenance/status text, and payload boundaries."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check selected agent remains local UI state and no backend state is duplicated/mutated."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Check shared contracts and centralized related-event projection usage."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check frontend tests and anti-patterns."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Check simulation ownership, AgentRuntimeState boundary, and event relation rules."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check no direct world-state mutations or hidden fallbacks."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check AdminStateResponse snapshot/events to frontend agent-detail flow."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check helper reuse and no duplicated related-event filtering."}
+{"file":"src/shared/contracts/simulation.ts","reason":"Review consumed runtime contract fields and optional fields."}
+{"file":"src/app/realm/RealmDashboard.tsx","reason":"Review selectedAgentId state and panel composition."}
+{"file":"src/app/realm/LocationBoard.tsx","reason":"Review selectable agent controls and selected marker accessibility."}
+{"file":"src/app/shared/viewModels.ts","reason":"Review selected-agent lookup and related-event filtering helpers/tests."}

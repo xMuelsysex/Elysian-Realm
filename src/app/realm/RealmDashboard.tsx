@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
-import { groupAgentsByLocation, createTimelineItems, type TimelineDetailMode } from "../shared/viewModels.js";
+import { createAgentDetailViewModel, groupAgentsByLocation, createTimelineItems, type TimelineDetailMode } from "../shared/viewModels.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { getCopy } from "../shared/i18n.js";
+import { AgentDetailPanel } from "../agents/AgentDetailPanel.js";
 import { DebugPanel } from "../diagnostics/DebugPanel.js";
 import { InterventionPanel } from "../interventions/InterventionPanel.js";
 import { EventTimeline } from "./EventTimeline.js";
@@ -21,10 +22,12 @@ interface RealmDashboardProps {
 }
 
 export function RealmDashboard({ language, state, loading, error, onToggleLanguage, onStep, onReset, onSubmitInput }: RealmDashboardProps) {
+  const [selectedAgentId, setSelectedAgentId] = useState<string>();
   const [timelineDetailMode, setTimelineDetailMode] = useState<TimelineDetailMode>("user");
   const copy = getCopy(language);
   const locationGroups = groupAgentsByLocation(state.snapshot.locations, state.snapshot.agents);
   const timelineItems = createTimelineItems(state.events, state.timeline, language, timelineDetailMode);
+  const agentDetailViewModel = createAgentDetailViewModel(state.snapshot, selectedAgentId, timelineItems);
   const toggleTimelineDetailMode = () => setTimelineDetailMode((mode) => (mode === "user" ? "debug" : "user"));
 
   return (
@@ -33,7 +36,8 @@ export function RealmDashboard({ language, state, loading, error, onToggleLangua
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       <div className="dashboard-grid">
         <div className="dashboard-main">
-          <LocationBoard language={language} groups={locationGroups} />
+          <LocationBoard language={language} groups={locationGroups} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
+          <AgentDetailPanel language={language} viewModel={agentDetailViewModel} />
           <EventTimeline
             detailMode={timelineDetailMode}
             language={language}
