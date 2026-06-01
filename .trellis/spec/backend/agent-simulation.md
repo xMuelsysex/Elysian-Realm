@@ -80,6 +80,156 @@ Every non-trivial behavior should produce an event with:
 
 Event payloads must be decoded by shared validators. Do not cast raw event payloads locally in multiple consumers.
 
+## Implemented Offline Engine MVP Contract
+
+### 1. Scope / Trigger
+
+Slice 2 introduced the first executable deterministic simulation engine under `src/server/simulation/**`. Any future engine, event, input, replay, UI projection, or agent-operation code must preserve this contract because it is the first authoritative world-state owner and event boundary.
+
+### 2. Signatures
+
+Current source paths:
+
+- `src/server/simulation/engine.ts`
+- `src/server/simulation/events.ts`
+- `src/server/simulation/inputs.ts`
+- `src/server/simulation/replay.ts`
+- `src/server/simulation/seeds/observationMvpSeed.ts`
+- `tests/simulationEngine.test.ts`
+
+Current public API:
+
+```ts
+export function createSimulationEngine(): SimulationEngineState;
+export function queueSimulationInput(
+  state: SimulationEngineState,
+  input: SimulationInput,
+): SimulationEngineState;
+export function stepSimulationEngine(state: SimulationEngineState): SimulationStepResult;
+export function validateSimulationEvent(event: SimulationEvent): string[];
+export function validateSimulationInput(
+  input: SimulationInput,
+  context: SimulationInputValidationContext,
+): SimulationInputValidationResult;
+export function createReplaySummary(
+  snapshot: WorldSnapshot,
+  events: readonly SimulationEvent[],
+): ReplaySummary;
+```
+
+### 3. Contracts
+
+The deterministic seed uses the current executable roster, not the future research roster:
+
+- `worldId`: `world_elysian_observation_mvp`
+- personas: `elysia`, `kevin`, `eden`
+- agents: `agent_elysia`, `agent_kevin`, `agent_eden`
+- initial status: `paused`
+- initial time: `2026-05-31T06:00:00.000Z`
+- initial step: `step_0600_000`
+
+Inputs are queued first and applied only inside `stepSimulationEngine`. The validator receives a snapshot-derived context:
+
+```ts
+interface SimulationInputValidationContext {
+  worldId: WorldId;
+  agentIds: readonly AgentId[];
+  locationIds: readonly LocationId[];
+}
+```
+
+Target validation rules:
+
+- `observerCommand` targets must reference the active world.
+- `realmEvent` targets must reference the active world, a known location, or a known agent.
+- `directPrivateMessage` must target exactly one known agent.
+
+MVP event kinds are centrally owned by `SIMULATION_EVENT_KINDS`:
+
+- `world.created`
+- `agent.spawned`
+- `world.timeAdvanced`
+- `agent.startedRoutine`
+- `realm.interventionSubmitted`
+- `simulation.inputRejected`
+- `memory.seeded`
+
+`memory.seeded` is event-only in this slice. It must not be treated as a stored `MemoryRecord`.
+
+### 4. Validation & Error Matrix
+
+- unknown event kind -> `event.kind must be one of: ...`
+- missing event envelope fields -> `event.<field> must be a non-empty string`
+- empty event targets -> `event.targetIds must be a non-empty string array`
+- invalid per-kind payload -> `event.payload.<field> must ...`
+- invalid input world -> `input.worldId must match the active world`
+- empty input targets -> `input.command.targetIds must be a non-empty string array`
+- observer command targeting an agent/location -> `observerCommand targets must reference the active world`
+- realm event targeting an unknown ID -> `realmEvent targets must reference the active world, location, or agent`
+- direct private message with zero/multiple/unknown targets -> `directPrivateMessage targetIds must contain exactly one known agent id`
+- rejected input -> emit `simulation.inputRejected` and do not apply command effects
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const queued = queueSimulationInput(state, resumeWorldInput);
+const result = stepSimulationEngine(queued);
+// status changes only after stepSimulationEngine and an intervention event is emitted.
+```
+
+Base:
+
+```ts
+const state = createSimulationEngine();
+const firstStep = stepSimulationEngine(state);
+const timeline = createReplaySummary(firstStep.state.snapshot, firstStep.state.events);
+```
+
+Bad:
+
+```ts
+// Do not accept unknown event payload shapes.
+validateSimulationEvent({ ...event, payload: {} });
+
+// Do not normalize invalid target IDs into a valid command.
+queueSimulationInput(state, inputWithUnknownTarget);
+```
+
+### 6. Tests Required
+
+Simulation-engine tests must assert:
+
+- deterministic seed shape: world, locations, agents, empty queues/conversations;
+- stable first-step event order and deterministic event IDs;
+- per-kind event payload validation rejects missing required payload fields;
+- queued observer input has no effect before the next step;
+- invalid command action/targets emit `simulation.inputRejected` without command effects;
+- `realmEvent` and `directPrivateMessage` reject unknown targets;
+- same seed and input sequence produce the same replay summary;
+- `setTimeScale` affects later `world.timeAdvanced` payloads.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Frontend, prompt builder, or helper directly patches active state.
+state.snapshot.agents[0].status = "moving";
+
+// Consumer locally assumes payload shape.
+const timeScale = (event.payload as { timeScale: number }).timeScale;
+```
+
+#### Correct
+
+```ts
+const queued = queueSimulationInput(state, input);
+const stepped = stepSimulationEngine(queued);
+const errors = validateSimulationEvent(stepped.events[0]);
+```
+
 ## Agent Cognitive Loop
 
 Each active agent follows this sequence when it needs to decide:

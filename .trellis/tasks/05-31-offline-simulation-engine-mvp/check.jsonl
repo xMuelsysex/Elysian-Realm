@@ -1,0 +1,13 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality gate and required simulation-engine checks."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Verify module ownership and avoid misplaced simulation rules."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Check authoritative state, step-loop, input, event, replay, and determinism compliance."}
+{"file":".trellis/spec/backend/persona-memory.md","reason":"Check persona/runtime separation and ensure no MemoryRecord store is added in this task."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check invalid inputs and invariant failures remain visible and replay-safe."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check offline deterministic tests and forbidden fallback patterns."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review event/input contracts for future frontend and backend consumers."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Review centralized validator/projection reuse and duplicate parsing risks."}
+{"file":".trellis/tasks/archive/2026-05/05-31-elysian-realm-agent-spec/research/implementation-research-handoff.md","reason":"Verify Slice 2 validation gates and do-not rules."}
+{"file":".trellis/tasks/archive/2026-05/05-31-elysian-realm-agent-spec/research/mvp-world-seed-blueprint.md","reason":"Verify seed, startup event, input, replay, and projection expectations where applicable."}
+{"file":".trellis/tasks/archive/2026-05/05-31-elysian-realm-agent-spec/research/mvp-event-memory-seed-draft.md","reason":"Verify event order, memory-event boundary, and deterministic smoke expectations."}
+{"file":".trellis/tasks/archive/2026-05/05-31-elysian-realm-agent-spec/research/story-event-taxonomy.md","reason":"Verify safe event/provenance categories and no copied official content."}
+{"file":".trellis/tasks/archive/2026-05/05-31-elysian-realm-agent-spec/research/pre-implementation-open-decisions.md","reason":"Verify resolved/deferred roster, memory, and LLM scope decisions."}
