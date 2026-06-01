@@ -47,6 +47,10 @@ interface CopyBundle {
     time: string;
     targets: string;
     payloadJson: string;
+    debugMode: string;
+    debugOn: string;
+    debugOff: string;
+    toggleDebugAriaLabel: string;
   };
   controls: {
     eyebrow: string;
@@ -157,6 +161,10 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       time: "时间",
       targets: "目标",
       payloadJson: "Payload JSON",
+      debugMode: "调试模式",
+      debugOn: "开启",
+      debugOff: "关闭",
+      toggleDebugAriaLabel: "切换事件时间线调试模式",
     },
     controls: {
       eyebrow: "类型化命令",
@@ -301,6 +309,10 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       time: "Time",
       targets: "Targets",
       payloadJson: "Payload JSON",
+      debugMode: "Debug mode",
+      debugOn: "On",
+      debugOff: "Off",
+      toggleDebugAriaLabel: "Toggle event timeline debug mode",
     },
     controls: {
       eyebrow: "Typed commands",
@@ -428,6 +440,10 @@ export function formatWorldStatusLabel(language: AppLanguage, status: WorldStatu
 
 export function formatAgentStatusLabel(language: AppLanguage, status: AgentStatus): string {
   return UI_COPY[language].badges[status] ?? status;
+}
+
+export function formatPayloadStatusLabel(language: AppLanguage, status: string): string {
+  return UI_COPY[language].badges[status as WorldStatus | AgentStatus] ?? status;
 }
 
 export function formatDiagnosticLevelLabel(language: AppLanguage, level: DiagnosticLevel): string {

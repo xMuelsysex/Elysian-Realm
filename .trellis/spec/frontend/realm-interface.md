@@ -192,9 +192,13 @@ export function groupAgentsByLocation(
   agents: readonly AgentRuntimeState[],
 ): LocationGroup[];
 
+export type TimelineDetailMode = "user" | "debug";
+
 export function createTimelineItems(
   events: readonly SimulationEvent[],
   timeline: readonly TimelineEntry[],
+  language?: AppLanguage,
+  detailMode?: TimelineDetailMode,
 ): TimelineItem[];
 
 export function latestDiagnostics(
@@ -205,8 +209,9 @@ export function latestDiagnostics(
 ### 3. Contracts
 
 - The UI reads `AdminStateResponse` from `/api/admin/state` and replaces its server state only with backend responses.
-- Local React state is limited to loading/error flags and form drafts.
-- Components render typed DTOs or view models. Event payload summary formatting lives in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection but must not infer simulation rules from payload fields.
+- Local React state is limited to loading/error flags, form drafts, and UI-only preferences such as timeline `TimelineDetailMode`.
+- Components render typed DTOs or view models. Event detail projection lives in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection in debug mode but must not infer simulation rules from payload fields.
+- Timeline detail mode has two local UI modes: `user` shows natural sentences, while `debug` shows the sentence plus key facts and raw payload JSON.
 - `InterventionPanel` is the only MVP owner of debug command forms. It submits `SubmitAdminInputRequest` for pause, resume, set time scale, realm event, and direct private message.
 - `DebugPanel` renders backend diagnostics, replay summary, and queued inputs for inspection; it must not hide rejected inputs.
 - Source/provenance badges must render text labels for `system`, `user`, `agent`, `llm`, and `test` when those sources appear.
@@ -220,6 +225,8 @@ export function latestDiagnostics(
 - missing direct-message target/text -> field-level form error, no request sent
 - backend structured error -> display the backend error message
 - empty timeline -> explicit empty state
+- user timeline mode -> natural event sentences without debug-style key/value fact lists
+- debug timeline mode -> sentence plus key facts and raw payload JSON inspector
 - empty diagnostics -> explicit no-diagnostics state
 
 ### 5. Good/Base/Bad Cases
@@ -227,8 +234,8 @@ export function latestDiagnostics(
 Good:
 
 ```tsx
-const timelineItems = createTimelineItems(state.events, state.timeline);
-return <EventTimeline items={timelineItems} />;
+const timelineItems = createTimelineItems(state.events, state.timeline, language, detailMode);
+return <EventTimeline detailMode={detailMode} items={timelineItems} />;
 ```
 
 Base:
@@ -253,7 +260,8 @@ state.snapshot.status = "running";
 Frontend/admin UI tests must assert:
 
 - agents are grouped from backend snapshot locations;
-- timeline items are created through centralized payload formatting;
+- timeline items are created through centralized event detail projection;
+- each MVP event kind has user-mode and debug-mode detail coverage;
 - diagnostics are ordered newest-first for display;
 - typecheck covers React components and API helper contracts;
 - production build emits the Vite frontend assets.

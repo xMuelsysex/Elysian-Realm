@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
-import { groupAgentsByLocation, createTimelineItems } from "../shared/viewModels.js";
+import { groupAgentsByLocation, createTimelineItems, type TimelineDetailMode } from "../shared/viewModels.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { getCopy } from "../shared/i18n.js";
 import { DebugPanel } from "../diagnostics/DebugPanel.js";
@@ -20,9 +21,11 @@ interface RealmDashboardProps {
 }
 
 export function RealmDashboard({ language, state, loading, error, onToggleLanguage, onStep, onReset, onSubmitInput }: RealmDashboardProps) {
+  const [timelineDetailMode, setTimelineDetailMode] = useState<TimelineDetailMode>("user");
   const copy = getCopy(language);
   const locationGroups = groupAgentsByLocation(state.snapshot.locations, state.snapshot.agents);
-  const timelineItems = createTimelineItems(state.events, state.timeline, language);
+  const timelineItems = createTimelineItems(state.events, state.timeline, language, timelineDetailMode);
+  const toggleTimelineDetailMode = () => setTimelineDetailMode((mode) => (mode === "user" ? "debug" : "user"));
 
   return (
     <main className="dashboard-shell">
@@ -31,7 +34,12 @@ export function RealmDashboard({ language, state, loading, error, onToggleLangua
       <div className="dashboard-grid">
         <div className="dashboard-main">
           <LocationBoard language={language} groups={locationGroups} />
-          <EventTimeline language={language} items={timelineItems} />
+          <EventTimeline
+            detailMode={timelineDetailMode}
+            language={language}
+            items={timelineItems}
+            onToggleDetailMode={toggleTimelineDetailMode}
+          />
         </div>
         <aside className="dashboard-side" aria-label={copy.dashboard.sideLabel}>
           <InterventionPanel language={language} disabled={loading} snapshot={state.snapshot} onStep={onStep} onReset={onReset} onSubmit={onSubmitInput} />

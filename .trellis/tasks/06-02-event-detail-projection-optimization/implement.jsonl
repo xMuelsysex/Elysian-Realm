@@ -1,0 +1,15 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend pre-development checklist and applicable spec routing."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Realm timeline, debug view, intervention UI, and implemented admin dashboard contract."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Event projection rule, shared contract usage, and forbidden raw payload casts."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Components must render typed view models and avoid parsing event payloads."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Debug mode is local UI state; backend snapshot remains authoritative."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Frontend tests and review checklist for projection/rendering changes."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Simulation event kinds and payload contracts that timeline projection consumes."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Avoid duplicate payload parsing and hidden fallback behavior."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Projection crosses backend event contracts and frontend display models."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Keep event detail projection centralized and tested."}
+{"file":"src/app/shared/viewModels.ts","reason":"Current timeline item creation and generic payload summary owner."}
+{"file":"src/app/shared/i18n.ts","reason":"Current bilingual UI copy and labels for event display."}
+{"file":"src/app/realm/EventTimeline.tsx","reason":"Timeline renderer that must keep components payload-agnostic and expose debug JSON only in debug mode."}
+{"file":"src/server/simulation/events.ts","reason":"Authoritative MVP event kinds and payload field contracts."}
+{"file":"tests/adminViewModels.test.ts","reason":"Target test file for event detail projection, language, mode, and fallback coverage."}

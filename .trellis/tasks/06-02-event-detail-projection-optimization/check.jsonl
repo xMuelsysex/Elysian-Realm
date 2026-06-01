@@ -1,0 +1,15 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Check frontend quality gate and applicable pre-development checklist."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Check timeline/debug mode behavior against realm UI contract."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Check event projection remains centralized and components do not parse raw payloads."}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"Check components render typed view models, keep raw JSON debug-only, and preserve accessibility."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Check debug mode stays local UI state and no backend-owned state is duplicated or mutated."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Check frontend tests, visible failures, and no simulation-rule leakage into UI."}
+{"file":".trellis/spec/backend/agent-simulation.md","reason":"Check known event-kind payload contracts and no simulation-core changes unless required."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check no duplicate payload parsing, hidden fallback, or silent error masking."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check backend event contract to frontend projection flow and fallback behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check projection helper reuse and no second implementation."}
+{"file":"src/app/shared/viewModels.ts","reason":"Review central projection implementation and fallback detail behavior."}
+{"file":"src/app/shared/i18n.ts","reason":"Review Chinese/English copy for user and debug detail modes."}
+{"file":"src/app/realm/EventTimeline.tsx","reason":"Review timeline rendering, debug toggle integration, and raw JSON visibility."}
+{"file":"src/server/simulation/events.ts","reason":"Review event kind coverage against authoritative backend contracts."}
+{"file":"tests/adminViewModels.test.ts","reason":"Review tests for each event kind, language switch, user/debug modes, and unknown fallback."}
