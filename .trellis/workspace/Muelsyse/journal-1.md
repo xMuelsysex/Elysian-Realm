@@ -78,3 +78,37 @@ Verified the completed Trellis bootstrap guidelines task, marked its checklist c
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Add offline simulation engine MVP
+
+**Date**: 2026-06-01
+**Task**: Add offline simulation engine MVP
+**Branch**: `main`
+
+### Summary
+
+Implemented and archived the deterministic no-network offline simulation engine MVP with world seed, step loop, event/input validators, replay helpers, tests, and backend simulation spec update. Quality gate passed with typecheck, tests, build, task validation, and diff check.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `004f622` | (see git log) |
+| `856288b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
