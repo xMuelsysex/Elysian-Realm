@@ -178,3 +178,37 @@ Implemented and committed centralized event-kind-specific timeline detail projec
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Agent Detail Panel MVP
+
+**Date**: 2026-06-02
+**Task**: Agent Detail Panel MVP
+**Branch**: `main`
+
+### Summary
+
+Implemented the frontend Agent detail panel with local agent selection, runtime state display, related timeline events, focused view-model tests, spec update, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cb055c7` | (see git log) |
+| `9c83a4b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
