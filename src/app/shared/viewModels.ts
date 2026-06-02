@@ -20,6 +20,7 @@ import {
   formatPayloadStatusLabel,
   formatPersonaText,
   formatLocationName,
+  formatLocationDescription,
   formatSimulationText,
   type AppLanguage,
 } from "./i18n.js";
@@ -219,6 +220,53 @@ export interface TopologyViewModel {
   movementPaths: MovementPathViewModel[];
 }
 
+export interface RealmMapViewModel {
+  locations: RealmMapLocationNode[];
+  agents: RealmMapAgentMarker[];
+  links: RealmMapLink[];
+  pulses: RealmMapEventPulse[];
+  selectedAgentId?: string;
+  selectedLocationId?: string;
+  summary: string;
+}
+
+export interface RealmMapLocationNode {
+  id: string;
+  displayName: string;
+  description: string;
+  x: number;
+  y: number;
+  selected: boolean;
+  agentCount: number;
+  recentEventCount: number;
+}
+
+export interface RealmMapAgentMarker {
+  id: string;
+  displayName: string;
+  status: string;
+  locationId: string;
+  xOffset: number;
+  yOffset: number;
+  selected: boolean;
+  currentIntent?: string;
+}
+
+export interface RealmMapLink {
+  fromLocationId: string;
+  toLocationId: string;
+}
+
+export interface RealmMapEventPulse {
+  id: string;
+  locationId: string;
+  source: EventSource;
+  tone: EventSource | "error" | "neutral";
+  label: string;
+  summary: string;
+  time: string;
+}
+
 export interface DebugExportViewModel {
   generatedAt: string;
   state: AdminStateResponse;
@@ -231,6 +279,17 @@ export interface DebugExportViewModel {
 
 const DEFAULT_RELATED_EVENT_LIMIT = 5;
 const DEFAULT_MEMORY_EVENT_LIMIT = 6;
+const DEFAULT_MAP_PULSE_LIMIT = 8;
+const REALM_MAP_LAYOUT: Record<string, { x: number; y: number }> = {
+  atrium: { x: 50, y: 42 },
+  garden: { x: 24, y: 28 },
+  lounge: { x: 72, y: 30 },
+  archives: { x: 22, y: 66 },
+  "training-hall": { x: 78, y: 66 },
+  overlook: { x: 54, y: 76 },
+  quarters: { x: 50, y: 18 },
+};
+const MAP_PULSE_EVENT_KINDS = new Set(["agent.spawned", "agent.startedRoutine", "realm.interventionSubmitted", "simulation.inputRejected", "memory.seeded", "world.created"]);
 
 export function groupAgentsByLocation(locations: readonly LocationRef[], agents: readonly AgentRuntimeState[]): LocationGroup[] {
   return locations.map((location) => ({
@@ -634,6 +693,64 @@ export function createTopologyViewModel(snapshot: WorldSnapshot, timelineItems: 
   return { nodes, movementPaths };
 }
 
+export function createRealmMapViewModel(
+  snapshot: WorldSnapshot,
+  timelineItems: readonly TimelineItem[],
+  selectedAgentId: string | undefined,
+  selectedLocationId: string | undefined,
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): RealmMapViewModel {
+  const groups = groupAgentsByLocation(snapshot.locations, snapshot.agents);
+  const locationIds = new Set(snapshot.locations.map((location) => location.id));
+  const agentLocationById = new Map(snapshot.agents.map((agent) => [agent.id, agent.locationId]));
+  const pulses = createRealmMapPulses(timelineItems, snapshot.id, locationIds, agentLocationById, selectedLocationId, language);
+  const pulseCountsByLocation = countPulsesByLocation(pulses);
+  const locations = groups.map((group, index) => {
+    const position = REALM_MAP_LAYOUT[group.location.id] ?? createFallbackMapPosition(index);
+    return {
+      id: group.location.id,
+      displayName: formatLocationName(language, group.location.id, group.location.displayName),
+      description: formatLocationDescription(language, group.location.id, group.location.description),
+      x: position.x,
+      y: position.y,
+      selected: group.location.id === selectedLocationId,
+      agentCount: group.agents.length,
+      recentEventCount: pulseCountsByLocation.get(group.location.id) ?? 0,
+    } satisfies RealmMapLocationNode;
+  });
+  const agents = groups.flatMap((group) => group.agents.map((agent, index) => {
+    const offset = createAgentMarkerOffset(index, group.agents.length);
+    return {
+      id: agent.id,
+      displayName: formatAgentDisplayName(language, agent.id, agent.displayName),
+      status: formatPayloadStatusLabel(language, agent.status),
+      locationId: agent.locationId,
+      xOffset: offset.x,
+      yOffset: offset.y,
+      selected: agent.id === selectedAgentId,
+      currentIntent: agent.currentAction?.intent ? formatSimulationText(language, agent.currentAction.intent) ?? agent.currentAction.intent : undefined,
+    } satisfies RealmMapAgentMarker;
+  }));
+  const links = snapshot.locations.slice(0, -1).map((location, index) => ({
+    fromLocationId: location.id,
+    toLocationId: snapshot.locations[index + 1]?.id ?? location.id,
+  })).filter((link) => link.fromLocationId !== link.toLocationId);
+
+  return {
+    locations,
+    agents,
+    links,
+    pulses,
+    selectedAgentId,
+    selectedLocationId,
+    summary: createRealmMapSummary(locations, agents, pulses, language),
+  };
+}
+
+export function createTimelineTargetFilterForLocation(filters: TimelineFilters, locationId: string): TimelineFilters {
+  return { ...filters, targetId: locationId };
+}
+
 export function createDebugExportViewModel(
   state: AdminStateResponse,
   timelineItems: readonly TimelineItem[],
@@ -649,6 +766,109 @@ export function createDebugExportViewModel(
     diagnostics,
     diffs: [...diffs],
   };
+}
+
+function createRealmMapPulses(
+  timelineItems: readonly TimelineItem[],
+  worldId: string,
+  locationIds: ReadonlySet<string>,
+  agentLocationById: ReadonlyMap<string, string>,
+  selectedLocationId: string | undefined,
+  language: AppLanguage,
+): RealmMapEventPulse[] {
+  return timelineItems
+    .filter((item) => MAP_PULSE_EVENT_KINDS.has(item.event.kind))
+    .map((item) => createRealmMapPulse(item, worldId, locationIds, agentLocationById, selectedLocationId, language))
+    .filter((pulse): pulse is RealmMapEventPulse => pulse !== undefined)
+    .slice(0, DEFAULT_MAP_PULSE_LIMIT);
+}
+
+function createRealmMapPulse(
+  item: TimelineItem,
+  worldId: string,
+  locationIds: ReadonlySet<string>,
+  agentLocationById: ReadonlyMap<string, string>,
+  selectedLocationId: string | undefined,
+  language: AppLanguage,
+): RealmMapEventPulse | undefined {
+  const locationId = resolveMapPulseLocation(item, worldId, locationIds, agentLocationById, selectedLocationId);
+  if (!locationId) return undefined;
+  const tone = item.event.kind === "simulation.inputRejected" ? "error" : item.event.source;
+  return {
+    id: item.event.id,
+    locationId,
+    source: item.event.source,
+    tone,
+    label: formatEventKindLabel(language, item.event.kind),
+    summary: item.detail,
+    time: item.event.time,
+  };
+}
+
+function resolveMapPulseLocation(
+  item: TimelineItem,
+  worldId: string,
+  locationIds: ReadonlySet<string>,
+  agentLocationById: ReadonlyMap<string, string>,
+  selectedLocationId: string | undefined,
+): string | undefined {
+  const payloadLocationId = readString(item.event.payload, "locationId");
+  if (payloadLocationId && locationIds.has(payloadLocationId)) return payloadLocationId;
+
+  for (const targetId of item.event.targetIds) {
+    if (locationIds.has(targetId)) return targetId;
+    const agentLocationId = agentLocationById.get(targetId);
+    if (agentLocationId) return agentLocationId;
+    if (targetId === worldId && locationIds.has("atrium")) return "atrium";
+  }
+
+  if (item.event.actorId) {
+    const actorLocationId = agentLocationById.get(item.event.actorId);
+    if (actorLocationId) return actorLocationId;
+  }
+
+  if (item.event.kind === "simulation.inputRejected" && selectedLocationId && locationIds.has(selectedLocationId)) return selectedLocationId;
+  if ((item.event.kind === "world.created" || item.event.kind === "memory.seeded") && locationIds.has("atrium")) return "atrium";
+  return locationIds.values().next().value;
+}
+
+function countPulsesByLocation(pulses: readonly RealmMapEventPulse[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const pulse of pulses) {
+    counts.set(pulse.locationId, (counts.get(pulse.locationId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function createFallbackMapPosition(index: number): { x: number; y: number } {
+  const column = index % 4;
+  const row = Math.floor(index / 4);
+  return {
+    x: 18 + column * 22,
+    y: 18 + row * 24,
+  };
+}
+
+function createAgentMarkerOffset(index: number, totalAgents: number): { x: number; y: number } {
+  if (totalAgents <= 1) return { x: 0, y: 0 };
+  const angle = (Math.PI * 2 * index) / totalAgents;
+  return {
+    x: Math.round(Math.cos(angle) * 18),
+    y: Math.round(Math.sin(angle) * 14),
+  };
+}
+
+function createRealmMapSummary(
+  locations: readonly RealmMapLocationNode[],
+  agents: readonly RealmMapAgentMarker[],
+  pulses: readonly RealmMapEventPulse[],
+  language: AppLanguage,
+): string {
+  const occupiedLocations = locations.filter((location) => location.agentCount > 0).length;
+  if (language === "zh") {
+    return `地图显示 ${locations.length} 个地点、${agents.length} 位角色；${occupiedLocations} 个地点有人停留，最近有 ${pulses.length} 个地图事件提示。`;
+  }
+  return `Map shows ${locations.length} locations and ${agents.length} agents; ${occupiedLocations} locations are occupied with ${pulses.length} recent map event pulses.`;
 }
 
 function createConfiguredFacts(persona: PersonaSpec, language: AppLanguage = DEFAULT_LANGUAGE): ConfiguredFactItem[] {

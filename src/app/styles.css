@@ -96,9 +96,78 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .error-banner, .form-error { border: 1px solid #ef4444; border-radius: 0.75rem; background: #450a0a; color: #fee2e2; padding: 0.75rem; }
 .json-details summary { cursor: pointer; color: #93c5fd; font-weight: 700; }
 
+.realm-map-panel { overflow: hidden; }
+.realm-map-mode { align-self: center; border: 1px solid #334155; border-radius: 999px; padding: 0.2rem 0.65rem; color: #bfdbfe; background: #0f172a; font-size: 0.78rem; font-weight: 800; }
+.realm-map-summary { margin: 0 0 0.85rem; color: #cbd5e1; }
+.realm-map-board {
+  position: relative;
+  min-height: 520px;
+  border: 2px solid #475569;
+  border-radius: 1rem;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgb(148 163 184 / 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgb(148 163 184 / 0.08) 1px, transparent 1px),
+    radial-gradient(circle at 50% 40%, rgb(59 130 246 / 0.18), transparent 36%),
+    #08111f;
+  background-size: 32px 32px, 32px 32px, auto, auto;
+  image-rendering: pixelated;
+}
+.realm-map-links { position: absolute; inset: 0; pointer-events: none; }
+.realm-map-link { position: absolute; height: 3px; transform-origin: left center; border-radius: 999px; background: linear-gradient(90deg, rgb(125 211 252 / 0.2), rgb(251 191 36 / 0.45)); box-shadow: 0 0 12px rgb(96 165 250 / 0.35); }
+.realm-map-location-wrap { position: absolute; width: 184px; min-height: 112px; transform: translate(-50%, -50%); }
+.realm-map-location {
+  display: grid;
+  width: 100%;
+  gap: 0.22rem;
+  border: 2px solid #475569;
+  border-radius: 0.35rem;
+  padding: 0.65rem;
+  background: linear-gradient(135deg, #172033, #0f172a 58%, #111827);
+  color: #e5eefb;
+  text-align: left;
+  box-shadow: 0 8px 0 #020617, 0 0 0 2px rgb(15 23 42 / 0.8) inset;
+}
+.realm-map-location:hover:not(:disabled), .realm-map-location:focus-visible { background: linear-gradient(135deg, #1e3a5f, #172554); }
+.realm-map-location--selected { border-color: #fbbf24; box-shadow: 0 8px 0 #451a03, 0 0 0 2px #facc15 inset, 0 0 22px rgb(250 204 21 / 0.35); }
+.realm-map-location-title { font-weight: 900; letter-spacing: 0.02em; }
+.realm-map-location-code, .realm-map-location-count { color: #94a3b8; font-size: 0.75rem; }
+.realm-map-selected-text { color: #fde68a; font-size: 0.74rem; font-weight: 900; text-transform: uppercase; }
+.realm-map-agents { position: absolute; left: 50%; top: 64%; display: flex; justify-content: center; align-items: center; width: 1px; height: 1px; pointer-events: none; }
+.realm-map-agent {
+  position: absolute;
+  display: grid;
+  justify-items: center;
+  min-width: 58px;
+  gap: 0.12rem;
+  border: 2px solid #10b981;
+  border-radius: 0.45rem;
+  padding: 0.22rem 0.28rem;
+  background: #052e2b;
+  color: #dcfce7;
+  font-size: 0.68rem;
+  box-shadow: 0 5px 0 #021c19;
+  pointer-events: auto;
+}
+.realm-map-agent:hover:not(:disabled), .realm-map-agent:focus-visible { background: #065f46; }
+.realm-map-agent--selected { border-color: #fbbf24; color: #fef3c7; background: #422006; box-shadow: 0 5px 0 #1c0d02, 0 0 16px rgb(250 204 21 / 0.45); }
+.realm-map-agent-face { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid currentColor; border-radius: 999px 999px 0.55rem 0.55rem; background: rgb(255 255 255 / 0.08); font-size: 0.78rem; font-weight: 900; }
+.realm-map-agent-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.realm-map-agent-status { color: #bbf7d0; font-size: 0.62rem; }
+.realm-map-pulses { position: absolute; left: 50%; top: -0.55rem; display: grid; gap: 0.25rem; transform: translateX(-50%); pointer-events: none; }
+.realm-map-pulse { display: inline-flex; gap: 0.3rem; align-items: center; max-width: 190px; border: 1px solid #475569; border-radius: 0.35rem; padding: 0.18rem 0.35rem; background: #020617; color: #dbeafe; font-size: 0.66rem; font-weight: 800; box-shadow: 0 0 18px rgb(96 165 250 / 0.32); }
+.realm-map-pulse--error { border-color: #ef4444; box-shadow: 0 0 18px rgb(239 68 68 / 0.36); }
+.realm-map-text-fallback { margin-top: 0.85rem; color: #cbd5e1; }
+.realm-map-text-fallback h3 { margin: 0 0 0.45rem; }
+.realm-map-text-fallback ul { margin: 0; padding-left: 1.2rem; }
+
 @media (max-width: 980px) {
   .dashboard-grid, .world-header, .timeline-layout { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .realm-map-board { display: grid; min-height: auto; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; padding: 0.75rem; }
+  .realm-map-links { display: none; }
+  .realm-map-location-wrap { position: relative; left: auto !important; top: auto !important; width: auto; min-height: 140px; transform: none; }
+  .realm-map-location { min-height: 112px; }
 }
 
 @media (max-width: 560px) {

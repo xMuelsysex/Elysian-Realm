@@ -8,12 +8,14 @@ import {
   createInterventionReceiptViewModel,
   createMemoryViewModel,
   createMessageStreamViewModel,
+  createRealmMapViewModel,
   createRelationshipNetworkViewModel,
   createReplayCursorViewModel,
   createStateDiffViewModel,
   createTimelineItems,
   createTopologyViewModel,
   createWorldInspectorViewModel,
+  createTimelineTargetFilterForLocation,
   filterTimelineItems,
   groupAgentsByLocation,
   type TimelineDetailMode,
@@ -26,6 +28,7 @@ import { DebugPanel } from "../diagnostics/DebugPanel.js";
 import { InterventionPanel } from "../interventions/InterventionPanel.js";
 import { EventTimeline } from "./EventTimeline.js";
 import { LocationBoard } from "./LocationBoard.js";
+import { RealmMapPanel } from "./RealmMapPanel.js";
 import {
   AgentPlanPanel,
   DebugExportPanel,
@@ -68,6 +71,7 @@ export function RealmDashboard({
   onSubmitInput,
 }: RealmDashboardProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string>();
+  const [selectedLocationId, setSelectedLocationId] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
   const [timelineDetailMode, setTimelineDetailMode] = useState<TimelineDetailMode>("user");
   const [timelineFilters, setTimelineFilters] = useState<TimelineFilters>({});
@@ -82,6 +86,10 @@ export function RealmDashboard({
   );
   const filteredTimelineItems = useMemo(() => filterTimelineItems(timelineItems, timelineFilters), [timelineItems, timelineFilters]);
   const locationGroups = groupAgentsByLocation(state.snapshot.locations, state.snapshot.agents);
+  const realmMap = useMemo(
+    () => createRealmMapViewModel(state.snapshot, timelineItems, selectedAgentId, selectedLocationId, language),
+    [state.snapshot, timelineItems, selectedAgentId, selectedLocationId, language],
+  );
   const agentDetailViewModel = createAgentDetailViewModel(state.snapshot, selectedAgentId, timelineItems, undefined, state.personas, language);
   const relationshipRows = createRelationshipNetworkViewModel(state.personas, state.snapshot, timelineItems, language);
   const worldInspector = createWorldInspectorViewModel(state);
@@ -111,6 +119,11 @@ export function RealmDashboard({
     setReplayCursor(Math.max(0, Math.min(cursor, Math.max(timelineItems.length - 1, 0))));
   };
 
+  const selectLocation = (locationId: string) => {
+    setSelectedLocationId(locationId);
+    setTimelineFilters((filters) => createTimelineTargetFilterForLocation(filters, locationId));
+  };
+
   const exportDebugState = () => {
     const generatedAt = new Date().toISOString();
     const blob = new Blob([JSON.stringify({ ...exportViewModel, generatedAt }, null, 2)], { type: "application/json" });
@@ -129,6 +142,7 @@ export function RealmDashboard({
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       <div className="dashboard-grid">
         <div className="dashboard-main">
+          <RealmMapPanel language={language} viewModel={realmMap} onSelectAgent={setSelectedAgentId} onSelectLocation={selectLocation} />
           <LocationTopology language={language} viewModel={topology} />
           <LocationBoard language={language} groups={locationGroups} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
           <AgentDetailPanel language={language} viewModel={agentDetailViewModel} />

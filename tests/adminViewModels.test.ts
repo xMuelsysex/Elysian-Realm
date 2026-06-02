@@ -11,12 +11,14 @@ import {
   createInterventionReceiptViewModel,
   createMemoryViewModel,
   createMessageStreamViewModel,
+  createRealmMapViewModel,
   createRelationshipNetworkViewModel,
   createReplayCursorViewModel,
   createStateDiffViewModel,
   createTimelineItems,
   createTopologyViewModel,
   createWorldInspectorViewModel,
+  createTimelineTargetFilterForLocation,
   filterRelatedTimelineItems,
   filterTimelineItems,
   findAgentLocation,
@@ -315,6 +317,63 @@ test("creates inspector replay receipt diff plan topology and export models", ()
   assert.equal(exported.state.snapshot.id, accepted.body.snapshot.id);
   assert.equal(exported.events.length, accepted.body.events.length);
   assert.equal(exported.replay.finalStepId, accepted.body.replay.finalStepId);
+});
+
+test("creates realm map nodes markers pulses and location target filters", () => {
+  const controller = createAdminController();
+  const stepped = controller.step();
+  const accepted = controller.submitInput({
+    kind: "realmEvent",
+    targetIds: ["garden"],
+    payload: { eventKind: "debug.gathering", description: "Gather near the garden." },
+  });
+  assert.equal(accepted.ok, true);
+  const rejected = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["missing_agent"],
+    payload: { message: "Hello." },
+  });
+  assert.equal(rejected.ok, true);
+  const items = createTimelineItems(rejected.body.events, rejected.body.timeline, "en", "debug");
+
+  const viewModel = createRealmMapViewModel(rejected.body.snapshot, items, "agent_elysia", "garden", "en");
+  const atrium = viewModel.locations.find((location) => location.id === "atrium");
+  const garden = viewModel.locations.find((location) => location.id === "garden");
+  const elysia = viewModel.agents.find((agent) => agent.id === "agent_elysia");
+
+  assert.equal(viewModel.locations.length, rejected.body.snapshot.locations.length);
+  assert.equal(viewModel.agents.length, rejected.body.snapshot.agents.length);
+  assert.equal(atrium?.x, 50);
+  assert.equal(atrium?.y, 42);
+  assert.equal(garden?.selected, true);
+  assert.equal(garden?.recentEventCount, viewModel.pulses.filter((pulse) => pulse.locationId === "garden").length);
+  assert.equal(elysia?.locationId, "atrium");
+  assert.equal(elysia?.selected, true);
+  assert.ok(viewModel.links.some((link) => link.fromLocationId === "atrium" && link.toLocationId === "garden"));
+  assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "garden" && pulse.source === "user"));
+  assert.ok(viewModel.pulses.some((pulse) => pulse.tone === "error"));
+  assert.match(viewModel.summary, /locations/);
+  assert.equal(createTimelineTargetFilterForLocation({ kind: "world.timeAdvanced" }, "garden").targetId, "garden");
+  assert.equal(stepped.snapshot.lastStepId, "step_0605_001");
+});
+
+test("realm map assigns deterministic fallback coordinates for unknown future locations", () => {
+  const state = createAdminController().getState();
+  const snapshot = {
+    ...state.snapshot,
+    locations: [
+      ...state.snapshot.locations,
+      { id: "future-room", displayName: "Future Room", description: "A later location." },
+    ],
+  };
+
+  const viewModel = createRealmMapViewModel(snapshot, [], undefined, "future-room", "en");
+  const futureRoom = viewModel.locations.find((location) => location.id === "future-room");
+
+  assert.ok(futureRoom);
+  assert.equal(futureRoom.x, 84);
+  assert.equal(futureRoom.y, 42);
+  assert.equal(futureRoom.selected, true);
 });
 
 test("creates rejected receipts diagnostics center memory and message stream projections", () => {
