@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import type { AdminErrorResponse, AdminStateResponse } from "../src/server/admin/index.js";
+import type { AdminErrorResponse, AdminStateResponse, LlmRuntimeTestResponse } from "../src/server/admin/index.js";
 import { createAdminController, createAdminServer, createAdminStateResponse } from "../src/server/admin/index.js";
 import { OBSERVATION_MVP_WORLD_ID, stepSimulationEngine, createSimulationEngine } from "../src/server/simulation/index.js";
 
@@ -99,6 +99,58 @@ test("admin controller surfaces simulation validation diagnostics", () => {
   assert.match(result.body.diagnostics[0]?.message ?? "", /directPrivateMessage targetIds/);
 });
 
+test("admin controller tests runtime LLM config without returning API keys", async () => {
+  const calls: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
+  const controller = createAdminController(createSimulationEngine(), {
+    now: () => new Date("2026-05-31T06:00:00.000Z"),
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return new Response(
+        JSON.stringify({
+          id: "chatcmpl_admin_test_001",
+          choices: [{ finish_reason: "stop", message: { role: "assistant", content: "LLM connection works." } }],
+          usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+        }),
+        { status: 200, statusText: "OK" },
+      );
+    },
+  });
+
+  const result = await controller.testLlmRuntimeConfig({
+    baseUrl: "https://example.test/v1",
+    model: "test-model",
+    apiKey: "test-secret-key",
+    providerName: "runtime-test-provider",
+    apiMode: "chat_completions",
+    timeoutMs: 5000,
+    prompt: "Test connectivity.",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.provider.name, "runtime-test-provider");
+  assert.equal(result.body.operation.status, "completed");
+  assert.equal(result.body.outputText, "LLM connection works.");
+  assert.equal(String(calls[0]?.input), "https://example.test/v1/chat/completions");
+  assert.equal(JSON.stringify(result.body).includes("test-secret-key"), false);
+});
+
+test("admin controller rejects malformed runtime LLM config", async () => {
+  const controller = createAdminController();
+
+  const result = await controller.testLlmRuntimeConfig({
+    baseUrl: "https://example.test/v1",
+    model: "",
+    apiKey: "test-secret-key",
+    prompt: "Test connectivity.",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error.code, "INVALID_LLM_RUNTIME_TEST_REQUEST");
+  assert.match(result.body.error.message, /model/);
+});
+
 test("admin state diagnostics include event validation failures", () => {
   const stepped = stepSimulationEngine(createSimulationEngine()).state;
   const firstEvent = stepped.events[0];
@@ -112,8 +164,20 @@ test("admin state diagnostics include event validation failures", () => {
   assert.ok(state.diagnostics.some((diagnostic) => diagnostic.message.includes("event.payload.seedId")));
 });
 
-test("admin http server exposes state, step, input, and structured JSON errors", async () => {
-  const server = createAdminServer();
+test("admin http server exposes state, step, input, LLM test, and structured JSON errors", async () => {
+  const server = createAdminServer({
+    controller: createAdminController(createSimulationEngine(), {
+      now: () => new Date("2026-05-31T06:00:00.000Z"),
+      fetchImpl: async () => new Response(
+        JSON.stringify({
+          id: "chatcmpl_admin_http_test_001",
+          choices: [{ finish_reason: "stop", message: { role: "assistant", content: "HTTP LLM test works." } }],
+          usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
+        }),
+        { status: 200, statusText: "OK" },
+      ),
+    }),
+  });
   const baseUrl = await listenOnRandomPort(server);
 
   try {
@@ -133,6 +197,20 @@ test("admin http server exposes state, step, input, and structured JSON errors",
       }),
     });
     assert.equal(inputResponse.snapshot.status, "running");
+
+    const llmResponse = await requestJson<LlmRuntimeTestResponse>(`${baseUrl}/api/admin/llm/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        baseUrl: "https://example.test/v1",
+        model: "test-model",
+        apiKey: "test-secret-key",
+        prompt: "Test connectivity.",
+      }),
+    });
+    assert.equal(llmResponse.operation.status, "completed");
+    assert.equal(llmResponse.outputText, "HTTP LLM test works.");
+    assert.equal(JSON.stringify(llmResponse).includes("test-secret-key"), false);
 
     const invalidJsonResponse = await fetch(`${baseUrl}/api/admin/input`, {
       method: "POST",

@@ -1,5 +1,5 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
-import type { PersonaSpec, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
+import type { LlmOperationMetadata, PersonaSpec, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { ReplaySummary, TimelineEntry } from "../simulation/index.js";
 
 export interface AdminDiagnostic {
@@ -27,6 +27,30 @@ export interface SubmitAdminInputRequest {
   source?: EventSource;
 }
 
+export type LlmRuntimeApiMode = "chat_completions" | "responses";
+
+export interface SubmitLlmRuntimeTestRequest {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  prompt: string;
+  providerName?: string;
+  apiMode?: LlmRuntimeApiMode;
+  timeoutMs?: number;
+}
+
+export interface LlmRuntimeTestResponse {
+  provider: {
+    name: string;
+    model: string;
+    baseUrl: string;
+    apiMode: LlmRuntimeApiMode;
+    timeoutMs: number;
+  };
+  operation: LlmOperationMetadata;
+  outputText?: string;
+}
+
 export interface AdminErrorResponse {
   error: {
     code: string;
@@ -37,4 +61,8 @@ export interface AdminErrorResponse {
 
 export type AdminRouteResult =
   | { ok: true; status: number; body: AdminStateResponse }
+  | { ok: false; status: number; body: AdminErrorResponse };
+
+export type AdminLlmRuntimeTestRouteResult =
+  | { ok: true; status: number; body: LlmRuntimeTestResponse }
   | { ok: false; status: number; body: AdminErrorResponse };

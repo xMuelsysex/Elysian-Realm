@@ -1,4 +1,4 @@
-import type { AdminErrorResponse, AdminStateResponse, SubmitAdminInputRequest } from "../server/admin/index.js";
+import type { AdminErrorResponse, AdminStateResponse, LlmRuntimeTestResponse, SubmitAdminInputRequest, SubmitLlmRuntimeTestRequest } from "../server/admin/index.js";
 
 const ADMIN_BASE_PATH = "/api/admin";
 
@@ -16,6 +16,14 @@ export async function resetAdminSimulation(): Promise<AdminStateResponse> {
 
 export async function submitAdminInput(input: SubmitAdminInputRequest): Promise<AdminStateResponse> {
   return requestJson<AdminStateResponse>(`${ADMIN_BASE_PATH}/input`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function testLlmRuntimeConfig(input: SubmitLlmRuntimeTestRequest): Promise<LlmRuntimeTestResponse> {
+  return requestJson<LlmRuntimeTestResponse>(`${ADMIN_BASE_PATH}/llm/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

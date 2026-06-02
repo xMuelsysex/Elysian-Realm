@@ -1,5 +1,6 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
 import type { PersonaSpec, SimulationEvent, SimulationInput } from "../../shared/contracts/index.js";
+import { OpenAiCompatibleProvider, runLlmOperation, isLlmProviderError, type FetchLike, type OpenAiCompatibleApiMode } from "../llm/index.js";
 import { pilotPersonas } from "../personas/index.js";
 import {
   createReplaySummary,
@@ -10,20 +11,36 @@ import {
   validateSimulationEvent,
   type SimulationEngineState,
 } from "../simulation/index.js";
-import type { AdminDiagnostic, AdminRouteResult, AdminStateResponse, SubmitAdminInputRequest } from "./adminContracts.js";
+import type {
+  AdminDiagnostic,
+  AdminLlmRuntimeTestRouteResult,
+  AdminRouteResult,
+  AdminStateResponse,
+  LlmRuntimeApiMode,
+  SubmitAdminInputRequest,
+  SubmitLlmRuntimeTestRequest,
+} from "./adminContracts.js";
 
 const DEFAULT_INPUT_SOURCE: EventSource = "user";
 const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage"]);
 const EVENT_SOURCES = new Set<EventSource>(["system", "user", "agent", "llm", "test"]);
+const LLM_RUNTIME_API_MODES = new Set<LlmRuntimeApiMode>(["chat_completions", "responses"]);
+const DEFAULT_LLM_TEST_TIMEOUT_MS = 30_000;
+
+export interface AdminControllerOptions {
+  fetchImpl?: FetchLike;
+  now?: () => Date;
+}
 
 export interface AdminController {
   getState(): AdminStateResponse;
   step(): AdminStateResponse;
   reset(): AdminStateResponse;
   submitInput(request: unknown): AdminRouteResult;
+  testLlmRuntimeConfig(request: unknown): Promise<AdminLlmRuntimeTestRouteResult>;
 }
 
-export function createAdminController(initialState: SimulationEngineState = createSimulationEngine()): AdminController {
+export function createAdminController(initialState: SimulationEngineState = createSimulationEngine(), options: AdminControllerOptions = {}): AdminController {
   let state = initialState;
   let nextInputCounter = 1;
 
@@ -74,7 +91,86 @@ export function createAdminController(initialState: SimulationEngineState = crea
     return { ok: true, status: 200, body: getState() };
   }
 
-  return { getState, step, reset, submitInput };
+  async function testLlmRuntimeConfig(rawRequest: unknown): Promise<AdminLlmRuntimeTestRouteResult> {
+    const request = parseSubmitLlmRuntimeTestRequest(rawRequest);
+    if (!request.ok) {
+      return {
+        ok: false,
+        status: 400,
+        body: {
+          error: {
+            code: "INVALID_LLM_RUNTIME_TEST_REQUEST",
+            message: request.message,
+          },
+        },
+      };
+    }
+
+    try {
+      const provider = new OpenAiCompatibleProvider(
+        {
+          baseUrl: request.value.baseUrl,
+          model: request.value.model,
+          apiKey: request.value.apiKey,
+          timeoutMs: request.value.timeoutMs ?? DEFAULT_LLM_TEST_TIMEOUT_MS,
+          providerName: request.value.providerName,
+          apiMode: toProviderApiMode(request.value.apiMode ?? "chat_completions"),
+        },
+        options.fetchImpl,
+      );
+      const operation = await runLlmOperation({
+        id: `llm_test_${state.snapshot.lastStepId}`,
+        worldId: state.snapshot.id,
+        kind: "reflection",
+        inputRef: "admin-runtime-llm-test",
+        promptSchemaVersion: "admin-llm-test-v1",
+        provider,
+        chat: {
+          messages: [
+            {
+              role: "system",
+              content: "You are an LLM connectivity test for a local debug admin panel. Reply briefly and do not claim to mutate simulation state.",
+            },
+            { role: "user", content: request.value.prompt },
+          ],
+          temperature: 0,
+          maxTokens: 200,
+        },
+        timeoutMs: request.value.timeoutMs ?? DEFAULT_LLM_TEST_TIMEOUT_MS,
+        now: options.now,
+      });
+
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          provider: {
+            name: provider.name,
+            model: provider.model,
+            baseUrl: request.value.baseUrl,
+            apiMode: request.value.apiMode ?? "chat_completions",
+            timeoutMs: request.value.timeoutMs ?? DEFAULT_LLM_TEST_TIMEOUT_MS,
+          },
+          operation,
+          outputText: typeof operation.result?.outputText === "string" ? operation.result.outputText : undefined,
+        },
+      };
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Invalid LLM runtime provider configuration.";
+      return {
+        ok: false,
+        status: 400,
+        body: {
+          error: {
+            code: isLlmProviderError(caught) ? caught.code : "INVALID_LLM_RUNTIME_PROVIDER_CONFIG",
+            message,
+          },
+        },
+      };
+    }
+  }
+
+  return { getState, step, reset, submitInput, testLlmRuntimeConfig };
 }
 
 export function createAdminStateResponse(state: SimulationEngineState): AdminStateResponse {
@@ -160,6 +256,66 @@ function parseSubmitAdminInputRequest(rawRequest: unknown): { ok: true; value: S
       source: source as EventSource | undefined,
     },
   };
+}
+
+function parseSubmitLlmRuntimeTestRequest(rawRequest: unknown): { ok: true; value: SubmitLlmRuntimeTestRequest } | { ok: false; message: string } {
+  if (!isRecord(rawRequest)) {
+    return { ok: false, message: "request body must be an object" };
+  }
+
+  const baseUrl = readRequiredString(rawRequest.baseUrl, "baseUrl");
+  if (!baseUrl.ok) return baseUrl;
+  const model = readRequiredString(rawRequest.model, "model");
+  if (!model.ok) return model;
+  const apiKey = readRequiredString(rawRequest.apiKey, "apiKey");
+  if (!apiKey.ok) return apiKey;
+  const prompt = readRequiredString(rawRequest.prompt, "prompt");
+  if (!prompt.ok) return prompt;
+
+  const providerName = rawRequest.providerName === undefined ? undefined : readOptionalString(rawRequest.providerName, "providerName");
+  if (providerName && !providerName.ok) return providerName;
+
+  const apiMode = rawRequest.apiMode ?? "chat_completions";
+  if (typeof apiMode !== "string" || !LLM_RUNTIME_API_MODES.has(apiMode as LlmRuntimeApiMode)) {
+    return { ok: false, message: "apiMode must be chat_completions or responses" };
+  }
+
+  const timeoutMs = rawRequest.timeoutMs === undefined ? undefined : Number(rawRequest.timeoutMs);
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    return { ok: false, message: "timeoutMs must be a positive number" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      baseUrl: baseUrl.value,
+      model: model.value,
+      apiKey: apiKey.value,
+      prompt: prompt.value,
+      providerName: providerName?.value,
+      apiMode: apiMode as LlmRuntimeApiMode,
+      timeoutMs,
+    },
+  };
+}
+
+function readRequiredString(value: unknown, field: string): { ok: true; value: string } | { ok: false; message: string } {
+  if (typeof value !== "string" || value.trim() === "") {
+    return { ok: false, message: `${field} must be a non-empty string` };
+  }
+  return { ok: true, value: value.trim() };
+}
+
+function readOptionalString(value: unknown, field: string): { ok: true; value: string | undefined } | { ok: false; message: string } {
+  if (typeof value !== "string") {
+    return { ok: false, message: `${field} must be a string` };
+  }
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed || undefined };
+}
+
+function toProviderApiMode(apiMode: LlmRuntimeApiMode): OpenAiCompatibleApiMode {
+  return apiMode === "responses" ? "responses" : "chatCompletions";
 }
 
 function cloneSnapshot(snapshot: SimulationEngineState["snapshot"]): SimulationEngineState["snapshot"] {

@@ -26,6 +26,7 @@ import { formatAgentDisplayName, getCopy } from "../shared/i18n.js";
 import { AgentDetailPanel } from "../agents/AgentDetailPanel.js";
 import { DebugPanel } from "../diagnostics/DebugPanel.js";
 import { InterventionPanel } from "../interventions/InterventionPanel.js";
+import { LlmRuntimeConfigPanel } from "../llm/LlmRuntimeConfigPanel.js";
 import { EventTimeline } from "./EventTimeline.js";
 import { LocationBoard } from "./LocationBoard.js";
 import { RealmMapPanel } from "./RealmMapPanel.js";
@@ -170,6 +171,7 @@ export function RealmDashboard({
         </div>
         <aside className="dashboard-side" aria-label={copy.dashboard.sideLabel}>
           <InterventionPanel language={language} disabled={loading} snapshot={state.snapshot} onStep={onStep} onReset={onReset} onSubmit={onSubmitInput} />
+          <LlmRuntimeConfigPanel language={language} disabled={loading} />
           <ReceiptPanel language={language} receipt={receipt} />
           <DiagnosticsCenter language={language} viewModel={diagnostics} />
           <DebugExportPanel language={language} viewModel={exportViewModel} onExport={exportDebugState} exportedAt={exportedAt} />
