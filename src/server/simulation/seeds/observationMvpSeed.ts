@@ -1,6 +1,7 @@
 import { pilotPersonas } from "../../personas/index.js";
 import type { AgentRuntimeState, LocationRef, WorldSnapshot } from "../../../shared/contracts/index.js";
 import type { AgentId, LocationId, PersonaId, WorldId } from "../../../shared/domain/index.js";
+import { createRoutineAction, selectActiveRoutine } from "../routines.js";
 
 export const OBSERVATION_MVP_SEED_ID = "mvp-current-roster-v1" as const;
 export const OBSERVATION_MVP_WORLD_ID: WorldId = "world_elysian_observation_mvp";
@@ -50,8 +51,9 @@ const LOCATION_IDS = new Set<LocationId>(observationMvpLocations.map((location) 
 
 export function createObservationMvpSnapshot(): WorldSnapshot {
   const agents = pilotPersonas.map<AgentRuntimeState>((persona) => {
-    const locationId = persona.routines.morning[0]?.locationId;
-    if (!locationId || !LOCATION_IDS.has(locationId)) {
+    const morningRoutine = selectActiveRoutine(persona.id, "morning", persona.routines.morning);
+    const locationId = morningRoutine?.locationId;
+    if (!morningRoutine || !locationId || !LOCATION_IDS.has(locationId)) {
       throw new Error(`Persona ${persona.id} has no valid morning routine location for observation MVP seed`);
     }
 
@@ -61,6 +63,8 @@ export function createObservationMvpSnapshot(): WorldSnapshot {
       displayName: persona.displayName,
       status: "idle",
       locationId,
+      currentPlanId: morningRoutine.planId,
+      currentAction: createRoutineAction(morningRoutine, OBSERVATION_MVP_INITIAL_TIME),
       cooldowns: {},
       relationshipRefs: persona.relationships.map((relationship) => relationship.targetPersonaId),
     };

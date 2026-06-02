@@ -1,13 +1,14 @@
 import type { InterventionCommand, SimulationInput, WorldSnapshot, SimulationEvent } from "../../shared/contracts/index.js";
+import { pilotPersonas } from "../personas/index.js";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
 import { validateSimulationInput, type ValidSimulationInput } from "./inputs.js";
+import { createRoutineAction, resolveRoutinePeriod, selectActiveRoutine } from "./routines.js";
 import {
   createObservationMvpSnapshot,
   OBSERVATION_MVP_SEED_ID,
 } from "./seeds/observationMvpSeed.js";
 
 const STEP_MINUTES = 5;
-
 export interface SimulationEngineState {
   snapshot: WorldSnapshot;
   events: SimulationEvent[];
@@ -108,6 +109,10 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
         },
       }),
     );
+  }
+
+  if (state.startupEmitted) {
+    nextSnapshot = progressAgentRoutines(nextSnapshot, context, stepEvents);
   }
 
   const nextState: SimulationEngineState = {
@@ -237,6 +242,67 @@ function applyValidatedInput(snapshot: WorldSnapshot, input: ValidSimulationInpu
     return { ...snapshot, timeScale: input.payload.timeScale };
   }
   return snapshot;
+}
+
+function progressAgentRoutines(snapshot: WorldSnapshot, context: EventFactoryContext, stepEvents: SimulationEvent[]): WorldSnapshot {
+  const period = resolveRoutinePeriod(snapshot.currentTime);
+  const personasById = new Map(pilotPersonas.map((persona) => [persona.id, persona]));
+  let nextEventOrder = stepEvents.length + 1;
+  const agents = snapshot.agents.map((agent) => {
+    const persona = personasById.get(agent.personaId);
+    const routine = persona ? selectActiveRoutine(agent.personaId, period, persona.routines[period]) : undefined;
+    if (!routine || (agent.currentAction?.id === routine.routineId && agent.locationId === routine.locationId)) {
+      return agent;
+    }
+
+    if (agent.locationId !== routine.locationId) {
+      stepEvents.push(
+        createSimulationEvent(context, {
+          id: createEventId(context.stepId, nextEventOrder, `${agent.id}_moved`),
+          kind: "agent.moved",
+          source: "system",
+          actorId: agent.id,
+          targetIds: [routine.locationId],
+          payload: {
+            fromLocationId: agent.locationId,
+            toLocationId: routine.locationId,
+            reason: "routine",
+            routineId: routine.routineId,
+            intent: routine.intent,
+          },
+        }),
+      );
+      nextEventOrder += 1;
+    }
+
+    stepEvents.push(
+      createSimulationEvent(context, {
+        id: createEventId(context.stepId, nextEventOrder, `${agent.id}_continued_routine`),
+        kind: "agent.continuedRoutine",
+        source: "system",
+        actorId: agent.id,
+        targetIds: [routine.locationId],
+        payload: {
+          routineId: routine.routineId,
+          locationId: routine.locationId,
+          intent: routine.intent,
+          period: routine.period,
+          provenance: "configured",
+        },
+      }),
+    );
+    nextEventOrder += 1;
+
+    return {
+      ...agent,
+      status: "idle" as const,
+      locationId: routine.locationId,
+      currentPlanId: routine.planId,
+      currentAction: createRoutineAction(routine, context.time),
+    };
+  });
+
+  return { ...snapshot, agents };
 }
 
 function createInputValidationContext(snapshot: WorldSnapshot) {

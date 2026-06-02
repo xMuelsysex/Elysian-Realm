@@ -37,6 +37,8 @@ const expectedStartupKinds = [
   "memory.seeded",
 ] as const;
 
+const expectedRoutineProgressionKinds = ["agent.moved", "agent.continuedRoutine"] as const;
+
 test("groups agents by backend snapshot locations", () => {
   const state = createAdminController().getState();
   const groups = groupAgentsByLocation(state.snapshot.locations, state.snapshot.agents);
@@ -94,7 +96,7 @@ test("debug-mode timeline details include key facts for every MVP event kind", (
   assertEventDetail(items, "agent.spawned", /位置: atrium/);
   assertEventDetail(items, "world.timeAdvanced", /时间倍率: 60/);
   assertEventDetail(items, "world.timeAdvanced", /步进: step_0605_001/);
-  assertEventDetail(items, "agent.startedRoutine", /意图: 开始执行已配置的晨间日程/);
+  assertEventDetail(items, "agent.startedRoutine", /意图: make the first visible space feel alive/);
   assertEventDetail(items, "realm.interventionSubmitted", /命令: 观察者命令/);
   assertEventDetail(items, "realm.interventionSubmitted", /输入: admin_input_001/);
   assertEventDetail(items, "simulation.inputRejected", /输入: admin_input_002/);
@@ -110,6 +112,19 @@ test("user-mode timeline details omit debug-style key facts", () => {
   assertNoEventDetail(items, "world.timeAdvanced", /时间倍率:/);
   assertNoEventDetail(items, "world.timeAdvanced", /step_0605_001/);
   assertNoEventDetail(items, "memory.seeded", /批次:/);
+});
+
+test("timeline projections describe deterministic routine movement events", () => {
+  const state = stepControllerTimes(createAdminController(), 72);
+  const items = createTimelineItems(state.events, state.timeline, "zh", "debug");
+
+  for (const kind of expectedRoutineProgressionKinds) {
+    assert.ok(items.some((item) => item.event.kind === kind), `${kind} should be projected`);
+  }
+  assertEventDetail(items, "agent.moved", /角色因预设日程移动到了新的地点/);
+  assertEventDetail(items, "agent.moved", /到: lounge/);
+  assertEventDetail(items, "agent.continuedRoutine", /角色切换到当前时段的预设日程/);
+  assertEventDetail(items, "agent.continuedRoutine", /时段: day/);
 });
 
 test("unknown event kinds use a safe localized payload fallback", () => {
@@ -234,7 +249,7 @@ test("creates enhanced selected agent detail with configured persona facts and r
   assert.equal(viewModel.persona?.id, "elysia");
   assert.ok(viewModel.configuredFacts.some((fact) => fact.provenance === "configured" && fact.value.includes("温暖的社交引导者")));
   assert.ok(viewModel.longTermGoals.includes("让乐土始终保持情感上的欢迎感"));
-  assert.equal(viewModel.runtimeMoodIntent, "空闲 / 中庭");
+  assert.equal(viewModel.runtimeMoodIntent, "make the first visible space feel alive");
   assert.ok(viewModel.recentMemoryIndex.some((memory) => memory.eventId.includes("memory_seeded")));
 });
 
@@ -317,6 +332,21 @@ test("creates inspector replay receipt diff plan topology and export models", ()
   assert.equal(exported.state.snapshot.id, accepted.body.snapshot.id);
   assert.equal(exported.events.length, accepted.body.events.length);
   assert.equal(exported.replay.finalStepId, accepted.body.replay.finalStepId);
+});
+
+test("topology and realm map expose deterministic routine movements from centralized projections", () => {
+  const state = stepControllerTimes(createAdminController(), 72);
+  const items = createTimelineItems(state.events, state.timeline, "en", "debug");
+
+  const topology = createTopologyViewModel(state.snapshot, items);
+  const viewModel = createRealmMapViewModel(state.snapshot, items, "agent_elysia", "lounge", "en");
+  const elysia = viewModel.agents.find((agent) => agent.id === "agent_elysia");
+
+  assert.ok(topology.movementPaths.some((path) => path.actorId === "agent_elysia" && path.locationId === "lounge" && path.summary.includes("configured routine")));
+  assert.equal(elysia?.locationId, "lounge");
+  assert.equal(elysia?.currentIntent, "notice who may need company");
+  assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "lounge" && pulse.label === "agent.moved"));
+  assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "lounge" && pulse.label === "agent.continuedRoutine"));
 });
 
 test("creates realm map nodes markers pulses and location target filters", () => {
@@ -420,6 +450,14 @@ test("diagnostics center aggregates all diagnostics while limiting latest displa
   assert.equal(diagnostics.validationErrors.length, 4);
   assert.equal(diagnostics.anomalies.length, 6);
 });
+
+function stepControllerTimes(controller: ReturnType<typeof createAdminController>, count: number) {
+  let state = controller.getState();
+  for (let index = 0; index < count; index += 1) {
+    state = controller.step();
+  }
+  return state;
+}
 
 function createAgentInteractionEvent(index: number): SimulationEvent {
   return {

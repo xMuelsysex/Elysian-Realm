@@ -6,6 +6,8 @@ export const SIMULATION_EVENT_KINDS = [
   "agent.spawned",
   "world.timeAdvanced",
   "agent.startedRoutine",
+  "agent.moved",
+  "agent.continuedRoutine",
   "realm.interventionSubmitted",
   "simulation.inputRejected",
   "memory.seeded",
@@ -53,6 +55,22 @@ export interface AgentStartedRoutinePayload {
   routineId: string;
   locationId: LocationId;
   intent: string;
+  provenance: "configured";
+}
+
+export interface AgentMovedPayload {
+  fromLocationId: LocationId;
+  toLocationId: LocationId;
+  reason: "routine";
+  routineId: string;
+  intent: string;
+}
+
+export interface AgentContinuedRoutinePayload {
+  routineId: string;
+  locationId: LocationId;
+  intent: string;
+  period: "morning" | "day" | "evening" | "night";
   provenance: "configured";
 }
 
@@ -174,6 +192,20 @@ function validateEventPayload(kind: SimulationEventKind, payload: Record<string,
       requirePayloadString(payload, "intent", errors);
       requirePayloadLiteral(payload, "provenance", "configured", errors);
       return;
+    case "agent.moved":
+      requirePayloadString(payload, "fromLocationId", errors);
+      requirePayloadString(payload, "toLocationId", errors);
+      requirePayloadLiteral(payload, "reason", "routine", errors);
+      requirePayloadString(payload, "routineId", errors);
+      requirePayloadString(payload, "intent", errors);
+      return;
+    case "agent.continuedRoutine":
+      requirePayloadString(payload, "routineId", errors);
+      requirePayloadString(payload, "locationId", errors);
+      requirePayloadString(payload, "intent", errors);
+      requirePayloadOneOf(payload, "period", ["morning", "day", "evening", "night"], errors);
+      requirePayloadLiteral(payload, "provenance", "configured", errors);
+      return;
     case "realm.interventionSubmitted":
       requirePayloadString(payload, "inputId", errors);
       requirePayloadString(payload, "commandKind", errors);
@@ -215,6 +247,12 @@ function requirePayloadPositiveNumber(payload: Record<string, unknown>, key: str
 function requirePayloadLiteral(payload: Record<string, unknown>, key: string, expected: string | boolean, errors: string[]): void {
   if (payload[key] !== expected) {
     errors.push(`event.payload.${key} must be ${String(expected)}`);
+  }
+}
+
+function requirePayloadOneOf(payload: Record<string, unknown>, key: string, allowed: readonly string[], errors: string[]): void {
+  if (typeof payload[key] !== "string" || !allowed.includes(payload[key])) {
+    errors.push(`event.payload.${key} must be one of: ${allowed.join(", ")}`);
   }
 }
 

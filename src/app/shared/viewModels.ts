@@ -289,7 +289,16 @@ const REALM_MAP_LAYOUT: Record<string, { x: number; y: number }> = {
   overlook: { x: 54, y: 76 },
   quarters: { x: 50, y: 18 },
 };
-const MAP_PULSE_EVENT_KINDS = new Set(["agent.spawned", "agent.startedRoutine", "realm.interventionSubmitted", "simulation.inputRejected", "memory.seeded", "world.created"]);
+const MAP_PULSE_EVENT_KINDS = new Set([
+  "agent.spawned",
+  "agent.startedRoutine",
+  "agent.moved",
+  "agent.continuedRoutine",
+  "realm.interventionSubmitted",
+  "simulation.inputRejected",
+  "memory.seeded",
+  "world.created",
+]);
 
 export function groupAgentsByLocation(locations: readonly LocationRef[], agents: readonly AgentRuntimeState[]): LocationGroup[] {
   return locations.map((location) => ({
@@ -683,11 +692,11 @@ export function createTopologyViewModel(snapshot: WorldSnapshot, timelineItems: 
     connectedLocationIds: [snapshot.locations[index - 1]?.id, snapshot.locations[index + 1]?.id].filter(isString),
   }));
   const movementPaths = timelineItems
-    .filter((item) => item.event.kind === "agent.startedRoutine" || item.event.kind === "agent.spawned")
+    .filter((item) => item.event.kind === "agent.startedRoutine" || item.event.kind === "agent.continuedRoutine" || item.event.kind === "agent.moved" || item.event.kind === "agent.spawned")
     .map((item) => ({
       eventId: item.event.id,
       actorId: item.event.actorId,
-      locationId: readString(item.event.payload, "locationId") ?? item.event.targetIds[0] ?? "unknown",
+      locationId: readString(item.event.payload, "locationId") ?? readString(item.event.payload, "toLocationId") ?? item.event.targetIds[0] ?? "unknown",
       summary: item.detail,
     }));
   return { nodes, movementPaths };
@@ -907,6 +916,10 @@ function projectKnownEvent(
       return projectWorldTimeAdvanced(event.payload, language, detailMode);
     case "agent.startedRoutine":
       return projectAgentStartedRoutine(event.payload, language, detailMode);
+    case "agent.moved":
+      return projectAgentMoved(event.payload, language, detailMode);
+    case "agent.continuedRoutine":
+      return projectAgentContinuedRoutine(event.payload, language, detailMode);
     case "realm.interventionSubmitted":
       return projectRealmInterventionSubmitted(event.payload, language, detailMode);
     case "simulation.inputRejected":
@@ -955,6 +968,26 @@ function projectAgentStartedRoutine(payload: Record<string, unknown>, language: 
   const provenance = readString(payload, "provenance");
   const sentence = language === "zh" ? "角色开始执行预设日程。" : "The agent started a configured routine.";
   return withProjection(sentence, detailMode, language === "zh" ? [["日程", routineId], ["位置", locationId], ["意图", intent], ["来源", provenance]] : [["routine", routineId], ["location", locationId], ["intent", intent], ["provenance", provenance]]);
+}
+
+function projectAgentMoved(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {
+  const fromLocationId = readString(payload, "fromLocationId");
+  const toLocationId = readString(payload, "toLocationId");
+  const reason = readString(payload, "reason");
+  const routineId = readString(payload, "routineId");
+  const intent = formatSimulationText(language, readString(payload, "intent"));
+  const sentence = language === "zh" ? "角色因预设日程移动到了新的地点。" : "The agent moved to a new location for a configured routine.";
+  return withProjection(sentence, detailMode, language === "zh" ? [["从", fromLocationId], ["到", toLocationId], ["原因", reason], ["日程", routineId], ["意图", intent]] : [["from", fromLocationId], ["to", toLocationId], ["reason", reason], ["routine", routineId], ["intent", intent]]);
+}
+
+function projectAgentContinuedRoutine(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {
+  const routineId = readString(payload, "routineId");
+  const locationId = readString(payload, "locationId");
+  const intent = formatSimulationText(language, readString(payload, "intent"));
+  const period = readString(payload, "period");
+  const provenance = readString(payload, "provenance");
+  const sentence = language === "zh" ? "角色切换到当前时段的预设日程。" : "The agent switched to the configured routine for the current period.";
+  return withProjection(sentence, detailMode, language === "zh" ? [["日程", routineId], ["位置", locationId], ["时段", period], ["意图", intent], ["来源", provenance]] : [["routine", routineId], ["location", locationId], ["period", period], ["intent", intent], ["provenance", provenance]]);
 }
 
 function projectRealmInterventionSubmitted(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {

@@ -30,6 +30,8 @@ test("creates a deterministic observation MVP seed snapshot", () => {
   assert.deepEqual(state.snapshot.locations.map((location) => location.id), expectedLocationIds);
   assert.deepEqual(state.snapshot.agents.map((agent) => agent.id), expectedAgentIds);
   assert.deepEqual(state.snapshot.agents.map((agent) => agent.status), ["idle", "idle", "idle"]);
+  assert.deepEqual(state.snapshot.agents.map((agent) => agent.currentAction?.id), ["elysia.morning.0", "kevin.morning.0", "eden.morning.0"]);
+  assert.deepEqual(state.snapshot.agents.map((agent) => agent.currentPlanId), ["elysia.morning", "kevin.morning", "eden.morning"]);
 });
 
 test("first step emits stable startup and routine events", () => {
@@ -86,6 +88,29 @@ test("event validator rejects missing payload fields for known event kinds", () 
     "event.payload.personaIds must be a non-empty string array",
     "event.payload.locationIds must be a non-empty string array",
     "event.payload.initialStatus must be a non-empty string",
+  ]);
+});
+
+test("event validator rejects missing routine progression payload fields", () => {
+  const atNoon = stepTimes(createSimulationEngine(), 72);
+  const moved = atNoon.events.find((event) => event.kind === "agent.moved");
+  const continued = atNoon.events.find((event) => event.kind === "agent.continuedRoutine");
+
+  assert.ok(moved);
+  assert.deepEqual(validateSimulationEvent({ ...moved, payload: {} }), [
+    "event.payload.fromLocationId must be a non-empty string",
+    "event.payload.toLocationId must be a non-empty string",
+    "event.payload.reason must be routine",
+    "event.payload.routineId must be a non-empty string",
+    "event.payload.intent must be a non-empty string",
+  ]);
+  assert.ok(continued);
+  assert.deepEqual(validateSimulationEvent({ ...continued, payload: {} }), [
+    "event.payload.routineId must be a non-empty string",
+    "event.payload.locationId must be a non-empty string",
+    "event.payload.intent must be a non-empty string",
+    "event.payload.period must be one of: morning, day, evening, night",
+    "event.payload.provenance must be configured",
   ]);
 });
 
@@ -202,6 +227,90 @@ test("same seed and inputs produce the same replay summary", () => {
   assert.equal(first.eventKinds.at(-1), "realm.interventionSubmitted");
 });
 
+test("post-startup steps do not duplicate unchanged routine events", () => {
+  const firstStep = stepSimulationEngine(createSimulationEngine());
+  const secondStep = stepSimulationEngine(firstStep.state);
+
+  assert.deepEqual(createEventKindTimeline(secondStep.events), ["world.timeAdvanced"]);
+  assert.deepEqual(secondStep.state.snapshot.agents.map((agent) => agent.currentAction?.id), ["elysia.morning.0", "kevin.morning.0", "eden.morning.0"]);
+});
+
+test("post-startup steps progress agents through configured routine periods", () => {
+  const atNoon = stepTimes(createSimulationEngine(), 72);
+
+  const elysia = findAgent(atNoon.snapshot.agents, "agent_elysia");
+  const kevin = findAgent(atNoon.snapshot.agents, "agent_kevin");
+  const eden = findAgent(atNoon.snapshot.agents, "agent_eden");
+
+  assert.equal(atNoon.snapshot.currentTime, "2026-05-31T12:00:00.000Z");
+  assert.equal(elysia?.locationId, "lounge");
+  assert.equal(elysia?.currentPlanId, "elysia.day");
+  assert.equal(elysia?.currentAction?.id, "elysia.day.0");
+  assert.equal(elysia?.currentAction?.kind, "performActivity");
+  assert.equal(kevin?.locationId, "training-hall");
+  assert.equal(kevin?.currentAction?.id, "kevin.day.0");
+  assert.equal(eden?.locationId, "archives");
+  assert.equal(eden?.currentAction?.id, "eden.day.0");
+  assert.ok(atNoon.events.some((event) => event.kind === "agent.moved" && event.actorId === "agent_elysia"));
+  assert.ok(atNoon.events.some((event) => event.kind === "agent.continuedRoutine" && event.actorId === "agent_eden"));
+});
+
+test("routine progression emits validated movement before routine events", () => {
+  const atNoon = stepTimes(createSimulationEngine(), 72);
+  const noonStepEvents = atNoon.events.filter((event) => event.stepId === "step_1200_072");
+  const movedIndex = noonStepEvents.findIndex((event) => event.kind === "agent.moved" && event.actorId === "agent_elysia");
+  const continuedIndex = noonStepEvents.findIndex((event) => event.kind === "agent.continuedRoutine" && event.actorId === "agent_elysia");
+
+  assert.ok(movedIndex >= 0);
+  assert.ok(continuedIndex > movedIndex);
+  assert.deepEqual(noonStepEvents[movedIndex]?.payload, {
+    fromLocationId: "atrium",
+    toLocationId: "lounge",
+    reason: "routine",
+    routineId: "elysia.day.0",
+    intent: "notice who may need company",
+  });
+  assert.deepEqual(noonStepEvents[continuedIndex]?.payload, {
+    routineId: "elysia.day.0",
+    locationId: "lounge",
+    intent: "notice who may need company",
+    period: "day",
+    provenance: "configured",
+  });
+  for (const event of noonStepEvents) {
+    assert.deepEqual(validateSimulationEvent(event), []);
+  }
+});
+
+test("routine progression is deterministic for same seed and inputs", () => {
+  const run = () => {
+    const state = stepTimes(createSimulationEngine(), 205);
+    return {
+      replay: createReplaySummary(state.snapshot, state.events),
+      agents: state.snapshot.agents.map((agent) => ({
+        id: agent.id,
+        status: agent.status,
+        locationId: agent.locationId,
+        currentPlanId: agent.currentPlanId,
+        currentActionId: agent.currentAction?.id,
+      })),
+    };
+  };
+
+  assert.deepEqual(run(), run());
+});
+
+test("routine progression covers evening and night period transitions", () => {
+  const atNight = stepTimes(createSimulationEngine(), 192);
+
+  assert.equal(atNight.snapshot.currentTime, "2026-05-31T22:00:00.000Z");
+  assert.equal(findAgent(atNight.snapshot.agents, "agent_elysia")?.currentAction?.id, "elysia.night.0");
+  assert.equal(findAgent(atNight.snapshot.agents, "agent_kevin")?.currentAction?.id, "kevin.night.0");
+  assert.equal(findAgent(atNight.snapshot.agents, "agent_eden")?.currentAction?.id, "eden.night.0");
+  assert.ok(atNight.events.some((event) => event.kind === "agent.continuedRoutine" && event.payload.period === "evening"));
+  assert.ok(atNight.events.some((event) => event.kind === "agent.continuedRoutine" && event.payload.period === "night"));
+});
+
 test("setTimeScale input affects later time advancement events", () => {
   const queued = queueSimulationInput(createSimulationEngine(), createObserverInput("input_user_scale_002", "setTimeScale", { timeScale: 120 }));
   const firstStep = stepSimulationEngine(queued);
@@ -215,6 +324,18 @@ test("setTimeScale input affects later time advancement events", () => {
     stepId: "step_0610_002",
   });
 });
+
+function stepTimes(initial: ReturnType<typeof createSimulationEngine>, count: number): ReturnType<typeof stepSimulationEngine>["state"] {
+  let state = initial;
+  for (let index = 0; index < count; index += 1) {
+    state = stepSimulationEngine(state).state;
+  }
+  return state;
+}
+
+function findAgent(agents: ReturnType<typeof createSimulationEngine>["snapshot"]["agents"], id: string) {
+  return agents.find((agent) => agent.id === id);
+}
 
 function createObserverInput(id: string, action: string, extraPayload: Record<string, unknown> = {}, targetIds = [OBSERVATION_MVP_WORLD_ID]): SimulationInput {
   return createInterventionInput(id, "observerCommand", targetIds, { action, ...extraPayload });
