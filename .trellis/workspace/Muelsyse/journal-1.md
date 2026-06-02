@@ -246,3 +246,38 @@ Implemented the local observability/debug dashboard suite, localized the Chinese
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Deterministic routines and runtime LLM config
+
+**Date**: 2026-06-03
+**Task**: Deterministic routines and runtime LLM config
+**Branch**: `main`
+
+### Summary
+
+Implemented deterministic agent routine progression, hid system map pulses, added session-only runtime LLM API config panel, and archived completed tasks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `53db67d` | (see git log) |
+| `cf1081e` | (see git log) |
+| `0a427ba` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
