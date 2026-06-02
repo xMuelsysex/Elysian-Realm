@@ -39,7 +39,7 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
             language={language}
             location={location}
             agents={viewModel.agents.filter((agent) => agent.locationId === location.id)}
-            pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id).slice(0, 2)}
+            pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id && pulse.source !== "system").slice(0, 2)}
             onSelectAgent={onSelectAgent}
             onSelectLocation={onSelectLocation}
           />
