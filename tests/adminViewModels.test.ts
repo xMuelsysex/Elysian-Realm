@@ -28,6 +28,7 @@ import {
   projectEventDetail,
 } from "../src/app/shared/viewModels.js";
 import { createAdminController } from "../src/server/admin/index.js";
+import { DASHBOARD_TABS, DEFAULT_DASHBOARD_TAB_ID, findDashboardTab, getDashboardTabDescription, getDashboardTabLabel } from "../src/app/realm/dashboardTabs.js";
 
 const expectedStartupKinds = [
   "world.created",
@@ -38,6 +39,14 @@ const expectedStartupKinds = [
 ] as const;
 
 const expectedRoutineProgressionKinds = ["agent.moved", "agent.continuedRoutine"] as const;
+
+test("defines dashboard tab pages with overview as the default", () => {
+  assert.equal(DEFAULT_DASHBOARD_TAB_ID, "overview");
+  assert.deepEqual(DASHBOARD_TABS.map((tab) => tab.id), ["overview", "map", "agents", "events", "control", "debug"]);
+  assert.equal(getDashboardTabLabel("zh", findDashboardTab("map")), "地图");
+  assert.equal(getDashboardTabLabel("en", findDashboardTab("control")), "Control");
+  assert.match(getDashboardTabDescription("en", findDashboardTab("events")), /timeline/i);
+});
 
 test("groups agents by backend snapshot locations", () => {
   const state = createAdminController().getState();

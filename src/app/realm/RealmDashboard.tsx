@@ -22,7 +22,7 @@ import {
   type TimelineFilters,
 } from "../shared/viewModels.js";
 import type { AppLanguage } from "../shared/i18n.js";
-import { formatAgentDisplayName, getCopy } from "../shared/i18n.js";
+import { formatAgentDisplayName } from "../shared/i18n.js";
 import { AgentDetailPanel } from "../agents/AgentDetailPanel.js";
 import { DebugPanel } from "../diagnostics/DebugPanel.js";
 import { InterventionPanel } from "../interventions/InterventionPanel.js";
@@ -45,6 +45,14 @@ import {
   WorldInspector,
 } from "./ObservabilityPanels.js";
 import { WorldHeader } from "./WorldHeader.js";
+import {
+  DASHBOARD_TABS,
+  DEFAULT_DASHBOARD_TAB_ID,
+  findDashboardTab,
+  getDashboardTabDescription,
+  getDashboardTabLabel,
+  type DashboardTabId,
+} from "./dashboardTabs.js";
 
 interface RealmDashboardProps {
   language: AppLanguage;
@@ -79,7 +87,7 @@ export function RealmDashboard({
   const [replayCursor, setReplayCursor] = useState(0);
   const [autoStep, setAutoStep] = useState(false);
   const [exportedAt, setExportedAt] = useState<string>();
-  const copy = getCopy(language);
+  const [activeTab, setActiveTab] = useState<DashboardTabId>(DEFAULT_DASHBOARD_TAB_ID);
 
   const timelineItems = useMemo(
     () => createTimelineItems(state.events, state.timeline, language, timelineDetailMode),
@@ -137,47 +145,115 @@ export function RealmDashboard({
     setExportedAt(generatedAt);
   };
 
+  const activeTabDefinition = findDashboardTab(activeTab);
+  const agentOptions = state.snapshot.agents.map((agent) => ({ id: agent.id, displayName: formatAgentDisplayName(language, agent.id, agent.displayName) }));
+  const timeline = (
+    <EventTimeline
+      detailMode={timelineDetailMode}
+      language={language}
+      items={filteredTimelineItems}
+      filters={timelineFilters}
+      agentOptions={agentOptions}
+      kindOptions={kindOptions}
+      sourceOptions={sourceOptions}
+      selectedEventId={selectedEventId}
+      onFiltersChange={setTimelineFilters}
+      onSelectEvent={setSelectedEventId}
+      onToggleDetailMode={toggleTimelineDetailMode}
+    />
+  );
+
   return (
     <main className="dashboard-shell">
       <WorldHeader language={language} snapshot={state.snapshot} eventCount={state.events.length} onToggleLanguage={onToggleLanguage} />
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
-      <div className="dashboard-grid">
-        <div className="dashboard-main">
-          <RealmMapPanel language={language} viewModel={realmMap} onSelectAgent={setSelectedAgentId} onSelectLocation={selectLocation} />
-          <LocationTopology language={language} viewModel={topology} />
-          <LocationBoard language={language} groups={locationGroups} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
-          <AgentDetailPanel language={language} viewModel={agentDetailViewModel} />
-          <RelationshipNetwork language={language} rows={relationshipRows} />
-          <EventTimeline
-            detailMode={timelineDetailMode}
-            language={language}
-            items={filteredTimelineItems}
-            filters={timelineFilters}
-            agentOptions={state.snapshot.agents.map((agent) => ({ id: agent.id, displayName: formatAgentDisplayName(language, agent.id, agent.displayName) }))}
-            kindOptions={kindOptions}
-            sourceOptions={sourceOptions}
-            selectedEventId={selectedEventId}
-            onFiltersChange={setTimelineFilters}
-            onSelectEvent={setSelectedEventId}
-            onToggleDetailMode={toggleTimelineDetailMode}
-          />
-          <ReplayPanel language={language} viewModel={replay} autoStep={autoStep} onAutoStepChange={setAutoStep} onCursorChange={jumpReplayCursor} />
-          <WorldInspector language={language} viewModel={worldInspector} />
-          <MemoryView language={language} viewModel={memory} />
-          <MessageStreamPanel language={language} threads={messages} />
-          <PersonaReadOnlyPanel language={language} personas={state.personas} />
-          <StateDiffPanel language={language} diffs={diffs} />
-          <AgentPlanPanel language={language} plans={plans} />
-        </div>
-        <aside className="dashboard-side" aria-label={copy.dashboard.sideLabel}>
-          <InterventionPanel language={language} disabled={loading} snapshot={state.snapshot} onStep={onStep} onReset={onReset} onSubmit={onSubmitInput} />
-          <LlmRuntimeConfigPanel language={language} disabled={loading} />
-          <ReceiptPanel language={language} receipt={receipt} />
-          <DiagnosticsCenter language={language} viewModel={diagnostics} />
-          <DebugExportPanel language={language} viewModel={exportViewModel} onExport={exportDebugState} exportedAt={exportedAt} />
-          <DebugPanel language={language} state={state} />
-        </aside>
-      </div>
+
+      <nav className="dashboard-tabs" aria-label={language === "zh" ? "管理台子页面" : "Dashboard pages"} role="tablist">
+        {DASHBOARD_TABS.map((tab) => {
+          const selected = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              id={`dashboard-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`dashboard-tabpanel-${tab.id}`}
+              className={selected ? "dashboard-tab dashboard-tab--active" : "dashboard-tab"}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span>{getDashboardTabLabel(language, tab)}</span>
+              <small>{getDashboardTabDescription(language, tab)}</small>
+            </button>
+          );
+        })}
+      </nav>
+
+      <section
+        id={`dashboard-tabpanel-${activeTab}`}
+        className="dashboard-tab-page"
+        role="tabpanel"
+        aria-labelledby={`dashboard-tab-${activeTab}`}
+      >
+        <header className="dashboard-tab-heading">
+          <p className="eyebrow">{language === "zh" ? "当前子页面" : "Current page"}</p>
+          <h2>{getDashboardTabLabel(language, activeTabDefinition)}</h2>
+          <p>{getDashboardTabDescription(language, activeTabDefinition)}</p>
+        </header>
+
+        {activeTab === "overview" ? (
+          <div className="dashboard-page-grid dashboard-page-grid--balanced">
+            <WorldInspector language={language} viewModel={worldInspector} />
+            <ReceiptPanel language={language} receipt={receipt} />
+            <DiagnosticsCenter language={language} viewModel={diagnostics} />
+            <StateDiffPanel language={language} diffs={diffs} />
+          </div>
+        ) : null}
+
+        {activeTab === "map" ? (
+          <div className="dashboard-page-stack">
+            <RealmMapPanel language={language} viewModel={realmMap} onSelectAgent={setSelectedAgentId} onSelectLocation={selectLocation} />
+            <div className="dashboard-page-grid dashboard-page-grid--balanced">
+              <LocationTopology language={language} viewModel={topology} />
+              <LocationBoard language={language} groups={locationGroups} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === "agents" ? (
+          <div className="dashboard-page-stack">
+            <AgentDetailPanel language={language} viewModel={agentDetailViewModel} />
+            <div className="dashboard-page-grid dashboard-page-grid--balanced">
+              <RelationshipNetwork language={language} rows={relationshipRows} />
+              <AgentPlanPanel language={language} plans={plans} />
+              <MemoryView language={language} viewModel={memory} />
+              <MessageStreamPanel language={language} threads={messages} />
+              <PersonaReadOnlyPanel language={language} personas={state.personas} />
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === "events" ? (
+          <div className="dashboard-page-stack">
+            {timeline}
+            <ReplayPanel language={language} viewModel={replay} autoStep={autoStep} onAutoStepChange={setAutoStep} onCursorChange={jumpReplayCursor} />
+          </div>
+        ) : null}
+
+        {activeTab === "control" ? (
+          <div className="dashboard-page-grid dashboard-page-grid--balanced">
+            <InterventionPanel language={language} disabled={loading} snapshot={state.snapshot} onStep={onStep} onReset={onReset} onSubmit={onSubmitInput} />
+            <LlmRuntimeConfigPanel language={language} disabled={loading} />
+          </div>
+        ) : null}
+
+        {activeTab === "debug" ? (
+          <div className="dashboard-page-stack">
+            <DebugExportPanel language={language} viewModel={exportViewModel} onExport={exportDebugState} exportedAt={exportedAt} />
+            <DebugPanel language={language} state={state} />
+          </div>
+        ) : null}
+      </section>
     </main>
   );
 }
