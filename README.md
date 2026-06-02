@@ -9,3 +9,16 @@ This repository includes a development-only admin/debug interface for the determ
 - The admin API listens on `http://127.0.0.1:4317` and is proxied by Vite under `/api/admin/*`.
 
 The admin surface is local-first and in-memory only: it has no production auth, no database, no persistence, and no public deployment scope. Resetting the admin state returns the simulation to the deterministic observation MVP seed.
+
+## Optional local LLM provider
+
+The backend includes an OpenAI-compatible LLM boundary for local experiments. Core tests use a deterministic fake provider and do not require network access or API keys.
+
+To try a real compatible endpoint locally:
+
+1. Copy `.env.example` to `.env`.
+2. Set `ELYSIAN_LLM_BASE_URL`, `ELYSIAN_LLM_MODEL`, and `ELYSIAN_LLM_API_KEY` for your provider.
+3. Optionally set `ELYSIAN_LLM_API_MODE=responses` to use the OpenAI Responses-style `/responses` endpoint; the default is `chat_completions`.
+4. Keep `.env` local. It is gitignored and must not be committed.
+
+The simulation engine does not call the real provider directly in this MVP. Model calls must go through `src/server/llm/**`, where provider failures, timeouts, refusals, incomplete Responses API statuses, and structured-output validation errors are recorded visibly instead of being converted into fake successful agent behavior. Responses API requests are sent with `store: false` by default from this boundary.
