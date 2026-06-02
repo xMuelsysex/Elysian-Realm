@@ -1,7 +1,7 @@
 import type { LocationGroup } from "../shared/viewModels.js";
 import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
-import { formatAgentStatusLabel, formatLocationDescription, formatLocationName, getCopy } from "../shared/i18n.js";
+import { formatAgentDisplayName, formatAgentStatusLabel, formatEntityLabel, formatLocationDescription, formatLocationName, getCopy } from "../shared/i18n.js";
 
 interface LocationBoardProps {
   language: AppLanguage;
@@ -33,22 +33,23 @@ export function LocationBoard({ language, groups, selectedAgentId, onSelectAgent
               <ul className="agent-list">
                 {group.agents.map((agent) => {
                   const selected = agent.id === selectedAgentId;
+                  const displayName = formatAgentDisplayName(language, agent.id, agent.displayName);
                   return (
                     <li className={selected ? "agent-list-item agent-list-item--selected" : "agent-list-item"} key={agent.id}>
                       <button
                         type="button"
                         className="agent-select-button"
                         aria-pressed={selected}
-                        aria-label={`${copy.agents.selectAgent}: ${agent.displayName}`}
+                        aria-label={`${copy.agents.selectAgent}: ${displayName}`}
                         onClick={() => onSelectAgent(agent.id)}
                       >
                         <span className="agent-list-title-row">
-                          <strong>{agent.displayName}</strong>
+                          <strong>{displayName}</strong>
                           {selected ? <span className="selected-marker">{copy.agents.selected}</span> : null}
                         </span>
                         <span>{agent.id}</span>
                         <Badge tone="agent">{formatAgentStatusLabel(language, agent.status)}</Badge>
-                        <small>{copy.locations.relationships}: {agent.relationshipRefs.join(", ") || copy.locations.none}</small>
+                        <small>{copy.locations.relationships}: {agent.relationshipRefs.map((id) => formatEntityLabel(language, id)).join(", ") || copy.locations.none}</small>
                       </button>
                     </li>
                   );

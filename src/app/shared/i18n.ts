@@ -140,20 +140,20 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
   zh: {
     app: {
       eyebrow: "本地调试世界",
-      title: "Elysian Realm 管理台",
+      title: "乐土管理台",
       loading: "正在加载管理状态…",
       unknownError: "未知管理界面错误",
     },
     language: {
-      toggleButton: "中文 / English",
-      toggleAriaLabel: "切换中文和英文界面",
+      toggleButton: "切换到英文",
+      toggleAriaLabel: "切换到英文界面",
     },
     dashboard: {
       sideLabel: "控制与诊断",
     },
     world: {
       metricsLabel: "世界状态指标",
-      world: "世界",
+      world: "世界编号",
       status: "状态",
       time: "当前时间",
       timeScale: "时间倍率",
@@ -187,17 +187,17 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
     },
     agents: {
       eyebrow: "运行态详情",
-      title: "Agent 详情",
+      title: "角色详情",
       emptyTitle: "请选择一个角色",
       emptyDescription: "在“位置与角色”中点击角色后，这里会显示运行态状态、位置、关系引用和最近相关事件。",
       notFoundTitle: "未找到选中的角色",
-      notFoundDescription: "当前快照里没有这个 agent id，可能是世界已重置或数据已刷新。",
+      notFoundDescription: "当前快照里没有这个角色编号，可能是世界已重置或数据已刷新。",
       runtimeState: "运行态状态",
-      runtimeNote: "以下信息来自当前 WorldSnapshot；它不是配置人格设定，也不会修改模拟状态。",
+      runtimeNote: "以下信息来自当前世界快照；它不是配置人格设定，也不会修改模拟状态。",
       selected: "已选择",
       selectAgent: "选择角色",
-      agentId: "Agent ID",
-      personaId: "Persona ID",
+      agentId: "角色编号",
+      personaId: "人格编号",
       displayName: "显示名",
       status: "状态",
       currentLocation: "当前位置",
@@ -222,11 +222,11 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       eyebrow: "回放日志",
       title: "事件时间线",
       empty: "还没有事件。点击“步进”生成确定性的启动时间线。",
-      id: "ID",
+      id: "编号",
       step: "步进",
       time: "时间",
       targets: "目标",
-      payloadJson: "Payload JSON",
+      payloadJson: "载荷数据",
       debugMode: "调试模式",
       debugOn: "开启",
       debugOff: "关闭",
@@ -272,14 +272,14 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       input: "输入",
       event: "事件",
       details: "诊断详情",
-      replayJson: "回放摘要 JSON",
-      queuedJson: "排队输入 JSON",
+      replayJson: "回放摘要数据",
+      queuedJson: "排队输入数据",
     },
     badges: {
       system: "系统",
       user: "用户",
       agent: "角色",
-      llm: "LLM",
+      llm: "模型",
       test: "测试",
       error: "错误",
       warning: "警告",
@@ -297,7 +297,7 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       waiting: "等待中",
     },
     viewModels: {
-      noPayload: "无 payload 详情",
+      noPayload: "无载荷详情",
       eventKinds: {
         "world.created": "世界创建",
         "agent.spawned": "角色生成",
@@ -308,28 +308,28 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
         "memory.seeded": "记忆种子记录",
       },
       payloadKeys: {
-        seedId: "种子 ID",
-        personaIds: "人格 ID",
-        locationIds: "位置 ID",
+        seedId: "种子编号",
+        personaIds: "人格编号",
+        locationIds: "位置编号",
         initialStatus: "初始状态",
-        personaId: "人格 ID",
-        locationId: "位置 ID",
+        personaId: "人格编号",
+        locationId: "位置编号",
         status: "状态",
         from: "从",
         to: "到",
         timeScale: "时间倍率",
-        stepId: "步进 ID",
+        stepId: "步进编号",
         routineId: "日程 ID",
         intent: "意图",
         provenance: "来源标记",
-        inputId: "输入 ID",
+        inputId: "输入编号",
         commandKind: "命令类型",
         accepted: "已接受",
         summary: "摘要",
         code: "代码",
         message: "消息",
-        seedBatchId: "种子批次 ID",
-        memoryIds: "记忆 ID",
+        seedBatchId: "种子批次编号",
+        memoryIds: "记忆编号",
         note: "备注",
       },
     },
@@ -342,8 +342,8 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       unknownError: "Unknown admin UI error",
     },
     language: {
-      toggleButton: "中文 / English",
-      toggleAriaLabel: "Switch between Chinese and English UI",
+      toggleButton: "切换到中文",
+      toggleAriaLabel: "Switch to the Chinese interface",
     },
     dashboard: {
       sideLabel: "Controls and diagnostics",
@@ -377,8 +377,8 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       runtimeNote: "This information comes from the current WorldSnapshot. It is not configured persona canon and does not mutate simulation state.",
       selected: "Selected",
       selectAgent: "Select agent",
-      agentId: "Agent ID",
-      personaId: "Persona ID",
+      agentId: "角色编号",
+      personaId: "人格编号",
       displayName: "Display name",
       status: "Status",
       currentLocation: "Current location",
@@ -403,11 +403,11 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
       eyebrow: "Replay log",
       title: "Event timeline",
       empty: "No events yet. Run one step to create the deterministic startup timeline.",
-      id: "ID",
+      id: "编号",
       step: "Step",
       time: "Time",
       targets: "Targets",
-      payloadJson: "Payload JSON",
+      payloadJson: "载荷数据",
       debugMode: "Debug mode",
       debugOn: "On",
       debugOff: "Off",
@@ -543,6 +543,133 @@ export function formatAgentStatusLabel(language: AppLanguage, status: AgentStatu
 
 export function formatPayloadStatusLabel(language: AppLanguage, status: string): string {
   return UI_COPY[language].badges[status as WorldStatus | AgentStatus] ?? status;
+}
+
+export function formatAgentDisplayName(language: AppLanguage, agentOrPersonaId: string, fallback: string): string {
+  if (language !== "zh") return fallback;
+  const normalizedId = agentOrPersonaId.replace(/^agent_/, "");
+  const names: Record<string, string> = {
+    elysia: "爱莉希雅",
+    kevin: "凯文",
+    eden: "伊甸",
+  };
+  return names[normalizedId] ?? fallback;
+}
+
+export function formatEntityLabel(language: AppLanguage, id: string): string {
+  if (language !== "zh") return id;
+  if (id.startsWith("agent_")) return formatAgentDisplayName(language, id, id);
+  const locations = UI_COPY.zh.locations.names;
+  if (locations[id]) return locations[id];
+  if (id === "world_elysian_observation_mvp") return "观测世界";
+  return id;
+}
+
+export function formatPersonaText(language: AppLanguage, personaId: string, text: string): string {
+  if (language !== "zh") return text;
+  const translations: Record<string, Record<string, string>> = {
+    elysia: {
+      "Warm social guide who draws others into gentle observation and conversation.": "温暖的社交引导者，会把他人带入温和观察与交谈。",
+      "keep the realm emotionally welcoming": "让乐土始终保持情感上的欢迎感",
+      "notice lonely residents before they withdraw": "在居民退缩前察觉他们的孤独",
+      "Respects his burden while trying to draw out quieter feelings.": "尊重他的重负，同时试着引出更安静的情感。",
+      "Shares an appreciation for beauty, hospitality, and reflective conversation.": "共同珍视美、待客之道与带有反思的交谈。",
+      beauty: "美",
+      connection: "连接",
+      curiosity: "好奇",
+      "kind candor": "温柔坦诚",
+      empathetic: "共情",
+      curious: "好奇",
+      performative: "富有表现力",
+      "emotionally perceptive": "敏锐感知情绪",
+    },
+    kevin: {
+      "Reserved protector who prioritizes duty and watches the realm from a distance.": "克制的守护者，把职责放在首位，并从远处注视乐土。",
+      "maintain stability in the realm": "维持乐土稳定",
+      "avoid letting personal weight harm others": "避免让自己的重负伤及他人",
+      "Trusts her perception but may resist being drawn into public emotion.": "信任她的感知，但可能抗拒被带入公开情绪。",
+      "Values her composure and her ability to make silence comfortable.": "重视她的从容，以及让沉默变得舒适的能力。",
+      duty: "职责",
+      endurance: "忍耐",
+      restraint: "克制",
+      "protective resolve": "守护的决意",
+      stoic: "沉静",
+      protective: "保护欲强",
+      disciplined: "自律",
+      distant: "疏离",
+    },
+    eden: {
+      "Elegant artist-patron who preserves atmosphere, memory, and hospitality.": "优雅的艺术守护者，珍视氛围、记忆与待客之道。",
+      "keep the realm's shared spaces emotionally resonant": "让乐土共享空间保有情感共鸣",
+      "offer comfort without demanding confession": "给予安慰而不强迫他人倾诉",
+      "Enjoys her brightness and often helps make gatherings feel effortless.": "欣赏她的明亮，也常帮助聚会变得自然轻松。",
+      "Respects his silence and offers comfort in indirect, low-pressure ways.": "尊重他的沉默，并以间接、低压力的方式提供安慰。",
+      art: "艺术",
+      generosity: "慷慨",
+      poise: "从容",
+      remembrance: "铭记",
+      gracious: "优雅",
+      reflective: "善于反思",
+      generous: "慷慨",
+      composed: "沉着",
+    },
+  };
+  return translations[personaId]?.[text] ?? text;
+}
+
+export function formatRelationshipGroup(language: AppLanguage, group: string): string {
+  if (language !== "zh") return group;
+  return { tense: "紧张", trusted: "互信", developing: "发展中" }[group] ?? group;
+}
+
+export function formatProvenanceLabel(language: AppLanguage, provenance: string): string {
+  if (language !== "zh") return provenance;
+  return { configured: "配置", generated: "生成", user: "用户", system: "系统" }[provenance] ?? provenance;
+}
+
+export function formatCommandKindLabel(language: AppLanguage, commandKind: string | undefined): string {
+  if (!commandKind || language !== "zh") return commandKind ?? "";
+  return {
+    observerCommand: "观察者命令",
+    realmEvent: "领域事件",
+    directPrivateMessage: "私信",
+  }[commandKind] ?? commandKind;
+}
+
+export function formatCommandSummary(language: AppLanguage, summary: string | undefined): string | undefined {
+  if (!summary || language !== "zh") return summary;
+  const summaries: Record<string, string> = {
+    "observerCommand:pause": "观察者命令：暂停",
+    "observerCommand:resume": "观察者命令：继续",
+    "observerCommand:setTimeScale": "观察者命令：设置时间倍率",
+    directPrivateMessage: "私信",
+  };
+  if (summary.startsWith("realmEvent:")) return `领域事件：${summary.slice("realmEvent:".length)}`;
+  return summaries[summary] ?? summary;
+}
+
+export function formatDiagnosticMessage(language: AppLanguage, message: string): string {
+  if (language !== "zh") return message;
+  const exact: Record<string, string> = {
+    "directPrivateMessage targetIds must contain exactly one known agent id": "私信目标必须且只能包含一个已知角色编号",
+    "realmEvent targets must reference the active world, location, or agent": "领域事件目标必须引用当前世界、位置或角色",
+    "observerCommand.payload.action must be step, pause, resume, or setTimeScale": "观察者命令动作必须是步进、暂停、继续或设置时间倍率",
+    "input.command.targetIds must be a non-empty string array": "命令目标不能为空",
+  };
+  if (exact[message]) return exact[message];
+  if (message.includes("event.payload")) return message.replaceAll("event.payload", "事件载荷").replaceAll("must be", "必须是");
+  return message;
+}
+
+export function formatSimulationText(language: AppLanguage, text: string | undefined): string | undefined {
+  if (!text || language !== "zh") return text;
+  const texts: Record<string, string> = {
+    "start the configured morning routine": "开始执行已配置的晨间日程",
+    "Memory seeding is recorded as an event only; MemoryRecord storage is deferred.": "记忆种子仅记录为事件；记忆记录存储仍然延后。",
+    "idle / no operation": "空闲 / 无操作",
+    "in progress": "进行中",
+  };
+  return texts[text] ?? text;
 }
 
 export function formatDiagnosticLevelLabel(language: AppLanguage, level: DiagnosticLevel): string {

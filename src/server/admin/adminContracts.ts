@@ -1,5 +1,5 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
-import type { SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
+import type { PersonaSpec, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { ReplaySummary, TimelineEntry } from "../simulation/index.js";
 
 export interface AdminDiagnostic {
@@ -17,6 +17,7 @@ export interface AdminStateResponse {
   timeline: TimelineEntry[];
   replay: ReplaySummary;
   diagnostics: AdminDiagnostic[];
+  personas: PersonaSpec[];
 }
 
 export interface SubmitAdminInputRequest {

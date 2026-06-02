@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { SubmitAdminInputRequest } from "../../server/admin/index.js";
 import type { WorldSnapshot } from "../../shared/contracts/index.js";
 import type { AppLanguage } from "../shared/i18n.js";
-import { getCopy } from "../shared/i18n.js";
+import { formatAgentDisplayName, formatLocationName, getCopy } from "../shared/i18n.js";
 
 interface InterventionPanelProps {
   language: AppLanguage;
@@ -16,6 +16,16 @@ interface InterventionPanelProps {
 type FormErrorKey = keyof ReturnType<typeof getCopy>["controls"]["errors"];
 
 const DEFAULT_REALM_EVENT_KIND = "debug.realmEvent";
+const REALM_EVENT_TEMPLATES = [
+  { kind: "debug.gathering", zhLabel: "低压力聚会", enLabel: "Gathering", zhDescription: "邀请附近居民进入低压力的共享聚会。", enDescription: "Invite nearby residents into a low-pressure shared gathering." },
+  { kind: "debug.anomaly", zhLabel: "环境异象", enLabel: "Anomaly", zhDescription: "引入一个小型环境异象供观察。", enDescription: "Introduce a small environmental anomaly for observation." },
+  { kind: "debug.scheduleNudge", zhLabel: "日程轻推", enLabel: "Schedule nudge", zhDescription: "把当天节奏轻轻推向某个已配置日程或位置。", enDescription: "Nudge the day toward a configured routine or location." },
+] as const;
+const MESSAGE_TEMPLATES = [
+  { zh: "来自观察者的一则安静便笺。", en: "A quiet note from the observer." },
+  { zh: "请感受并反思当前房间。", en: "Please reflect on the current room." },
+  { zh: "留意此刻乐土的氛围。", en: "Notice how the realm feels right now." },
+] as const;
 
 export function InterventionPanel({ language, disabled, snapshot, onStep, onReset, onSubmit }: InterventionPanelProps) {
   const copy = getCopy(language);
@@ -130,14 +140,30 @@ export function InterventionPanel({ language, disabled, snapshot, onStep, onRese
 
       <form className="stacked-form" onSubmit={submitRealmEvent}>
         <h3>{copy.controls.realmEvent}</h3>
+        <div className="template-row" aria-label={language === "zh" ? "领域事件模板" : "Realm event templates"}>
+          {REALM_EVENT_TEMPLATES.map((template) => (
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={disabled}
+              key={template.kind}
+              onClick={() => {
+                setRealmEventKind(template.kind);
+                setRealmDescription(language === "zh" ? template.zhDescription : template.enDescription);
+              }}
+            >
+              {language === "zh" ? template.zhLabel : template.enLabel}
+            </button>
+          ))}
+        </div>
         <label htmlFor="realm-target">{copy.controls.target}</label>
         <select id="realm-target" value={realmTargetId} disabled={disabled} onChange={(event) => setRealmTargetId(event.target.value)}>
-          <option value={snapshot.id}>{snapshot.id} ({copy.controls.worldTarget})</option>
+          <option value={snapshot.id}>{language === "zh" ? "观测世界" : snapshot.id} ({copy.controls.worldTarget})</option>
           {snapshot.locations.map((location) => (
-            <option key={location.id} value={location.id}>{location.displayName} ({location.id})</option>
+            <option key={location.id} value={location.id}>{formatLocationName(language, location.id, location.displayName)} ({location.id})</option>
           ))}
           {snapshot.agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>{agent.displayName} ({agent.id})</option>
+            <option key={agent.id} value={agent.id}>{formatAgentDisplayName(language, agent.id, agent.displayName)} ({agent.id})</option>
           ))}
         </select>
         <label htmlFor="realm-kind">{copy.controls.eventKind}</label>
@@ -155,10 +181,20 @@ export function InterventionPanel({ language, disabled, snapshot, onStep, onRese
 
       <form className="stacked-form" onSubmit={submitDirectMessage}>
         <h3>{copy.controls.directMessage}</h3>
+        <div className="template-row" aria-label={language === "zh" ? "私信模板" : "Direct message templates"}>
+          {MESSAGE_TEMPLATES.map((template) => {
+            const text = language === "zh" ? template.zh : template.en;
+            return (
+              <button type="button" className="secondary-button" disabled={disabled} key={text} onClick={() => setMessage(text)}>
+                {text}
+              </button>
+            );
+          })}
+        </div>
         <label htmlFor="message-target">{copy.controls.agent}</label>
         <select id="message-target" value={messageTargetId} disabled={disabled} onChange={(event) => setMessageTargetId(event.target.value)}>
           {snapshot.agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>{agent.displayName} ({agent.id})</option>
+            <option key={agent.id} value={agent.id}>{formatAgentDisplayName(language, agent.id, agent.displayName)} ({agent.id})</option>
           ))}
         </select>
         <label htmlFor="private-message">{copy.controls.message}</label>

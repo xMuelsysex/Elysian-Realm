@@ -2,10 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import type { SimulationEvent } from "../src/shared/contracts/index.js";
+import type { AdminDiagnostic } from "../src/server/admin/index.js";
 import {
   createAgentDetailViewModel,
+  createAgentPlanViewModels,
+  createDebugExportViewModel,
+  createDiagnosticsCenterViewModel,
+  createInterventionReceiptViewModel,
+  createMemoryViewModel,
+  createMessageStreamViewModel,
+  createRelationshipNetworkViewModel,
+  createReplayCursorViewModel,
+  createStateDiffViewModel,
   createTimelineItems,
+  createTopologyViewModel,
+  createWorldInspectorViewModel,
   filterRelatedTimelineItems,
+  filterTimelineItems,
   findAgentLocation,
   findSelectedAgent,
   groupAgentsByLocation,
@@ -79,11 +92,11 @@ test("debug-mode timeline details include key facts for every MVP event kind", (
   assertEventDetail(items, "agent.spawned", /位置: atrium/);
   assertEventDetail(items, "world.timeAdvanced", /时间倍率: 60/);
   assertEventDetail(items, "world.timeAdvanced", /步进: step_0605_001/);
-  assertEventDetail(items, "agent.startedRoutine", /意图: start the configured morning routine/);
-  assertEventDetail(items, "realm.interventionSubmitted", /命令: observerCommand/);
+  assertEventDetail(items, "agent.startedRoutine", /意图: 开始执行已配置的晨间日程/);
+  assertEventDetail(items, "realm.interventionSubmitted", /命令: 观察者命令/);
   assertEventDetail(items, "realm.interventionSubmitted", /输入: admin_input_001/);
   assertEventDetail(items, "simulation.inputRejected", /输入: admin_input_002/);
-  assertEventDetail(items, "simulation.inputRejected", /directPrivateMessage targetIds/);
+  assertEventDetail(items, "simulation.inputRejected", /私信目标必须且只能包含一个已知角色编号/);
   assertEventDetail(items, "memory.seeded", /批次: mvp-current-roster-v1:memory-events-only/);
 });
 
@@ -208,6 +221,175 @@ test("latest diagnostics returns newest rejected input diagnostics first", () =>
   assert.equal(diagnostics[0]?.inputId, "admin_input_002");
   assert.equal(diagnostics[1]?.inputId, "admin_input_001");
 });
+
+test("creates enhanced selected agent detail with configured persona facts and runtime memory index", () => {
+  const controller = createAdminController();
+  const stepped = controller.step();
+  const items = createTimelineItems(stepped.events, stepped.timeline, "zh", "debug");
+
+  const viewModel = createAgentDetailViewModel(stepped.snapshot, "agent_elysia", items, 5, stepped.personas);
+
+  assert.equal(viewModel.persona?.id, "elysia");
+  assert.ok(viewModel.configuredFacts.some((fact) => fact.provenance === "configured" && fact.value.includes("温暖的社交引导者")));
+  assert.ok(viewModel.longTermGoals.includes("让乐土始终保持情感上的欢迎感"));
+  assert.equal(viewModel.runtimeMoodIntent, "空闲 / 中庭");
+  assert.ok(viewModel.recentMemoryIndex.some((memory) => memory.eventId.includes("memory_seeded")));
+});
+
+test("filters timeline by keyword kind source agent target and time range", () => {
+  const state = createAdminController().step();
+  const items = createTimelineItems(state.events, state.timeline, "en", "debug");
+
+  assert.ok(filterTimelineItems(items, { keyword: "memory" }).every((item) => `${item.title} ${item.detail}`.toLocaleLowerCase().includes("memory")));
+  assert.equal(filterTimelineItems(items, { kind: "world.timeAdvanced" }).length, 1);
+  assert.ok(filterTimelineItems(items, { source: "system" }).length > 0);
+  assert.ok(filterTimelineItems(items, { agentId: "agent_elysia" }).every((item) => item.event.actorId === "agent_elysia" || item.event.targetIds.includes("agent_elysia")));
+  assert.ok(filterTimelineItems(items, { targetId: "atrium" }).every((item) => item.event.targetIds.includes("atrium")));
+  assert.equal(filterTimelineItems(items, { fromTime: "2999-01-01T00:00:00.000Z" }).length, 0);
+});
+
+test("creates relationship network rows from persona relationships and timeline interactions", () => {
+  const state = createAdminController().step();
+  const interactionEvents = Array.from({ length: 6 }, (_, index) => createAgentInteractionEvent(index + 1));
+  const items = createTimelineItems(
+    [...state.events, ...interactionEvents],
+    [...state.timeline, ...interactionEvents.map((event) => ({
+      id: event.id,
+      stepId: event.stepId,
+      time: event.time,
+      kind: "agent.startedRoutine" as const,
+      source: event.source,
+      actorId: event.actorId,
+      targetIds: event.targetIds,
+      causedByInputId: event.causedByInputId,
+    }))],
+    "en",
+    "debug",
+  );
+
+  const rows = createRelationshipNetworkViewModel(state.personas, state.snapshot, items);
+  const elysiaToKevin = rows.find((row) => row.sourcePersonaId === "elysia" && row.targetPersonaId === "kevin");
+
+  assert.ok(elysiaToKevin);
+  assert.equal(elysiaToKevin.affinity, 7);
+  assert.equal(elysiaToKevin.trust, 8);
+  assert.equal(elysiaToKevin.grouping, "trusted");
+  assert.equal(elysiaToKevin.interactionCount, 6);
+  assert.equal(elysiaToKevin.recentInteractions.length, 5);
+});
+
+test("creates inspector replay receipt diff plan topology and export models", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const stepped = controller.step();
+  const accepted = controller.submitInput({
+    kind: "observerCommand",
+    targetIds: [stepped.snapshot.id],
+    payload: { action: "resume" },
+  });
+  assert.equal(accepted.ok, true);
+
+  const items = createTimelineItems(accepted.body.events, accepted.body.timeline, "en", "debug");
+  const inspector = createWorldInspectorViewModel(accepted.body);
+  const receipt = createInterventionReceiptViewModel(stepped, accepted.body, { kind: "observerCommand", targetIds: [stepped.snapshot.id], payload: { action: "resume" } }, items);
+  const replay = createReplayCursorViewModel(accepted.body.replay, items, 0);
+  const diagnostics = createDiagnosticsCenterViewModel(accepted.body.diagnostics);
+  const diffs = createStateDiffViewModel(initial, accepted.body);
+  const plans = createAgentPlanViewModels(accepted.body.snapshot);
+  const topology = createTopologyViewModel(accepted.body.snapshot, items);
+  const exported = createDebugExportViewModel(accepted.body, items, diagnostics, diffs);
+
+  assert.equal(inspector.worldId, accepted.body.snapshot.id);
+  assert.equal(inspector.eventCount, accepted.body.events.length);
+  assert.equal(inspector.timelineCount, accepted.body.timeline.length);
+  assert.equal(inspector.replayFinalStepId, accepted.body.replay.finalStepId);
+  assert.equal(inspector.activeConversations.length, accepted.body.snapshot.activeConversations.length);
+  assert.equal(receipt.status, "accepted");
+  assert.ok(receipt.resultingEvents.some((item) => item.event.kind === "realm.interventionSubmitted"));
+  assert.equal(replay.cursor, 0);
+  assert.ok(replay.selected);
+  assert.ok(diffs.some((diff) => diff.scope === "world" && diff.field === "status"));
+  assert.equal(plans.length, accepted.body.snapshot.agents.length);
+  assert.equal(topology.nodes.length, accepted.body.snapshot.locations.length);
+  assert.ok(topology.movementPaths.length > 0);
+  assert.equal(exported.state.snapshot.id, accepted.body.snapshot.id);
+  assert.equal(exported.events.length, accepted.body.events.length);
+  assert.equal(exported.replay.finalStepId, accepted.body.replay.finalStepId);
+});
+
+test("creates rejected receipts diagnostics center memory and message stream projections", () => {
+  const controller = createAdminController();
+  const stepped = controller.step();
+  const message = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["agent_elysia"],
+    payload: { message: "Hello Elysia." },
+  });
+  assert.equal(message.ok, true);
+  const rejected = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["missing_agent"],
+    payload: { message: "Hello." },
+  });
+  assert.equal(rejected.ok, true);
+
+  const items = createTimelineItems(rejected.body.events, rejected.body.timeline, "en", "debug");
+  const receipt = createInterventionReceiptViewModel(message.body, rejected.body, { kind: "directPrivateMessage", targetIds: ["missing_agent"], payload: { message: "Hello." } }, items);
+  const memory = createMemoryViewModel(rejected.body.personas, items, "agent_elysia");
+  const threads = createMessageStreamViewModel(items);
+  const diagnostics = createDiagnosticsCenterViewModel(rejected.body.diagnostics);
+
+  assert.equal(stepped.snapshot.lastStepId, "step_0605_001");
+  assert.equal(receipt.status, "rejected");
+  assert.match(receipt.reason ?? "", /私信目标必须且只能包含一个已知角色编号/);
+  assert.ok(memory.configuredFacts.some((fact) => fact.provenance === "configured"));
+  assert.ok(memory.runtimeMemories.some((runtimeMemory) => runtimeMemory.provenance === "system" || runtimeMemory.provenance === "user"));
+  assert.ok(threads.some((thread) => thread.participantIds.includes("agent_elysia")));
+  assert.equal(diagnostics.total, 1);
+  assert.equal(diagnostics.rejectedInputs[0]?.inputId, "admin_input_002");
+});
+
+test("diagnostics center aggregates all diagnostics while limiting latest display", () => {
+  const diagnosticsInput = Array.from({ length: 12 }, (_, index) => createDiagnostic(index + 1));
+
+  const diagnostics = createDiagnosticsCenterViewModel(diagnosticsInput);
+
+  assert.equal(diagnostics.total, 12);
+  assert.equal(diagnostics.latest.length, 8);
+  assert.equal(diagnostics.latest[0]?.id, "diag_012");
+  assert.equal(diagnostics.rejectedInputs.length, 6);
+  assert.equal(diagnostics.validationErrors.length, 4);
+  assert.equal(diagnostics.anomalies.length, 6);
+});
+
+function createAgentInteractionEvent(index: number): SimulationEvent {
+  return {
+    id: `evt_test_relation_${String(index).padStart(3, "0")}`,
+    worldId: "world_elysian_observation_mvp",
+    stepId: `step_test_relation_${String(index).padStart(3, "0")}`,
+    time: `2026-05-31T06:${String(index).padStart(2, "0")}:00.000Z`,
+    kind: "agent.startedRoutine",
+    actorId: "agent_elysia",
+    targetIds: ["agent_kevin"],
+    source: "system",
+    payload: {
+      routineId: `test.relationship.${index}`,
+      locationId: "lounge",
+      intent: `interaction ${index}`,
+      provenance: "configured",
+    },
+  };
+}
+
+function createDiagnostic(index: number): AdminDiagnostic {
+  const padded = String(index).padStart(3, "0");
+  return {
+    id: `diag_${padded}`,
+    level: index % 2 === 0 ? "error" : "warning",
+    message: index % 3 === 0 ? `event.payload.test ${index}` : `diagnostic ${index}`,
+    inputId: index % 2 === 0 ? `input_${padded}` : undefined,
+  };
+}
 
 function assertEventDetail(items: ReturnType<typeof createTimelineItems>, kind: string, pattern: RegExp): void {
   const matchingItems = items.filter((timelineItem) => timelineItem.event.kind === kind);

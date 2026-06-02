@@ -16,6 +16,20 @@ test("admin controller exposes deterministic initial state", () => {
   assert.deepEqual(state.events, []);
   assert.deepEqual(state.timeline, []);
   assert.deepEqual(state.diagnostics, []);
+  assert.equal(state.personas.length, 3);
+  assert.ok(state.personas.some((persona) => persona.id === "elysia"));
+});
+
+test("admin state response exposes cloned read-only persona fixtures", () => {
+  const controller = createAdminController();
+  const first = controller.getState();
+
+  first.personas[0]?.profile.longTermGoals.push("mutated by test response");
+  first.personas[0]?.relationships.push({ targetPersonaId: "mutated", affinity: 1, trust: 1, tension: 9, notes: "should not persist" });
+
+  const second = controller.getState();
+  assert.equal(second.personas[0]?.profile.longTermGoals.includes("mutated by test response"), false);
+  assert.equal(second.personas[0]?.relationships.some((relationship) => relationship.targetPersonaId === "mutated"), false);
 });
 
 test("admin controller steps through the simulation engine", () => {

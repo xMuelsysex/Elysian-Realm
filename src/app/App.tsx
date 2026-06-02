@@ -7,6 +7,8 @@ import { DEFAULT_LANGUAGE, getCopy, htmlLanguage, toggleLanguage, type AppLangua
 export function App() {
   const [language, setLanguage] = useState<AppLanguage>(DEFAULT_LANGUAGE);
   const [state, setState] = useState<AdminStateResponse>();
+  const [previousState, setPreviousState] = useState<AdminStateResponse>();
+  const [lastSubmittedInput, setLastSubmittedInput] = useState<SubmitAdminInputRequest>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const copy = getCopy(language);
@@ -19,11 +21,14 @@ export function App() {
     void runCommand(() => fetchAdminState());
   }, []);
 
-  const runCommand = async (command: () => Promise<AdminStateResponse>) => {
+  const runCommand = async (command: () => Promise<AdminStateResponse>, submittedInput?: SubmitAdminInputRequest) => {
     setLoading(true);
     setError(undefined);
     try {
-      setState(await command());
+      const nextState = await command();
+      setPreviousState(state);
+      setState(nextState);
+      setLastSubmittedInput(submittedInput);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : copy.app.unknownError);
     } finally {
@@ -32,7 +37,7 @@ export function App() {
   };
 
   const submitInput = async (input: SubmitAdminInputRequest) => {
-    await runCommand(() => submitAdminInput(input));
+    await runCommand(() => submitAdminInput(input), input);
   };
 
   const switchLanguage = () => setLanguage((current) => toggleLanguage(current));
@@ -60,6 +65,8 @@ export function App() {
     <RealmDashboard
       language={language}
       state={state}
+      previousState={previousState}
+      lastSubmittedInput={lastSubmittedInput}
       loading={loading}
       error={error}
       onToggleLanguage={switchLanguage}

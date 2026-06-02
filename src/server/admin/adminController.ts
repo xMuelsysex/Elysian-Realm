@@ -1,5 +1,6 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
-import type { SimulationEvent, SimulationInput } from "../../shared/contracts/index.js";
+import type { PersonaSpec, SimulationEvent, SimulationInput } from "../../shared/contracts/index.js";
+import { pilotPersonas } from "../personas/index.js";
 import {
   createReplaySummary,
   createSimulationEngine,
@@ -85,6 +86,7 @@ export function createAdminStateResponse(state: SimulationEngineState): AdminSta
     timeline,
     replay: createReplaySummary(state.snapshot, state.events),
     diagnostics: createDiagnostics(events),
+    personas: clonePersonas(pilotPersonas),
   };
 }
 
@@ -193,6 +195,54 @@ function cloneEvent(event: SimulationEvent): SimulationEvent {
     targetIds: [...event.targetIds],
     payload: { ...event.payload },
   };
+}
+
+function clonePersonas(personas: readonly PersonaSpec[]): PersonaSpec[] {
+  return personas.map((persona) => ({
+    ...persona,
+    aliases: [...persona.aliases],
+    profile: {
+      ...persona.profile,
+      values: [...persona.profile.values],
+      longTermGoals: [...persona.profile.longTermGoals],
+      constraints: [...persona.profile.constraints],
+    },
+    speech: {
+      ...persona.speech,
+      preferredAddressForms: [...persona.speech.preferredAddressForms],
+      tabooTopics: [...persona.speech.tabooTopics],
+      tabooPhrases: [...persona.speech.tabooPhrases],
+    },
+    personality: {
+      ...persona.personality,
+      traits: [...persona.personality.traits],
+      strengths: [...persona.personality.strengths],
+      flaws: [...persona.personality.flaws],
+      emotionalTriggers: [...persona.personality.emotionalTriggers],
+    },
+    routines: {
+      morning: persona.routines.morning.map((activity) => ({ ...activity })),
+      day: persona.routines.day.map((activity) => ({ ...activity })),
+      evening: persona.routines.evening.map((activity) => ({ ...activity })),
+      night: persona.routines.night.map((activity) => ({ ...activity })),
+      specialDayOverrides: persona.routines.specialDayOverrides.map((override) => ({
+        ...override,
+        activities: override.activities.map((activity) => ({ ...activity })),
+      })),
+    },
+    preferences: {
+      locations: [...persona.preferences.locations],
+      activities: [...persona.preferences.activities],
+      likes: [...persona.preferences.likes],
+      dislikes: [...persona.preferences.dislikes],
+    },
+    relationships: persona.relationships.map((relationship) => ({ ...relationship })),
+    contentBoundaries: {
+      canonFidelity: [...persona.contentBoundaries.canonFidelity],
+      legal: [...persona.contentBoundaries.legal],
+      safety: [...persona.contentBoundaries.safety],
+    },
+  }));
 }
 
 function readString(value: unknown): string | undefined {

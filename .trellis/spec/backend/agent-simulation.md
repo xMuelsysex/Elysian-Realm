@@ -286,6 +286,7 @@ interface AdminStateResponse {
   timeline: TimelineEntry[];
   replay: ReplaySummary;
   diagnostics: AdminDiagnostic[];
+  personas: PersonaSpec[];
 }
 ```
 
@@ -306,7 +307,7 @@ Runtime rules:
 - `step()` must call `stepSimulationEngine`.
 - `reset()` must call `createSimulationEngine`.
 - `submitInput()` must build a `SimulationInput`, call `queueSimulationInput`, then call `stepSimulationEngine` so UI feedback is immediate.
-- Admin DTOs clone snapshots/events before returning them to avoid exposing mutable engine internals.
+- Admin DTOs clone snapshots, events, and loaded `PersonaSpec[]` before returning them to avoid exposing mutable engine or fixture internals.
 - Diagnostics include `simulation.inputRejected` events and `validateSimulationEvent` failures.
 - The default API bind target is local: `127.0.0.1:4317`. This API is not an auth or production boundary.
 
@@ -323,6 +324,7 @@ Runtime rules:
 - unexpected server exception -> `500 ADMIN_SERVER_ERROR`
 - simulation-level input rejection -> return `200 AdminStateResponse`, emit `simulation.inputRejected`, and expose an `AdminDiagnostic`
 - event validation failure in the event log -> return `200 AdminStateResponse` with an `AdminDiagnostic`
+- persona fixture data requested by the UI -> return cloned `personas` in every `AdminStateResponse`; do not require the frontend to import server fixture modules
 
 ### 5. Good/Base/Bad Cases
 
@@ -343,7 +345,7 @@ Base:
 ```ts
 const controller = createAdminController();
 const response = controller.getState();
-// Deterministic seed snapshot, no events, empty diagnostics.
+// Deterministic seed snapshot, no events, empty diagnostics, cloned read-only personas.
 ```
 
 Bad:
@@ -354,6 +356,9 @@ state.snapshot.status = "running";
 
 // Do not turn invalid requests into fake accepted intervention events.
 return { ok: true, body: fabricatedAcceptedResponse };
+
+// Do not make the browser import backend fixture modules as a second source.
+import { pilotPersonas } from "../../server/personas";
 ```
 
 ### 6. Tests Required
@@ -368,6 +373,7 @@ Admin API tests must assert:
 - simulation validation failures remain visible as diagnostics;
 - event validation failures remain visible as diagnostics;
 - HTTP routes expose state, step, input submission, and JSON parse errors.
+- `AdminStateResponse.personas` exposes the pilot fixtures and mutating one response's nested persona arrays does not affect the next response.
 
 ### 7. Wrong vs Correct
 

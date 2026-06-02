@@ -1,7 +1,7 @@
 import type { AgentDetailViewModel } from "../shared/viewModels.js";
 import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
-import { formatAgentStatusLabel, formatLocationName, formatSourceLabel, getCopy } from "../shared/i18n.js";
+import { formatAgentDisplayName, formatAgentStatusLabel, formatLocationName, formatPersonaText, formatProvenanceLabel, formatSourceLabel, getCopy } from "../shared/i18n.js";
 
 interface AgentDetailPanelProps {
   language: AppLanguage;
@@ -10,6 +10,7 @@ interface AgentDetailPanelProps {
 
 export function AgentDetailPanel({ language, viewModel }: AgentDetailPanelProps) {
   const copy = getCopy(language);
+  const displayName = viewModel.agent ? formatAgentDisplayName(language, viewModel.agent.id, viewModel.agent.displayName) : undefined;
 
   return (
     <section className="panel agent-detail-panel" aria-labelledby="agent-detail-heading">
@@ -39,41 +40,42 @@ export function AgentDetailPanel({ language, viewModel }: AgentDetailPanelProps)
         <div className="agent-detail-content">
           <p className="muted">{copy.agents.runtimeNote}</p>
           <dl className="metric-grid" aria-label={copy.agents.runtimeState}>
-            <div><dt>{copy.agents.displayName}</dt><dd>{viewModel.agent.displayName}</dd></div>
+            <div><dt>{copy.agents.displayName}</dt><dd>{displayName}</dd></div>
             <div><dt>{copy.agents.agentId}</dt><dd><code>{viewModel.agent.id}</code></dd></div>
             <div><dt>{copy.agents.personaId}</dt><dd><code>{viewModel.agent.personaId}</code></dd></div>
-            <div>
-              <dt>{copy.agents.status}</dt>
-              <dd><Badge tone="agent">{formatAgentStatusLabel(language, viewModel.agent.status)}</Badge></dd>
-            </div>
+            <div><dt>{copy.agents.status}</dt><dd><Badge tone="agent">{formatAgentStatusLabel(language, viewModel.agent.status)}</Badge></dd></div>
             <div>
               <dt>{copy.agents.currentLocation}</dt>
-              <dd>
-                {viewModel.location ? (
-                  <>
-                    {formatLocationName(language, viewModel.location.id, viewModel.location.displayName)} <code>{viewModel.location.id}</code>
-                  </>
-                ) : (
-                  <code>{viewModel.agent.locationId}</code>
-                )}
-              </dd>
+              <dd>{viewModel.location ? <>{formatLocationName(language, viewModel.location.id, viewModel.location.displayName)} <code>{viewModel.location.id}</code></> : <code>{viewModel.agent.locationId}</code>}</dd>
             </div>
             <div><dt>{copy.agents.currentPlan}</dt><dd>{viewModel.agent.currentPlanId ? <code>{viewModel.agent.currentPlanId}</code> : copy.agents.noPlan}</dd></div>
             <div><dt>{copy.agents.operation}</dt><dd>{viewModel.agent.inProgressOperationId ? <code>{viewModel.agent.inProgressOperationId}</code> : copy.agents.noOperation}</dd></div>
+            <div><dt>{language === "zh" ? "运行情绪与意图" : "Runtime mood/intent"}</dt><dd>{viewModel.runtimeMoodIntent}</dd></div>
           </dl>
 
           <div className="agent-detail-sections">
+            <section className="detail-card" aria-labelledby="agent-persona-heading">
+              <h3 id="agent-persona-heading">{language === "zh" ? "配置人格摘要" : "Configured persona summary"}</h3>
+              {viewModel.persona ? (
+                <>
+                  <p><Badge tone="neutral">{formatProvenanceLabel(language, "configured")}</Badge> {formatPersonaText(language, viewModel.persona.id, viewModel.persona.profile.archetype)}</p>
+                  <ul>{viewModel.configuredFacts.slice(0, 6).map((fact) => <li key={`${fact.label}:${fact.value}`}>{fact.value}</li>)}</ul>
+                </>
+              ) : <p className="muted">{language === "zh" ? "当前响应未包含人格配置。" : "No persona fixture is present in this response."}</p>}
+            </section>
+
+            <section className="detail-card" aria-labelledby="agent-goals-heading">
+              <h3 id="agent-goals-heading">{language === "zh" ? "长期目标" : "Long-term goals"}</h3>
+              {viewModel.longTermGoals.length > 0 ? <ul>{viewModel.longTermGoals.map((goal) => <li key={goal}>{goal}</li>)}</ul> : <p className="muted">{language === "zh" ? "暂无配置目标。" : "No configured goals."}</p>}
+            </section>
+
             <section className="detail-card" aria-labelledby="agent-relationships-heading">
               <h3 id="agent-relationships-heading">{copy.agents.relationships}</h3>
               {viewModel.agent.relationshipRefs.length > 0 ? (
                 <ul className="inline-list">
-                  {viewModel.agent.relationshipRefs.map((relationshipRef) => (
-                    <li key={relationshipRef}><code>{relationshipRef}</code></li>
-                  ))}
+                  {viewModel.agent.relationshipRefs.map((relationshipRef) => <li key={relationshipRef}><code>{relationshipRef}</code></li>)}
                 </ul>
-              ) : (
-                <p className="muted">{copy.agents.noRelationships}</p>
-              )}
+              ) : <p className="muted">{copy.agents.noRelationships}</p>}
             </section>
 
             <section className="detail-card" aria-labelledby="agent-action-heading">
@@ -84,29 +86,19 @@ export function AgentDetailPanel({ language, viewModel }: AgentDetailPanelProps)
                   <div><dt>{copy.agents.actionIntent}</dt><dd>{viewModel.agent.currentAction.intent}</dd></div>
                   {viewModel.agent.currentAction.locationId ? <div><dt>{copy.agents.currentLocation}</dt><dd><code>{viewModel.agent.currentAction.locationId}</code></dd></div> : null}
                   {viewModel.agent.currentAction.targetAgentId ? <div><dt>{copy.agents.actionTarget}</dt><dd><code>{viewModel.agent.currentAction.targetAgentId}</code></dd></div> : null}
-                  {viewModel.agent.currentAction.startsAt || viewModel.agent.currentAction.endsAt ? (
-                    <div>
-                      <dt>{copy.agents.actionWindow}</dt>
-                      <dd>{[viewModel.agent.currentAction.startsAt, viewModel.agent.currentAction.endsAt].filter(Boolean).join(" → ")}</dd>
-                    </div>
-                  ) : null}
+                  {viewModel.agent.currentAction.startsAt || viewModel.agent.currentAction.endsAt ? <div><dt>{copy.agents.actionWindow}</dt><dd>{[viewModel.agent.currentAction.startsAt, viewModel.agent.currentAction.endsAt].filter(Boolean).join(" → ")}</dd></div> : null}
                 </dl>
-              ) : (
-                <p className="muted">{copy.agents.noAction}</p>
-              )}
+              ) : <p className="muted">{copy.agents.noAction}</p>}
             </section>
 
             <section className="detail-card" aria-labelledby="agent-cooldowns-heading">
               <h3 id="agent-cooldowns-heading">{copy.agents.cooldowns}</h3>
-              {viewModel.cooldownEntries.length > 0 ? (
-                <dl className="event-meta">
-                  {viewModel.cooldownEntries.map((cooldown) => (
-                    <div key={cooldown.key}><dt>{cooldown.key}</dt><dd>{cooldown.value}</dd></div>
-                  ))}
-                </dl>
-              ) : (
-                <p className="muted">{copy.agents.noCooldowns}</p>
-              )}
+              {viewModel.cooldownEntries.length > 0 ? <dl className="event-meta">{viewModel.cooldownEntries.map((cooldown) => <div key={cooldown.key}><dt>{cooldown.key}</dt><dd>{cooldown.value}</dd></div>)}</dl> : <p className="muted">{copy.agents.noCooldowns}</p>}
+            </section>
+
+            <section className="detail-card" aria-labelledby="agent-memory-heading">
+              <h3 id="agent-memory-heading">{language === "zh" ? "最近记忆索引" : "Recent memory index"}</h3>
+              {viewModel.recentMemoryIndex.length > 0 ? <ul>{viewModel.recentMemoryIndex.map((memory) => <li key={memory.eventId}><Badge tone={memory.provenance === "user" ? "user" : "system"}>{formatProvenanceLabel(language, memory.provenance)}</Badge> {memory.summary}</li>)}</ul> : <p className="muted">{language === "zh" ? "暂无运行时记忆事件。" : "No runtime memory events yet."}</p>}
             </section>
           </div>
 
@@ -116,18 +108,13 @@ export function AgentDetailPanel({ language, viewModel }: AgentDetailPanelProps)
               <ol className="related-event-list">
                 {viewModel.relatedEvents.map((item) => (
                   <li key={item.entry.id}>
-                    <div className="timeline-row">
-                      <Badge tone={item.entry.source}>{formatSourceLabel(language, item.entry.source)}</Badge>
-                      <strong>{item.title}</strong>
-                    </div>
+                    <div className="timeline-row"><Badge tone={item.entry.source}>{formatSourceLabel(language, item.entry.source)}</Badge><strong>{item.title}</strong></div>
                     <p>{item.detail}</p>
                     <small className="muted"><code>{item.entry.id}</code> · {item.entry.time}</small>
                   </li>
                 ))}
               </ol>
-            ) : (
-              <p className="muted">{copy.agents.noRelatedEvents}</p>
-            )}
+            ) : <p className="muted">{copy.agents.noRelatedEvents}</p>}
           </section>
         </div>
       ) : null}

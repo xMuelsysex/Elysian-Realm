@@ -214,6 +214,7 @@ export function createAgentDetailViewModel(
   selectedAgentId: string | undefined,
   timelineItems: readonly TimelineItem[],
   relatedEventLimit?: number,
+  personas?: readonly PersonaSpec[],
 ): AgentDetailViewModel;
 
 export type TimelineDetailMode = "user" | "debug";
@@ -228,19 +229,88 @@ export function createTimelineItems(
 export function latestDiagnostics(
   diagnostics: readonly AdminDiagnostic[],
 ): AdminDiagnostic[];
+
+export function filterTimelineItems(
+  items: readonly TimelineItem[],
+  filters: TimelineFilters,
+): TimelineItem[];
+
+export function createRelationshipNetworkViewModel(
+  personas: readonly PersonaSpec[],
+  snapshot: WorldSnapshot,
+  timelineItems: readonly TimelineItem[],
+): RelationshipRow[];
+
+export function createWorldInspectorViewModel(
+  state: AdminStateResponse,
+): WorldInspectorViewModel;
+
+export function createInterventionReceiptViewModel(
+  previous: AdminStateResponse | undefined,
+  current: AdminStateResponse,
+  input: SubmitAdminInputRequest | undefined,
+  timelineItems: readonly TimelineItem[],
+): InterventionReceiptViewModel;
+
+export function createReplayCursorViewModel(
+  summary: ReplaySummary,
+  timelineItems: readonly TimelineItem[],
+  cursor: number,
+): ReplayCursorViewModel;
+
+export function createMemoryViewModel(
+  personas: readonly PersonaSpec[],
+  timelineItems: readonly TimelineItem[],
+  selectedAgentId?: string,
+): MemoryViewModel;
+
+export function createMessageStreamViewModel(
+  timelineItems: readonly TimelineItem[],
+): MessageThreadViewModel[];
+
+export function createDiagnosticsCenterViewModel(
+  diagnostics: readonly AdminDiagnostic[],
+): DiagnosticsCenterViewModel;
+
+export function createStateDiffViewModel(
+  previous: AdminStateResponse | undefined,
+  current: AdminStateResponse,
+): StateDiffEntry[];
+
+export function createAgentPlanViewModels(
+  snapshot: WorldSnapshot,
+): AgentPlanViewModel[];
+
+export function createTopologyViewModel(
+  snapshot: WorldSnapshot,
+  timelineItems: readonly TimelineItem[],
+): TopologyViewModel;
+
+export function createDebugExportViewModel(
+  state: AdminStateResponse,
+  timelineItems: readonly TimelineItem[],
+  diagnostics: DiagnosticsCenterViewModel,
+  diffs: readonly StateDiffEntry[],
+): DebugExportViewModel;
 ```
 
 ### 3. Contracts
 
 - The UI reads `AdminStateResponse` from `/api/admin/state` and replaces its server state only with backend responses.
-- Local React state is limited to loading/error flags, form drafts, selected agent id, and UI-only preferences such as timeline `TimelineDetailMode`.
-- Components render typed DTOs or view models. Event detail projection and agent-detail lookup/filtering live in `shared/viewModels.ts`; components may pass payloads to `JsonDetails` for raw inspection in debug mode but must not infer simulation rules from payload fields.
+- Local React state is limited to loading/error flags, form drafts, selected agent/event ids, timeline filters/search, replay cursor, auto-step flag, previous response reference for diff/receipt display, last submitted input, export timestamp, and UI-only preferences such as timeline `TimelineDetailMode`.
+- Components render typed DTOs or view models. Event detail projection, timeline filtering/search, agent-detail lookup, relationship rows, world inspector, receipts, replay cursor, memory/message projections, diagnostics center, state diff, action plans, topology, and debug export models live in `shared/viewModels.ts`; components may pass already-projected payloads to `JsonDetails` for raw inspection but must not infer simulation rules from payload fields.
 - Timeline detail mode has two local UI modes: `user` shows natural sentences, while `debug` shows the sentence plus key facts and raw payload JSON.
 - `LocationBoard` may expose agent selection as accessible buttons, but selection only updates local `selectedAgentId`; it must not mutate `WorldSnapshot` or submit simulation commands.
-- `AgentDetailPanel` renders selected-agent runtime state from `WorldSnapshot`, clearly labeled as runtime/debug state rather than configured persona canon.
+- `AgentDetailPanel` renders selected-agent runtime state from `WorldSnapshot`, clearly labeled as runtime/debug state rather than configured persona canon. Configured persona summaries and long-term goals come from `AdminStateResponse.personas` through `createAgentDetailViewModel`.
 - Agent related events are filtered centrally from projected `TimelineItem[]`; related means the selected agent is `event.actorId` or appears in `event.targetIds`.
+- Relationship network interaction counts must count only explicit actor-target pair events where one agent is `event.actorId` and the other appears in `event.targetIds`; broad system events targeting many agents such as `memory.seeded` are not relationship interactions. `recentInteractions` may be capped for display, but `interactionCount` is the full count.
 - `InterventionPanel` is the only MVP owner of debug command forms. It submits `SubmitAdminInputRequest` for pause, resume, set time scale, realm event, and direct private message.
 - `DebugPanel` renders backend diagnostics, replay summary, and queued inputs for inspection; it must not hide rejected inputs.
+- Diagnostics center categories (`rejectedInputs`, `validationErrors`, `anomalies`) are computed from the full diagnostics list; only the `latest` display list is capped.
+- `ObservabilityPanels.tsx` owns semantic read-only panels for relationship network, world inspector, receipt, replay, persona read-only page, memory view, message stream, diagnostics center, state diff, action plan, topology, and local JSON export. These panels receive view models only.
+- Auto-step calls the existing step command on an interval and must stop through local UI state; jump-to-tick/replay cursor only changes which persisted event is selected.
+- World inspector and debug export must expose current state, event count/list, timeline count/list, replay summary, diagnostics, conversations/queues, and derived diffs so local audits do not need a second data source.
+- Debug export creates a browser download blob from the current `AdminStateResponse` and derived view models; it must not write repository files or mutate simulation state.
 - Source/provenance badges must render text labels for `system`, `user`, `agent`, `llm`, and `test` when those sources appear.
 
 ### 4. Validation & Error Matrix
@@ -259,6 +329,11 @@ export function latestDiagnostics(
 - user timeline mode -> natural event sentences without debug-style key/value fact lists
 - debug timeline mode -> sentence plus key facts and raw payload JSON inspector
 - empty diagnostics -> explicit no-diagnostics state
+- missing persona fixtures -> agent/persona panels show explicit configured-facts empty state, not generated defaults
+- no receipt context -> receipt panel shows no-recent-input state
+- rejected simulation input -> receipt and diagnostics center show rejection reason and related event/input ids
+- empty replay/message/memory/diff/topology history -> explicit empty states
+- export action -> browser download only; no server or filesystem write
 
 ### 5. Good/Base/Bad Cases
 
@@ -266,7 +341,13 @@ Good:
 
 ```tsx
 const timelineItems = createTimelineItems(state.events, state.timeline, language, detailMode);
-const agentDetail = createAgentDetailViewModel(state.snapshot, selectedAgentId, timelineItems);
+const agentDetail = createAgentDetailViewModel(
+  state.snapshot,
+  selectedAgentId,
+  timelineItems,
+  undefined,
+  state.personas,
+);
 return <AgentDetailPanel viewModel={agentDetail} />;
 ```
 
@@ -285,6 +366,9 @@ const timeScale = (event.payload as { timeScale: number }).timeScale;
 
 // Do not optimistically patch backend-owned state.
 state.snapshot.status = "running";
+
+// Do not duplicate event payload business parsing in a panel.
+const summary = item.event.payload.summary as string;
 ```
 
 ### 6. Tests Required
@@ -298,6 +382,12 @@ Frontend/admin UI tests must assert:
 - timeline items are created through centralized event detail projection;
 - each MVP event kind has user-mode and debug-mode detail coverage;
 - diagnostics are ordered newest-first for display;
+- admin response personas feed agent/persona/relationship/memory configured-fact projections;
+- timeline filters cover keyword, kind, source, agent id, target id, and time range;
+- relationship, inspector, receipt, replay, memory/message, diagnostics, diff, plan, topology, and export view models are covered by pure Node tests;
+- relationship tests cover full interaction count versus capped recent interaction display and exclude broad multi-agent system events;
+- diagnostics-center tests cover full-list aggregation with capped latest display;
+- inspector/export tests assert event/timeline/replay/conversation metadata is exposed;
 - typecheck covers React components and API helper contracts;
 - production build emits the Vite frontend assets.
 
@@ -322,6 +412,13 @@ Frontend/admin UI tests must assert:
 })}>
   Resume
 </button>
+
+const receipt = createInterventionReceiptViewModel(
+  previousState,
+  state,
+  lastSubmittedInput,
+  timelineItems,
+);
 ```
 
 ## Visual Roadmap

@@ -55,6 +55,22 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .agent-list-title-row { display: flex; gap: 0.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap; }
 .selected-marker { color: #bfdbfe; font-size: 0.78rem; font-weight: 800; }
 .timeline-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.timeline-item--selected { border-color: #60a5fa; box-shadow: 0 0 0 1px #3b82f6 inset; }
+.event-select-button { display: grid; width: 100%; gap: 0.45rem; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; }
+.event-select-button:hover:not(:disabled), .event-select-button:focus-visible { background: transparent; }
+.timeline-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr); gap: 0.75rem; align-items: start; }
+.filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.65rem; border: 1px solid #263244; border-radius: 0.75rem; margin: 0 0 0.75rem; padding: 0.75rem; }
+.filter-grid legend { color: #93c5fd; font-weight: 800; padding: 0 0.35rem; }
+.filter-grid label, .checkbox-label { display: grid; gap: 0.35rem; color: #cbd5e1; font-weight: 700; }
+.checkbox-label { display: inline-flex; align-items: center; }
+.checkbox-label input { width: auto; }
+.template-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { border-bottom: 1px solid #263244; padding: 0.55rem; text-align: left; vertical-align: top; }
+.data-table th { color: #93c5fd; font-size: 0.78rem; text-transform: uppercase; }
+.card-grid, .topology-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+.detail-card ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
 .badge { display: inline-flex; align-items: center; min-height: 1.45rem; border: 1px solid #475569; border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; }
 .badge--system, .badge--neutral { background: #1e293b; color: #e2e8f0; }
 .badge--user { background: #312e81; color: #ddd6fe; border-color: #6366f1; }
@@ -81,7 +97,7 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .json-details summary { cursor: pointer; color: #93c5fd; font-weight: 700; }
 
 @media (max-width: 980px) {
-  .dashboard-grid, .world-header { grid-template-columns: 1fr; }
+  .dashboard-grid, .world-header, .timeline-layout { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
