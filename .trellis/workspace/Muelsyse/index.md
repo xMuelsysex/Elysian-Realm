@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-06-03
+- **Total Sessions**: 9
+- **Last Active**: 2026-06-04
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~283 | Active |
+| `journal-1.md` | ~316 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-06-04 | LLM Proposal Review Drafts | `65f4dfb` | `main` |
 | 8 | 2026-06-03 | Deterministic routines and runtime LLM config | `53db67d`, `cf1081e`, `0a427ba` | `main` |
 | 7 | 2026-06-02 | Observability UI Feature Suite | `94d4343`, `611107f` | `main` |
 | 6 | 2026-06-02 | Agent Detail Panel MVP | `cb055c7`, `9c83a4b` | `main` |

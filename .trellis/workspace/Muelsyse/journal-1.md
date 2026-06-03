@@ -281,3 +281,36 @@ Implemented deterministic agent routine progression, hid system map pulses, adde
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: LLM Proposal Review Drafts
+
+**Date**: 2026-06-04
+**Task**: LLM Proposal Review Drafts
+**Branch**: `main`
+
+### Summary
+
+Implemented the LLM proposal review/apply draft MVP: valid action proposals can be copied into editable local admin input drafts, failed proposals cannot be applied, draft submission reuses the existing admin input path, deterministic tests were added, and the frontend spec now documents the review-draft safety contract.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `65f4dfb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
