@@ -243,7 +243,7 @@ export function RealmDashboard({
         {activeTab === "control" ? (
           <div className="dashboard-page-grid dashboard-page-grid--balanced">
             <InterventionPanel language={language} disabled={loading} snapshot={state.snapshot} onStep={onStep} onReset={onReset} onSubmit={onSubmitInput} />
-            <LlmRuntimeConfigPanel language={language} disabled={loading} agents={agentOptions} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
+            <LlmRuntimeConfigPanel language={language} disabled={loading} agents={agentOptions} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} onSubmitInput={onSubmitInput} />
           </div>
         ) : null}
 

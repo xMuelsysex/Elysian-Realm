@@ -3,11 +3,13 @@ import type {
   LlmActionProposalResponse,
   LlmRuntimeApiMode,
   LlmRuntimeTestResponse,
+  SubmitAdminInputRequest,
   SubmitLlmActionProposalRequest,
   SubmitLlmRuntimeTestRequest,
 } from "../../server/admin/index.js";
 import { proposeLlmAction, testLlmRuntimeConfig } from "../adminApi.js";
 import type { AppLanguage } from "../shared/i18n.js";
+import { createLlmProposalInterventionDraft, parseLlmProposalDraftText } from "./actionProposalDraft.js";
 
 interface LlmRuntimeAgentOption {
   id: string;
@@ -20,6 +22,7 @@ interface LlmRuntimeConfigPanelProps {
   agents: readonly LlmRuntimeAgentOption[];
   selectedAgentId?: string;
   onSelectAgent: (agentId: string) => void;
+  onSubmitInput: (input: SubmitAdminInputRequest) => Promise<void>;
 }
 
 interface LlmRuntimeFormState {
@@ -42,18 +45,21 @@ const DEFAULT_FORM: LlmRuntimeFormState = {
   prompt: "Reply with a short connectivity confirmation for the local Elysian Realm admin panel.",
 };
 
-export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgentId, onSelectAgent }: LlmRuntimeConfigPanelProps) {
+export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgentId, onSelectAgent, onSubmitInput }: LlmRuntimeConfigPanelProps) {
   const [form, setForm] = useState<LlmRuntimeFormState>(DEFAULT_FORM);
   const [importText, setImportText] = useState("");
   const [result, setResult] = useState<LlmRuntimeTestResponse>();
   const [proposal, setProposal] = useState<LlmActionProposalResponse>();
+  const [draftText, setDraftText] = useState("");
   const [formError, setFormError] = useState<string>();
   const [testing, setTesting] = useState(false);
   const [proposing, setProposing] = useState(false);
+  const [submittingDraft, setSubmittingDraft] = useState(false);
 
   const copy = createCopy(language);
-  const busy = testing || proposing;
+  const busy = testing || proposing || submittingDraft;
   const proposalAgentId = selectedAgentId ?? agents[0]?.id ?? "";
+  const proposalDraft = proposal ? createLlmProposalInterventionDraft(proposal) : undefined;
 
   const updateField = <Key extends keyof LlmRuntimeFormState>(key: Key, value: LlmRuntimeFormState[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -87,6 +93,7 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     setForm((current) => ({ ...current, apiKey: "" }));
     setResult(undefined);
     setProposal(undefined);
+    setDraftText("");
   };
 
   const submitTest = async (event: FormEvent<HTMLFormElement>) => {
@@ -114,6 +121,7 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     event.preventDefault();
     setFormError(undefined);
     setProposal(undefined);
+    setDraftText("");
 
     const request = createProposalRequest(form, proposalAgentId);
     if (!request.ok) {
@@ -128,6 +136,40 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
       setFormError(caught instanceof Error ? caught.message : copy.unknownError);
     } finally {
       setProposing(false);
+    }
+  };
+
+  const createDraft = () => {
+    setFormError(undefined);
+    if (!proposalDraft) {
+      setFormError(copy.draftUnavailableError);
+      return;
+    }
+    setDraftText(JSON.stringify(proposalDraft, null, 2));
+  };
+
+  const clearDraft = () => {
+    setFormError(undefined);
+    setDraftText("");
+  };
+
+  const submitDraft = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(undefined);
+    const parsed = parseLlmProposalDraftText(draftText);
+    if (!parsed.ok) {
+      setFormError(copy.errors[parsed.error]);
+      return;
+    }
+
+    setSubmittingDraft(true);
+    try {
+      await onSubmitInput(parsed.value);
+      setDraftText("");
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : copy.unknownError);
+    } finally {
+      setSubmittingDraft(false);
     }
   };
 
@@ -227,7 +269,28 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
         <button type="submit" disabled={disabled || busy || agents.length === 0}>{proposing ? copy.proposing : copy.proposeButton}</button>
       </form>
 
-      {proposal ? <LlmActionProposalResult language={language} result={proposal} /> : null}
+      {proposal ? <LlmActionProposalResult language={language} result={proposal} draftAvailable={Boolean(proposalDraft)} disabled={disabled || busy} onCreateDraft={createDraft} /> : null}
+
+      {draftText ? (
+        <form className="stacked-form llm-apply-draft-form" onSubmit={submitDraft}>
+          <div>
+            <h3>{copy.draftTitle}</h3>
+            <p className="muted">{copy.draftDescription}</p>
+          </div>
+          <label htmlFor="llm-proposal-draft-json">{copy.draftJson}</label>
+          <textarea
+            id="llm-proposal-draft-json"
+            rows={14}
+            value={draftText}
+            disabled={disabled || busy}
+            onChange={(event) => setDraftText(event.target.value)}
+          />
+          <div className="button-row">
+            <button type="submit" disabled={disabled || busy || !draftText.trim()}>{submittingDraft ? copy.submittingDraft : copy.submitDraft}</button>
+            <button type="button" className="secondary-button" disabled={disabled || busy} onClick={clearDraft}>{copy.clearDraft}</button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }
@@ -262,7 +325,19 @@ function LlmRuntimeResult({ language, result }: { language: AppLanguage; result:
   );
 }
 
-function LlmActionProposalResult({ language, result }: { language: AppLanguage; result: LlmActionProposalResponse }) {
+function LlmActionProposalResult({
+  language,
+  result,
+  draftAvailable,
+  disabled,
+  onCreateDraft,
+}: {
+  language: AppLanguage;
+  result: LlmActionProposalResponse;
+  draftAvailable: boolean;
+  disabled: boolean;
+  onCreateDraft: () => void;
+}) {
   const copy = createCopy(language);
   const status = result.operation.status;
   return (
@@ -314,6 +389,8 @@ function LlmActionProposalResult({ language, result }: { language: AppLanguage; 
       ) : (
         <p className="muted">{copy.noProposal}</p>
       )}
+      <button type="button" disabled={disabled || !draftAvailable} onClick={onCreateDraft}>{copy.copyToDraft}</button>
+      {!draftAvailable ? <p className="muted">{copy.invalidProposalCannotDraft}</p> : null}
       {result.operation.error ? <p className="form-error">{result.operation.error.code}: {result.operation.error.message}</p> : null}
       <details className="json-details">
         <summary>{copy.operationJson}</summary>
@@ -323,7 +400,7 @@ function LlmActionProposalResult({ language, result }: { language: AppLanguage; 
   );
 }
 
-type LlmRuntimeValidationError = "baseUrl" | "model" | "apiKey" | "prompt" | "timeoutMs" | "agentId";
+type LlmRuntimeValidationError = "baseUrl" | "model" | "apiKey" | "prompt" | "timeoutMs" | "agentId" | "draftJson" | "draftShape";
 
 function createRequest(form: LlmRuntimeFormState): { ok: true; value: SubmitLlmRuntimeTestRequest } | { ok: false; error: LlmRuntimeValidationError } {
   const baseUrl = form.baseUrl.trim();
@@ -416,6 +493,15 @@ function createCopy(language: AppLanguage) {
       targetLocation: "目标地点",
       targetAgent: "目标角色",
       noProposal: "没有可显示的行动建议；请查看 Operation 错误元数据。",
+      copyToDraft: "复制为可编辑干预草稿",
+      invalidProposalCannotDraft: "只有已完成且通过校验的行动建议才能创建草稿。失败元数据仅供查看，不会应用。",
+      draftTitle: "行动建议干预草稿",
+      draftDescription: "这是本地可编辑 JSON 草稿。只有点击提交草稿后，才会通过现有管理输入路径发送到后端。",
+      draftJson: "干预草稿 JSON",
+      submitDraft: "提交草稿",
+      submittingDraft: "提交中…",
+      clearDraft: "清除草稿",
+      draftUnavailableError: "当前没有可应用的有效行动建议。",
       operationJson: "Operation 元数据",
       invalidJsonError: "导入内容必须是合法 JSON。",
       importObjectError: "导入 JSON 必须是对象。",
@@ -427,6 +513,8 @@ function createCopy(language: AppLanguage) {
         prompt: "测试提示词不能为空。",
         timeoutMs: "超时必须是正数。",
         agentId: "请先选择一个角色。",
+        draftJson: "草稿必须是合法 JSON。",
+        draftShape: "草稿必须是用户来源的 realmEvent，并包含合法 targetIds 和 payload。",
       },
     };
   }
@@ -466,6 +554,15 @@ function createCopy(language: AppLanguage) {
     targetLocation: "Target location",
     targetAgent: "Target agent",
     noProposal: "No action proposal is available; inspect operation error metadata.",
+    copyToDraft: "Copy to editable intervention draft",
+    invalidProposalCannotDraft: "Only completed and validated action proposals can create drafts. Failed metadata is display-only and will not be applied.",
+    draftTitle: "Action proposal intervention draft",
+    draftDescription: "This is a local editable JSON draft. It is sent through the existing admin input path only after you submit it.",
+    draftJson: "Intervention draft JSON",
+    submitDraft: "Submit draft",
+    submittingDraft: "Submitting…",
+    clearDraft: "Clear draft",
+    draftUnavailableError: "There is no valid action proposal to apply.",
     operationJson: "Operation metadata",
     invalidJsonError: "Imported content must be valid JSON.",
     importObjectError: "Imported JSON must be an object.",
@@ -477,6 +574,8 @@ function createCopy(language: AppLanguage) {
       prompt: "Test prompt is required.",
       timeoutMs: "Timeout must be a positive number.",
       agentId: "Select an agent first.",
+      draftJson: "Draft must be valid JSON.",
+      draftShape: "Draft must be a user-sourced realmEvent with valid targetIds and payload.",
     },
   };
 }

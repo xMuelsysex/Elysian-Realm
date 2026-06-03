@@ -421,6 +421,150 @@ const receipt = createInterventionReceiptViewModel(
 );
 ```
 
+## LLM Proposal Review Draft Contract
+
+### 1. Scope / Trigger
+
+Trigger: the frontend converts a sandbox `LlmActionProposalResponse` from `/api/admin/llm/action-proposal` into an editable draft, then submits it through the existing admin input command boundary only after an explicit user action.
+
+This is a cross-layer safety contract because it touches LLM operation results, local UI draft state, and `SubmitAdminInputRequest` submission. Future proposal/apply work must preserve backend authority: a proposal is not a simulation mutation until it is submitted as a typed user intervention and accepted by the backend engine.
+
+### 2. Signatures
+
+Current source paths:
+
+- `src/app/llm/actionProposalDraft.ts`
+- `src/app/llm/LlmRuntimeConfigPanel.tsx`
+- `tests/llmActionProposalDraft.test.ts`
+
+Required helper signatures:
+
+```ts
+export function createLlmProposalInterventionDraft(
+  result: LlmActionProposalResponse,
+): SubmitAdminInputRequest | undefined;
+
+export type LlmProposalDraftParseError = "draftJson" | "draftShape";
+
+export function parseLlmProposalDraftText(
+  text: string,
+): { ok: true; value: SubmitAdminInputRequest } | { ok: false; error: LlmProposalDraftParseError };
+```
+
+The runtime panel receives the existing command boundary instead of importing a second submission path:
+
+```ts
+onSubmitInput: (input: SubmitAdminInputRequest) => Promise<void>;
+```
+
+### 3. Contracts
+
+- A draft may be created only from `operation.status === "completed"` and a present `proposal`.
+- The default draft is a `SubmitAdminInputRequest` with `kind: "realmEvent"` and `source: "user"`.
+- Draft `targetIds` are unique non-empty IDs built from the selected `agentId`, optional `targetLocationId`, and optional `targetAgentId`.
+- Draft payload must preserve review/audit metadata:
+  - `eventKind: "llm.proposal.<action>"`
+  - `description`
+  - `provenance: "user-reviewed-llm-proposal"`
+  - `reviewedBy: "user"`
+  - `sandbox`
+  - `llmOperationId`
+  - `agentId`
+  - `proposalAction`
+  - `reason`
+  - optional `intent`, `targetLocationId`, `targetAgentId`
+- Draft JSON is local React state only. It may be edited or cleared without making a request.
+- Draft submission parses the edited JSON, normalizes `source` to `"user"`, then calls the provided `onSubmitInput(parsed.value)` handler.
+- API keys and provider secrets must never be copied into the draft payload, stored in browser storage, or included in operation response rendering.
+
+### 4. Validation & Error Matrix
+
+- action proposal operation not completed -> draft helper returns `undefined`; copy/apply button stays disabled
+- action proposal missing `proposal` -> draft helper returns `undefined`; failed metadata remains display-only
+- failed/invalid LLM proposal result -> no draft, no hidden fallback, no admin input submission
+- malformed draft JSON -> `draftJson`, visible form error, no request sent
+- parsed draft is not a `realmEvent` -> `draftShape`, visible form error, no request sent
+- draft `targetIds` missing/empty/non-string -> `draftShape`, visible form error, no request sent
+- draft `payload` missing or not an object -> `draftShape`, visible form error, no request sent
+- draft `source` present and not `"user"` -> `draftShape`, visible form error, no request sent
+- clear/close draft -> local state reset only; no backend request and no world mutation
+- valid submitted draft -> submit through existing admin input path and render the usual receipt/diagnostics from backend state
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```tsx
+const proposalDraft = proposal
+  ? createLlmProposalInterventionDraft(proposal)
+  : undefined;
+
+const submitDraft = async () => {
+  const parsed = parseLlmProposalDraftText(draftText);
+  if (!parsed.ok) {
+    setFormError(copy.errors[parsed.error]);
+    return;
+  }
+  await onSubmitInput(parsed.value);
+};
+```
+
+Base:
+
+```tsx
+<button disabled={!proposalDraft} onClick={() => setDraftText(JSON.stringify(proposalDraft, null, 2))}>
+  Copy to editable intervention draft
+</button>
+```
+
+Bad:
+
+```tsx
+// Do not auto-apply an LLM proposal or bypass the admin input receipt flow.
+useEffect(() => {
+  if (proposal?.proposal) {
+    void submitAdminInput(createLlmProposalInterventionDraft(proposal)!);
+  }
+}, [proposal]);
+```
+
+### 6. Tests Required
+
+Proposal-review draft tests must assert:
+
+- completed proposal results map to editable `realmEvent` admin input drafts;
+- failed or missing proposal results cannot create drafts;
+- duplicate target IDs are removed;
+- the draft payload preserves proposal action, reason, optional targets, sandbox flag, operation ID, and user-review provenance;
+- serialized drafts do not contain API keys or provider secrets;
+- edited valid JSON parses into a user-sourced admin input;
+- malformed JSON, non-`realmEvent` drafts, missing required shape, and non-user sources are rejected without submitting;
+- typecheck covers panel props so draft submission keeps using the existing `onSubmitInput` boundary.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```tsx
+// Proposal generation must remain preview-only.
+const result = await proposeLlmAction(request);
+await submitAdminInput(createLlmProposalInterventionDraft(result)!);
+```
+
+#### Correct
+
+```tsx
+const result = await proposeLlmAction(request);
+setProposal(result);
+setDraftText("");
+
+// Later, after an explicit user click:
+const parsed = parseLlmProposalDraftText(draftText);
+if (parsed.ok) {
+  await onSubmitInput(parsed.value);
+}
+```
+
 ## Visual Roadmap
 
 Recommended MVP is text/timeline-first.
