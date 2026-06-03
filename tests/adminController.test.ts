@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import type { AdminErrorResponse, AdminStateResponse, LlmRuntimeTestResponse } from "../src/server/admin/index.js";
+import type { AdminErrorResponse, AdminStateResponse, LlmActionProposalResponse, LlmRuntimeTestResponse } from "../src/server/admin/index.js";
 import { createAdminController, createAdminServer, createAdminStateResponse } from "../src/server/admin/index.js";
 import { OBSERVATION_MVP_WORLD_ID, stepSimulationEngine, createSimulationEngine } from "../src/server/simulation/index.js";
 
@@ -151,6 +151,127 @@ test("admin controller rejects malformed runtime LLM config", async () => {
   assert.match(result.body.error.message, /model/);
 });
 
+test("admin controller generates sandbox LLM action proposals without mutating state or returning API keys", async () => {
+  const calls: Array<{ input: string | URL | Request; init?: RequestInit; body: Record<string, unknown> }> = [];
+  const controller = createAdminController(createSimulationEngine(), {
+    now: sequentialNow(["2026-05-31T06:00:00.000Z", "2026-05-31T06:00:01.000Z"]),
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+      return new Response(
+        JSON.stringify({
+          id: "chatcmpl_action_proposal_001",
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: JSON.stringify({
+                  action: "move",
+                  reason: "Elysia wants to greet the morning with a gentle walk.",
+                  intent: "Invite a calm encounter near the garden path.",
+                  targetLocationId: "garden",
+                }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 52, completion_tokens: 18, total_tokens: 70 },
+        }),
+        { status: 200, statusText: "OK" },
+      );
+    },
+  });
+  const before = controller.getState();
+
+  const result = await controller.proposeLlmAction({
+    baseUrl: "https://example.test/v1",
+    model: "test-model",
+    apiKey: "test-secret-key",
+    providerName: "proposal-test-provider",
+    agentId: "agent_elysia",
+    apiMode: "chat_completions",
+    timeoutMs: 5000,
+  });
+  const after = controller.getState();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.provider.name, "proposal-test-provider");
+  assert.equal(result.body.sandbox, true);
+  assert.equal(result.body.provenance, "generated");
+  assert.equal(result.body.agentId, "agent_elysia");
+  assert.equal(result.body.operation.kind, "actionProposal");
+  assert.equal(result.body.operation.status, "completed");
+  assert.equal(result.body.proposal?.action, "move");
+  assert.equal(result.body.proposal?.targetLocationId, "garden");
+  assert.equal(String(calls[0]?.input), "https://example.test/v1/chat/completions");
+  assert.deepEqual(before.snapshot, after.snapshot);
+  assert.deepEqual(before.events, after.events);
+  assert.equal(JSON.stringify(result.body).includes("test-secret-key"), false);
+  assert.equal(JSON.stringify(calls[0]?.body).includes("test-secret-key"), false);
+});
+
+test("admin controller returns failed operation metadata for invalid LLM proposal targets", async () => {
+  const controller = createAdminController(createSimulationEngine(), {
+    now: sequentialNow(["2026-05-31T06:00:00.000Z", "2026-05-31T06:00:01.000Z"]),
+    fetchImpl: async () => new Response(
+      JSON.stringify({
+        id: "chatcmpl_action_proposal_invalid_target_001",
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                action: "move",
+                reason: "Try an impossible shortcut.",
+                targetLocationId: "missing-location",
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, statusText: "OK" },
+    ),
+  });
+
+  const result = await controller.proposeLlmAction({
+    baseUrl: "https://example.test/v1",
+    model: "test-model",
+    apiKey: "test-secret-key",
+    agentId: "agent_elysia",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.operation.status, "failed");
+  assert.equal(result.body.operation.error?.code, "LLM_ACTION_PROPOSAL_VALIDATION_ERROR");
+  assert.match(result.body.operation.error?.message ?? "", /targetLocationId/);
+  assert.equal(result.body.proposal, undefined);
+});
+
+test("admin controller rejects action proposals for unknown agents before calling LLM", async () => {
+  let callCount = 0;
+  const controller = createAdminController(createSimulationEngine(), {
+    fetchImpl: async () => {
+      callCount += 1;
+      return new Response("{}", { status: 200, statusText: "OK" });
+    },
+  });
+
+  const result = await controller.proposeLlmAction({
+    baseUrl: "https://example.test/v1",
+    model: "test-model",
+    apiKey: "test-secret-key",
+    agentId: "missing-agent",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error.code, "INVALID_LLM_ACTION_PROPOSAL_REQUEST");
+  assert.match(result.body.error.message, /agentId/);
+  assert.equal(callCount, 0);
+});
+
 test("admin state diagnostics include event validation failures", () => {
   const stepped = stepSimulationEngine(createSimulationEngine()).state;
   const firstEvent = stepped.events[0];
@@ -168,14 +289,39 @@ test("admin http server exposes state, step, input, LLM test, and structured JSO
   const server = createAdminServer({
     controller: createAdminController(createSimulationEngine(), {
       now: () => new Date("2026-05-31T06:00:00.000Z"),
-      fetchImpl: async () => new Response(
-        JSON.stringify({
-          id: "chatcmpl_admin_http_test_001",
-          choices: [{ finish_reason: "stop", message: { role: "assistant", content: "HTTP LLM test works." } }],
-          usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
-        }),
-        { status: 200, statusText: "OK" },
-      ),
+      fetchImpl: async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        if ("response_format" in body) {
+          return new Response(
+            JSON.stringify({
+              id: "chatcmpl_admin_http_action_proposal_001",
+              choices: [
+                {
+                  finish_reason: "stop",
+                  message: {
+                    role: "assistant",
+                    content: JSON.stringify({
+                      action: "reflect",
+                      reason: "Elysia can briefly reflect on the morning routine before greeting others.",
+                      intent: "Keep the next action calm and sandbox-only.",
+                    }),
+                  },
+                },
+              ],
+              usage: { prompt_tokens: 44, completion_tokens: 15, total_tokens: 59 },
+            }),
+            { status: 200, statusText: "OK" },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            id: "chatcmpl_admin_http_test_001",
+            choices: [{ finish_reason: "stop", message: { role: "assistant", content: "HTTP LLM test works." } }],
+            usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
+          }),
+          { status: 200, statusText: "OK" },
+        );
+      },
     }),
   });
   const baseUrl = await listenOnRandomPort(server);
@@ -211,6 +357,21 @@ test("admin http server exposes state, step, input, LLM test, and structured JSO
     assert.equal(llmResponse.operation.status, "completed");
     assert.equal(llmResponse.outputText, "HTTP LLM test works.");
     assert.equal(JSON.stringify(llmResponse).includes("test-secret-key"), false);
+
+    const actionProposalResponse = await requestJson<LlmActionProposalResponse>(`${baseUrl}/api/admin/llm/action-proposal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        baseUrl: "https://example.test/v1",
+        model: "test-model",
+        apiKey: "test-secret-key",
+        agentId: "agent_elysia",
+      }),
+    });
+    assert.equal(actionProposalResponse.operation.status, "completed");
+    assert.equal(actionProposalResponse.proposal?.action, "reflect");
+    assert.equal(actionProposalResponse.sandbox, true);
+    assert.equal(JSON.stringify(actionProposalResponse).includes("test-secret-key"), false);
 
     const invalidJsonResponse = await fetch(`${baseUrl}/api/admin/input`, {
       method: "POST",
@@ -253,6 +414,15 @@ async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   assert.equal(response.ok, true);
   return (await response.json()) as T;
+}
+
+function sequentialNow(values: readonly string[]): () => Date {
+  let index = 0;
+  return () => {
+    const value = values[Math.min(index, values.length - 1)] ?? "2026-05-31T06:00:00.000Z";
+    index += 1;
+    return new Date(value);
+  };
 }
 
 function assertAddressInfo(address: string | AddressInfo | null): asserts address is AddressInfo {

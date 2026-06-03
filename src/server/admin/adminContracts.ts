@@ -39,16 +39,47 @@ export interface SubmitLlmRuntimeTestRequest {
   timeoutMs?: number;
 }
 
+export interface LlmRuntimeProviderSummary {
+  name: string;
+  model: string;
+  baseUrl: string;
+  apiMode: LlmRuntimeApiMode;
+  timeoutMs: number;
+}
+
 export interface LlmRuntimeTestResponse {
-  provider: {
-    name: string;
-    model: string;
-    baseUrl: string;
-    apiMode: LlmRuntimeApiMode;
-    timeoutMs: number;
-  };
+  provider: LlmRuntimeProviderSummary;
   operation: LlmOperationMetadata;
   outputText?: string;
+}
+
+export type LlmActionProposalKind = "continue" | "move" | "wait" | "performActivity" | "reflect";
+
+export interface LlmActionProposalPreview {
+  action: LlmActionProposalKind;
+  reason: string;
+  intent?: string;
+  targetLocationId?: string;
+  targetAgentId?: string;
+}
+
+export interface SubmitLlmActionProposalRequest {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  agentId: string;
+  providerName?: string;
+  apiMode?: LlmRuntimeApiMode;
+  timeoutMs?: number;
+}
+
+export interface LlmActionProposalResponse {
+  provider: LlmRuntimeProviderSummary;
+  agentId: string;
+  sandbox: true;
+  provenance: "generated";
+  operation: LlmOperationMetadata;
+  proposal?: LlmActionProposalPreview;
 }
 
 export interface AdminErrorResponse {
@@ -65,4 +96,8 @@ export type AdminRouteResult =
 
 export type AdminLlmRuntimeTestRouteResult =
   | { ok: true; status: number; body: LlmRuntimeTestResponse }
+  | { ok: false; status: number; body: AdminErrorResponse };
+
+export type AdminLlmActionProposalRouteResult =
+  | { ok: true; status: number; body: LlmActionProposalResponse }
   | { ok: false; status: number; body: AdminErrorResponse };
