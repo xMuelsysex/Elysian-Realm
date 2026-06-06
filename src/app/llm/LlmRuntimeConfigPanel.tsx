@@ -9,7 +9,13 @@ import type {
 } from "../../server/admin/index.js";
 import { proposeLlmAction, testLlmRuntimeConfig } from "../adminApi.js";
 import type { AppLanguage } from "../shared/i18n.js";
-import { createLlmProposalInterventionDraft, parseLlmProposalDraftText } from "./actionProposalDraft.js";
+import {
+  createLlmProposalInterventionDraft,
+  createLlmProposalReviewDraftForm,
+  createSubmitAdminInputFromLlmProposalReviewDraftForm,
+  parseLlmProposalDraftText,
+  type LlmProposalReviewDraftForm,
+} from "./actionProposalDraft.js";
 
 interface LlmRuntimeAgentOption {
   id: string;
@@ -50,7 +56,8 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
   const [importText, setImportText] = useState("");
   const [result, setResult] = useState<LlmRuntimeTestResponse>();
   const [proposal, setProposal] = useState<LlmActionProposalResponse>();
-  const [draftText, setDraftText] = useState("");
+  const [reviewDraft, setReviewDraft] = useState<LlmProposalReviewDraftForm>();
+  const [advancedDraftText, setAdvancedDraftText] = useState("");
   const [formError, setFormError] = useState<string>();
   const [testing, setTesting] = useState(false);
   const [proposing, setProposing] = useState(false);
@@ -93,7 +100,8 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     setForm((current) => ({ ...current, apiKey: "" }));
     setResult(undefined);
     setProposal(undefined);
-    setDraftText("");
+    setReviewDraft(undefined);
+    setAdvancedDraftText("");
   };
 
   const submitTest = async (event: FormEvent<HTMLFormElement>) => {
@@ -121,7 +129,8 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     event.preventDefault();
     setFormError(undefined);
     setProposal(undefined);
-    setDraftText("");
+    setReviewDraft(undefined);
+    setAdvancedDraftText("");
 
     const request = createProposalRequest(form, proposalAgentId);
     if (!request.ok) {
@@ -145,18 +154,33 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
       setFormError(copy.draftUnavailableError);
       return;
     }
-    setDraftText(JSON.stringify(proposalDraft, null, 2));
+    const nextReviewDraft = createLlmProposalReviewDraftForm(proposalDraft);
+    if (!nextReviewDraft) {
+      setFormError(copy.errors.draftShape);
+      return;
+    }
+    setReviewDraft(nextReviewDraft);
+    setAdvancedDraftText("");
+  };
+
+  const updateReviewDraftField = <Key extends keyof LlmProposalReviewDraftForm>(key: Key, value: LlmProposalReviewDraftForm[Key]) => {
+    setReviewDraft((current) => current ? { ...current, [key]: value } : current);
   };
 
   const clearDraft = () => {
     setFormError(undefined);
-    setDraftText("");
+    setReviewDraft(undefined);
+    setAdvancedDraftText("");
   };
 
   const submitDraft = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(undefined);
-    const parsed = parseLlmProposalDraftText(draftText);
+    if (!reviewDraft) {
+      setFormError(copy.draftUnavailableError);
+      return;
+    }
+    const parsed = createSubmitAdminInputFromLlmProposalReviewDraftForm(reviewDraft);
     if (!parsed.ok) {
       setFormError(copy.errors[parsed.error]);
       return;
@@ -165,7 +189,39 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     setSubmittingDraft(true);
     try {
       await onSubmitInput(parsed.value);
-      setDraftText("");
+      setReviewDraft(undefined);
+      setAdvancedDraftText("");
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : copy.unknownError);
+    } finally {
+      setSubmittingDraft(false);
+    }
+  };
+
+  const copyStructuredDraftToJson = () => {
+    setFormError(undefined);
+    if (!reviewDraft) return;
+    const parsed = createSubmitAdminInputFromLlmProposalReviewDraftForm(reviewDraft);
+    if (!parsed.ok) {
+      setFormError(copy.errors[parsed.error]);
+      return;
+    }
+    setAdvancedDraftText(JSON.stringify(parsed.value, null, 2));
+  };
+
+  const submitAdvancedDraft = async () => {
+    setFormError(undefined);
+    const parsed = parseLlmProposalDraftText(advancedDraftText);
+    if (!parsed.ok) {
+      setFormError(copy.errors[parsed.error]);
+      return;
+    }
+
+    setSubmittingDraft(true);
+    try {
+      await onSubmitInput(parsed.value);
+      setReviewDraft(undefined);
+      setAdvancedDraftText("");
     } catch (caught) {
       setFormError(caught instanceof Error ? caught.message : copy.unknownError);
     } finally {
@@ -271,25 +327,96 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
 
       {proposal ? <LlmActionProposalResult language={language} result={proposal} draftAvailable={Boolean(proposalDraft)} disabled={disabled || busy} onCreateDraft={createDraft} /> : null}
 
-      {draftText ? (
-        <form className="stacked-form llm-apply-draft-form" onSubmit={submitDraft}>
-          <div>
-            <h3>{copy.draftTitle}</h3>
-            <p className="muted">{copy.draftDescription}</p>
-          </div>
-          <label htmlFor="llm-proposal-draft-json">{copy.draftJson}</label>
-          <textarea
-            id="llm-proposal-draft-json"
-            rows={14}
-            value={draftText}
-            disabled={disabled || busy}
-            onChange={(event) => setDraftText(event.target.value)}
-          />
-          <div className="button-row">
-            <button type="submit" disabled={disabled || busy || !draftText.trim()}>{submittingDraft ? copy.submittingDraft : copy.submitDraft}</button>
-            <button type="button" className="secondary-button" disabled={disabled || busy} onClick={clearDraft}>{copy.clearDraft}</button>
-          </div>
-        </form>
+      {reviewDraft ? (
+        <>
+          <form className="stacked-form llm-apply-draft-form llm-proposal-review-form" onSubmit={submitDraft}>
+            <div>
+              <h3>{copy.reviewTitle}</h3>
+              <p className="muted">{copy.reviewDescription}</p>
+            </div>
+            <div className="llm-review-grid">
+              <label htmlFor="llm-review-targets">
+                {copy.reviewTargetIds}
+                <textarea
+                  id="llm-review-targets"
+                  rows={3}
+                  value={reviewDraft.targetIdsText}
+                  disabled={disabled || busy}
+                  onChange={(event) => updateReviewDraftField("targetIdsText", event.target.value)}
+                />
+              </label>
+              <label htmlFor="llm-review-event-kind">
+                {copy.draftEventKind}
+                <input
+                  id="llm-review-event-kind"
+                  value={reviewDraft.eventKind}
+                  disabled={disabled || busy}
+                  onChange={(event) => updateReviewDraftField("eventKind", event.target.value)}
+                />
+              </label>
+              <label htmlFor="llm-review-description" className="llm-review-wide">
+                {copy.draftDescriptionField}
+                <textarea
+                  id="llm-review-description"
+                  rows={4}
+                  value={reviewDraft.description}
+                  disabled={disabled || busy}
+                  onChange={(event) => updateReviewDraftField("description", event.target.value)}
+                />
+              </label>
+              <label htmlFor="llm-review-reason" className="llm-review-wide">
+                {copy.reason}
+                <textarea
+                  id="llm-review-reason"
+                  rows={3}
+                  value={reviewDraft.reason}
+                  disabled={disabled || busy}
+                  onChange={(event) => updateReviewDraftField("reason", event.target.value)}
+                />
+              </label>
+              <label htmlFor="llm-review-intent">
+                {copy.intent}
+                <input id="llm-review-intent" value={reviewDraft.intent} disabled={disabled || busy} onChange={(event) => updateReviewDraftField("intent", event.target.value)} />
+              </label>
+              <label htmlFor="llm-review-location">
+                {copy.targetLocation}
+                <input id="llm-review-location" value={reviewDraft.targetLocationId} disabled={disabled || busy} onChange={(event) => updateReviewDraftField("targetLocationId", event.target.value)} />
+              </label>
+              <label htmlFor="llm-review-agent">
+                {copy.targetAgent}
+                <input id="llm-review-agent" value={reviewDraft.targetAgentId} disabled={disabled || busy} onChange={(event) => updateReviewDraftField("targetAgentId", event.target.value)} />
+              </label>
+            </div>
+            <dl className="compact-metrics llm-review-audit" aria-label={copy.reviewAuditLabel}>
+              <div><dt>{copy.provenance}</dt><dd>{reviewDraft.provenance}</dd></div>
+              <div><dt>{copy.reviewedBy}</dt><dd>{reviewDraft.reviewedBy}</dd></div>
+              <div><dt>{copy.sandbox}</dt><dd>{String(reviewDraft.sandbox)}</dd></div>
+              <div><dt>{copy.operation}</dt><dd><code>{reviewDraft.llmOperationId}</code></dd></div>
+              <div><dt>{copy.action}</dt><dd>{reviewDraft.proposalAction}</dd></div>
+              <div><dt>{copy.proposalAgent}</dt><dd><code>{reviewDraft.agentId}</code></dd></div>
+            </dl>
+            <div className="button-row">
+              <button type="submit" disabled={disabled || busy}>{submittingDraft ? copy.submittingDraft : copy.applyReviewedProposal}</button>
+              <button type="button" className="secondary-button" disabled={disabled || busy} onClick={clearDraft}>{copy.clearDraft}</button>
+            </div>
+          </form>
+          <details className="json-details llm-advanced-draft">
+            <summary>{copy.advancedDraftTitle}</summary>
+            <p className="muted">{copy.advancedDraftDescription}</p>
+            <textarea
+              id="llm-proposal-draft-json"
+              rows={12}
+              value={advancedDraftText}
+              disabled={disabled || busy}
+              placeholder={copy.advancedDraftPlaceholder}
+              onChange={(event) => setAdvancedDraftText(event.target.value)}
+            />
+            <div className="button-row">
+              <button type="button" className="secondary-button" disabled={disabled || busy || !reviewDraft} onClick={copyStructuredDraftToJson}>{copy.copyStructuredToJson}</button>
+              <button type="button" disabled={disabled || busy || !advancedDraftText.trim()} onClick={() => void submitAdvancedDraft()}>{submittingDraft ? copy.submittingDraft : copy.submitAdvancedJson}</button>
+            </div>
+          </details>
+        </>
       ) : null}
     </section>
   );
@@ -493,8 +620,22 @@ function createCopy(language: AppLanguage) {
       targetLocation: "目标地点",
       targetAgent: "目标角色",
       noProposal: "没有可显示的行动建议；请查看 Operation 错误元数据。",
-      copyToDraft: "复制为可编辑干预草稿",
+      copyToDraft: "审阅为结构化干预",
       invalidProposalCannotDraft: "只有已完成且通过校验的行动建议才能创建草稿。失败元数据仅供查看，不会应用。",
+      reviewTitle: "结构化行动建议审阅",
+      reviewDescription: "先审阅目标、描述、理由与意图；提交后仍然走现有 typed admin input 边界。",
+      reviewTargetIds: "目标 ID（每行或逗号分隔）",
+      reviewAuditLabel: "行动建议审计元数据",
+      reviewedBy: "审阅者",
+      operation: "Operation",
+      draftEventKind: "事件类型",
+      draftDescriptionField: "用户审阅描述",
+      applyReviewedProposal: "应用已审阅建议",
+      advancedDraftTitle: "高级：JSON 草稿",
+      advancedDraftDescription: "仅用于调试或特殊编辑；普通流程请使用上方结构化表单。提交仍会校验为 user realmEvent。",
+      advancedDraftPlaceholder: "点击“复制结构化草稿为 JSON”后再编辑。",
+      copyStructuredToJson: "复制结构化草稿为 JSON",
+      submitAdvancedJson: "提交高级 JSON",
       draftTitle: "行动建议干预草稿",
       draftDescription: "这是本地可编辑 JSON 草稿。只有点击提交草稿后，才会通过现有管理输入路径发送到后端。",
       draftJson: "干预草稿 JSON",
@@ -554,8 +695,22 @@ function createCopy(language: AppLanguage) {
     targetLocation: "Target location",
     targetAgent: "Target agent",
     noProposal: "No action proposal is available; inspect operation error metadata.",
-    copyToDraft: "Copy to editable intervention draft",
+    copyToDraft: "Review as structured intervention",
     invalidProposalCannotDraft: "Only completed and validated action proposals can create drafts. Failed metadata is display-only and will not be applied.",
+    reviewTitle: "Structured action proposal review",
+    reviewDescription: "Review targets, description, reason, and intent first; apply still goes through the existing typed admin input boundary.",
+    reviewTargetIds: "Target IDs (one per line or comma-separated)",
+    reviewAuditLabel: "Action proposal audit metadata",
+    reviewedBy: "Reviewed by",
+    operation: "Operation",
+    draftEventKind: "Event kind",
+    draftDescriptionField: "User-reviewed description",
+    applyReviewedProposal: "Apply reviewed proposal",
+    advancedDraftTitle: "Advanced: JSON draft",
+    advancedDraftDescription: "Use only for debugging or unusual edits; the normal path is the structured form above. Submission is still validated as a user realmEvent.",
+    advancedDraftPlaceholder: "Click “Copy structured draft to JSON” before editing.",
+    copyStructuredToJson: "Copy structured draft to JSON",
+    submitAdvancedJson: "Submit advanced JSON",
     draftTitle: "Action proposal intervention draft",
     draftDescription: "This is a local editable JSON draft. It is sent through the existing admin input path only after you submit it.",
     draftJson: "Intervention draft JSON",

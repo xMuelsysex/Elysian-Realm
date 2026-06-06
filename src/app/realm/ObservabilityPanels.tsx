@@ -128,26 +128,80 @@ export function ReceiptPanel({ language, receipt }: ReceiptPanelProps) {
 interface ReplayPanelProps {
   language: AppLanguage;
   viewModel: ReplayCursorViewModel;
+  replayPlaying: boolean;
+  replaySpeed: number;
   autoStep: boolean;
+  onReplayPlayingChange: (playing: boolean) => void;
+  onReplaySpeedChange: (speed: number) => void;
   onAutoStepChange: (enabled: boolean) => void;
   onCursorChange: (cursor: number) => void;
 }
 
-export function ReplayPanel({ language, viewModel, autoStep, onAutoStepChange, onCursorChange }: ReplayPanelProps) {
+const REPLAY_SPEED_OPTIONS = [0.5, 1, 2, 4, 10, 20] as const;
+
+export function ReplayPanel({
+  language,
+  viewModel,
+  replayPlaying,
+  replaySpeed,
+  autoStep,
+  onReplayPlayingChange,
+  onReplaySpeedChange,
+  onAutoStepChange,
+  onCursorChange,
+}: ReplayPanelProps) {
+  const playLabel = replayPlaying ? (language === "zh" ? "暂停回放" : "Pause replay") : (language === "zh" ? "播放回放" : "Play replay");
   return (
-    <section className="panel" aria-labelledby="replay-heading">
+    <section className="panel replay-panel" aria-labelledby="replay-heading">
       <PanelTitle eyebrow={language === "zh" ? "离线回放" : "Replay"} title={language === "zh" ? "逐事件回放" : "Step-by-step event playback"} id="replay-heading" />
-      <div className="button-row">
-        <button type="button" className="secondary-button" disabled={!viewModel.canPrevious} onClick={() => onCursorChange(viewModel.cursor - 1)}>{language === "zh" ? "上一事件" : "Previous"}</button>
-        <button type="button" className="secondary-button" disabled={!viewModel.canNext} onClick={() => onCursorChange(viewModel.cursor + 1)}>{language === "zh" ? "下一事件" : "Next"}</button>
-        <label className="checkbox-label"><input type="checkbox" checked={autoStep} onChange={(event) => onAutoStepChange(event.target.checked)} /> {language === "zh" ? "自动步进" : "Auto-step"}</label>
+      <div className="replay-status-strip" aria-live="polite">
+        <span>{language === "zh" ? "游标" : "Cursor"}: <strong>{viewModel.positionLabel}</strong></span>
+        <span>{language === "zh" ? "进度" : "Progress"}: <strong>{viewModel.progressPercent}%</strong></span>
+        <span>{language === "zh" ? "速度" : "Speed"}: <strong>{replaySpeed}×</strong></span>
+      </div>
+      <div className="replay-progress" aria-hidden="true"><span style={{ width: `${viewModel.progressPercent}%` }} /></div>
+      <div className="button-row replay-controls">
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={viewModel.totalEvents === 0}
+          aria-pressed={replayPlaying}
+          onClick={() => {
+            if (!replayPlaying && viewModel.totalEvents > 0 && !viewModel.canNext) onCursorChange(0);
+            onReplayPlayingChange(!replayPlaying);
+          }}
+        >
+          {playLabel}
+        </button>
+        <button type="button" className="secondary-button" disabled={!viewModel.canPrevious} onClick={() => onCursorChange(viewModel.cursor - 1)}>{language === "zh" ? "上一事件" : "Previous event"}</button>
+        <button type="button" className="secondary-button" disabled={!viewModel.canNext} onClick={() => onCursorChange(viewModel.cursor + 1)}>{language === "zh" ? "下一事件" : "Next event"}</button>
+        <label className="replay-speed-label" htmlFor="replay-speed">
+          {language === "zh" ? "倍速" : "Speed"}
+          <select id="replay-speed" value={replaySpeed} onChange={(event) => onReplaySpeedChange(Number(event.target.value))}>
+            {REPLAY_SPEED_OPTIONS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
+          </select>
+        </label>
+        <label className="checkbox-label"><input type="checkbox" checked={autoStep} onChange={(event) => onAutoStepChange(event.target.checked)} /> {language === "zh" ? "实时自动步进" : "Live auto-step"}</label>
       </div>
       <label className="stacked-form" htmlFor="replay-cursor">
-        {language === "zh" ? "跳转到步进或事件序号" : "Jump to tick / event index"}
-        <input id="replay-cursor" type="number" min="0" max={Math.max(viewModel.totalEvents - 1, 0)} value={viewModel.cursor} onChange={(event) => onCursorChange(Number(event.target.value))} />
+        {language === "zh" ? "跳转到事件游标" : "Jump to event cursor"}
+        <input
+          id="replay-cursor"
+          type="range"
+          min="0"
+          max={Math.max(viewModel.totalEvents - 1, 0)}
+          value={viewModel.cursor}
+          disabled={viewModel.totalEvents === 0}
+          aria-valuetext={viewModel.positionLabel}
+          onChange={(event) => onCursorChange(Number(event.target.value))}
+        />
+      </label>
+      <label className="stacked-form" htmlFor="replay-cursor-number">
+        {language === "zh" ? "输入事件序号" : "Type event index"}
+        <input id="replay-cursor-number" type="number" min="0" max={Math.max(viewModel.totalEvents - 1, 0)} value={viewModel.cursor} disabled={viewModel.totalEvents === 0} onChange={(event) => onCursorChange(Number(event.target.value))} />
       </label>
       {viewModel.selected ? (
-        <article className="detail-card">
+        <article className="detail-card replay-selected-card">
           <strong>{viewModel.selected.title}</strong>
           <p>{viewModel.selected.detail}</p>
           <small className="muted"><code>{viewModel.selected.event.id}</code> · {viewModel.selected.event.time}</small>

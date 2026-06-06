@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality checklist"}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Check UI boundary, provenance, replay, and intervention constraints"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Check no frontend-owned simulation state or replay mutation"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check typed view-model and command handling"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend verification and anti-pattern checklist"}
+{"file": ".trellis/tasks/06-06-frontend-realm-observation-ux-mvp/research/frontend-reference-projects.md", "reason": "Check implementation matches intended borrowed UI patterns"}

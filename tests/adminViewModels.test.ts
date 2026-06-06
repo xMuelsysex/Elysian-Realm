@@ -22,6 +22,7 @@ import {
   filterRelatedTimelineItems,
   filterTimelineItems,
   findAgentLocation,
+  findReplayCursorForEvent,
   findSelectedAgent,
   groupAgentsByLocation,
   latestDiagnostics,
@@ -333,7 +334,10 @@ test("creates inspector replay receipt diff plan topology and export models", ()
   assert.equal(receipt.status, "accepted");
   assert.ok(receipt.resultingEvents.some((item) => item.event.kind === "realm.interventionSubmitted"));
   assert.equal(replay.cursor, 0);
+  assert.equal(replay.positionLabel, `1 / ${items.length}`);
+  assert.equal(replay.progressPercent, 0);
   assert.ok(replay.selected);
+  assert.equal(findReplayCursorForEvent(items, replay.selected.event.id), 0);
   assert.ok(diffs.some((diff) => diff.scope === "world" && diff.field === "status"));
   assert.equal(plans.length, accepted.body.snapshot.agents.length);
   assert.equal(topology.nodes.length, accepted.body.snapshot.locations.length);
@@ -354,6 +358,10 @@ test("topology and realm map expose deterministic routine movements from central
   assert.ok(topology.movementPaths.some((path) => path.actorId === "agent_elysia" && path.locationId === "lounge" && path.summary.includes("configured routine")));
   assert.equal(elysia?.locationId, "lounge");
   assert.equal(elysia?.currentIntent, "notice who may need company");
+  assert.equal(elysia?.roleLabel, "persona elysia");
+  assert.equal(elysia?.relationshipCount, 2);
+  assert.equal(elysia?.activitySource, "system");
+  assert.ok(elysia?.activityText?.includes("notice who may need company"));
   assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "lounge" && pulse.label === "agent.moved"));
   assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "lounge" && pulse.label === "agent.continuedRoutine"));
 });
@@ -386,8 +394,11 @@ test("creates realm map nodes markers pulses and location target filters", () =>
   assert.equal(atrium?.y, 42);
   assert.equal(garden?.selected, true);
   assert.equal(garden?.recentEventCount, viewModel.pulses.filter((pulse) => pulse.locationId === "garden").length);
+  assert.match(garden?.occupancyLabel ?? "", /agents present/);
+  assert.match(garden?.activityLabel ?? "", /recent activit/);
   assert.equal(elysia?.locationId, "atrium");
   assert.equal(elysia?.selected, true);
+  assert.ok(elysia?.activityText);
   assert.ok(viewModel.links.some((link) => link.fromLocationId === "atrium" && link.toLocationId === "garden"));
   assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "garden" && pulse.source === "user"));
   assert.ok(viewModel.pulses.some((pulse) => pulse.tone === "error"));

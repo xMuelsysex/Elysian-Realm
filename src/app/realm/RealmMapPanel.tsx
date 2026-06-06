@@ -39,7 +39,7 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
             language={language}
             location={location}
             agents={viewModel.agents.filter((agent) => agent.locationId === location.id)}
-            pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id && pulse.source !== "system").slice(0, 2)}
+            pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id && (pulse.source !== "system" || pulse.tone === "error")).slice(0, 3)}
             onSelectAgent={onSelectAgent}
             onSelectLocation={onSelectLocation}
           />
@@ -83,7 +83,8 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
       >
         <span className="realm-map-location-title">{location.displayName}</span>
         <span className="realm-map-location-code">{location.id}</span>
-        <span className="realm-map-location-count">{language === "zh" ? "角色" : "Agents"}: {location.agentCount}</span>
+        <span className="realm-map-location-count">{location.occupancyLabel}</span>
+        <span className="realm-map-location-activity">{location.activityLabel}</span>
         {location.selected ? <span className="realm-map-selected-text">{language === "zh" ? "已选地点" : "Selected location"}</span> : null}
       </button>
 
@@ -101,7 +102,14 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
           >
             <span className="realm-map-agent-face" aria-hidden="true">{createAgentInitials(agent.displayName)}</span>
             <span className="realm-map-agent-name">{agent.displayName}</span>
-            <span className="realm-map-agent-status">{agent.status}</span>
+            <span className="realm-map-agent-role">{agent.roleLabel}</span>
+            <span className="realm-map-agent-status">{agent.status} · {language === "zh" ? "关系" : "rels"}: {agent.relationshipCount}</span>
+            {agent.activityText ? (
+              <span className="realm-map-agent-bubble">
+                <Badge tone={agent.activitySource}>{formatSourceLabel(language, agent.activitySource)}</Badge>
+                <span>{agent.activityText}</span>
+              </span>
+            ) : null}
             {agent.selected ? <span className="realm-map-selected-text">{language === "zh" ? "已选角色" : "Selected agent"}</span> : null}
           </button>
         ))}

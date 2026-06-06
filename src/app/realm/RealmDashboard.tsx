@@ -17,6 +17,7 @@ import {
   createWorldInspectorViewModel,
   createTimelineTargetFilterForLocation,
   filterTimelineItems,
+  findReplayCursorForEvent,
   groupAgentsByLocation,
   type TimelineDetailMode,
   type TimelineFilters,
@@ -85,6 +86,8 @@ export function RealmDashboard({
   const [timelineDetailMode, setTimelineDetailMode] = useState<TimelineDetailMode>("user");
   const [timelineFilters, setTimelineFilters] = useState<TimelineFilters>({});
   const [replayCursor, setReplayCursor] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1);
   const [autoStep, setAutoStep] = useState(false);
   const [exportedAt, setExportedAt] = useState<string>();
   const [activeTab, setActiveTab] = useState<DashboardTabId>(DEFAULT_DASHBOARD_TAB_ID);
@@ -123,9 +126,41 @@ export function RealmDashboard({
     return () => window.clearInterval(id);
   }, [autoStep, loading, onStep]);
 
+  useEffect(() => {
+    if (!replayPlaying || loading) return undefined;
+    const id = window.setInterval(() => {
+      setReplayCursor((current) => Math.min(current + 1, Math.max(timelineItems.length - 1, 0)));
+    }, Math.max(80, Math.round(1200 / replaySpeed)));
+    return () => window.clearInterval(id);
+  }, [replayPlaying, replaySpeed, timelineItems.length, loading]);
+
+  useEffect(() => {
+    if (timelineItems.length === 0) {
+      setReplayCursor(0);
+      setReplayPlaying(false);
+      return;
+    }
+    setReplayCursor((current) => Math.min(current, timelineItems.length - 1));
+  }, [timelineItems.length]);
+
+  useEffect(() => {
+    if (replayPlaying && replayCursor >= Math.max(timelineItems.length - 1, 0)) {
+      setReplayPlaying(false);
+    }
+  }, [replayPlaying, replayCursor, timelineItems.length]);
+
   const jumpReplayCursor = (cursor: number) => {
     if (!Number.isFinite(cursor)) return;
-    setReplayCursor(Math.max(0, Math.min(cursor, Math.max(timelineItems.length - 1, 0))));
+    const nextCursor = Math.max(0, Math.min(cursor, Math.max(timelineItems.length - 1, 0)));
+    setReplayCursor(nextCursor);
+    const selectedReplay = createReplayCursorViewModel(state.replay, timelineItems, nextCursor).selected;
+    if (selectedReplay) setSelectedEventId(selectedReplay.event.id);
+  };
+
+  const selectEvent = (eventId: string) => {
+    setSelectedEventId(eventId);
+    const cursor = findReplayCursorForEvent(timelineItems, eventId);
+    if (cursor !== undefined) setReplayCursor(cursor);
   };
 
   const selectLocation = (locationId: string) => {
@@ -158,7 +193,7 @@ export function RealmDashboard({
       sourceOptions={sourceOptions}
       selectedEventId={selectedEventId}
       onFiltersChange={setTimelineFilters}
-      onSelectEvent={setSelectedEventId}
+      onSelectEvent={selectEvent}
       onToggleDetailMode={toggleTimelineDetailMode}
     />
   );
@@ -236,7 +271,17 @@ export function RealmDashboard({
         {activeTab === "events" ? (
           <div className="dashboard-page-stack">
             {timeline}
-            <ReplayPanel language={language} viewModel={replay} autoStep={autoStep} onAutoStepChange={setAutoStep} onCursorChange={jumpReplayCursor} />
+            <ReplayPanel
+              language={language}
+              viewModel={replay}
+              replayPlaying={replayPlaying}
+              replaySpeed={replaySpeed}
+              autoStep={autoStep}
+              onReplayPlayingChange={setReplayPlaying}
+              onReplaySpeedChange={setReplaySpeed}
+              onAutoStepChange={setAutoStep}
+              onCursorChange={jumpReplayCursor}
+            />
           </div>
         ) : null}
 

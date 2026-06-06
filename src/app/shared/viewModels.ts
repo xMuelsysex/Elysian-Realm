@@ -155,6 +155,8 @@ export interface ReplayCursorViewModel {
   cursor: number;
   canPrevious: boolean;
   canNext: boolean;
+  progressPercent: number;
+  positionLabel: string;
   selected?: TimelineItem;
   summary: ReplaySummary;
 }
@@ -239,6 +241,8 @@ export interface RealmMapLocationNode {
   selected: boolean;
   agentCount: number;
   recentEventCount: number;
+  occupancyLabel: string;
+  activityLabel: string;
 }
 
 export interface RealmMapAgentMarker {
@@ -249,7 +253,11 @@ export interface RealmMapAgentMarker {
   xOffset: number;
   yOffset: number;
   selected: boolean;
+  roleLabel: string;
+  relationshipCount: number;
   currentIntent?: string;
+  activityText?: string;
+  activitySource: EventSource;
 }
 
 export interface RealmMapLink {
@@ -590,9 +598,17 @@ export function createReplayCursorViewModel(summary: ReplaySummary, timelineItem
     cursor: normalizedCursor,
     canPrevious: normalizedCursor > 0,
     canNext: normalizedCursor < totalEvents - 1,
+    progressPercent: createReplayProgressPercent(totalEvents, normalizedCursor),
+    positionLabel: totalEvents === 0 ? "0 / 0" : `${normalizedCursor + 1} / ${totalEvents}`,
     selected: chronologicalItems[normalizedCursor],
     summary,
   };
+}
+
+export function findReplayCursorForEvent(timelineItems: readonly TimelineItem[], eventId: string): number | undefined {
+  const chronologicalItems = [...timelineItems].reverse();
+  const index = chronologicalItems.findIndex((item) => item.event.id === eventId);
+  return index >= 0 ? index : undefined;
 }
 
 export function createMemoryViewModel(personas: readonly PersonaSpec[], timelineItems: readonly TimelineItem[], selectedAgentId?: string, language: AppLanguage = DEFAULT_LANGUAGE): MemoryViewModel {
@@ -725,6 +741,8 @@ export function createRealmMapViewModel(
       selected: group.location.id === selectedLocationId,
       agentCount: group.agents.length,
       recentEventCount: pulseCountsByLocation.get(group.location.id) ?? 0,
+      occupancyLabel: formatMapLocationOccupancy(group.agents.length, language),
+      activityLabel: formatMapLocationActivity(pulseCountsByLocation.get(group.location.id) ?? 0, language),
     } satisfies RealmMapLocationNode;
   });
   const agents = groups.flatMap((group) => group.agents.map((agent, index) => {
@@ -737,7 +755,11 @@ export function createRealmMapViewModel(
       xOffset: offset.x,
       yOffset: offset.y,
       selected: agent.id === selectedAgentId,
+      roleLabel: formatMapAgentRole(agent.personaId, language),
+      relationshipCount: agent.relationshipRefs.length,
       currentIntent: agent.currentAction?.intent ? formatSimulationText(language, agent.currentAction.intent) ?? agent.currentAction.intent : undefined,
+      activityText: createMapAgentActivityText(agent, timelineItems, language),
+      activitySource: agent.currentAction ? "system" : findRecentAgentTimelineItem(timelineItems, agent.id)?.event.source ?? "system",
     } satisfies RealmMapAgentMarker;
   }));
   const links = snapshot.locations.slice(0, -1).map((location, index) => ({
@@ -878,6 +900,42 @@ function createRealmMapSummary(
     return `地图显示 ${locations.length} 个地点、${agents.length} 位角色；${occupiedLocations} 个地点有人停留，最近有 ${pulses.length} 个地图事件提示。`;
   }
   return `Map shows ${locations.length} locations and ${agents.length} agents; ${occupiedLocations} locations are occupied with ${pulses.length} recent map event pulses.`;
+}
+
+function createReplayProgressPercent(totalEvents: number, cursor: number): number {
+  if (totalEvents === 0) return 0;
+  if (totalEvents === 1) return 100;
+  return Math.round((cursor / (totalEvents - 1)) * 100);
+}
+
+function formatMapLocationOccupancy(agentCount: number, language: AppLanguage): string {
+  if (language === "zh") return agentCount > 0 ? `${agentCount} 位角色停留` : "暂无角色停留";
+  return agentCount === 1 ? "1 agent present" : `${agentCount} agents present`;
+}
+
+function formatMapLocationActivity(recentEventCount: number, language: AppLanguage): string {
+  if (language === "zh") return recentEventCount > 0 ? `${recentEventCount} 条近期活动` : "暂无近期活动";
+  return recentEventCount === 1 ? "1 recent activity" : `${recentEventCount} recent activities`;
+}
+
+function formatMapAgentRole(personaId: string, language: AppLanguage): string {
+  return language === "zh" ? `人格 ${personaId}` : `persona ${personaId}`;
+}
+
+function createMapAgentActivityText(agent: AgentRuntimeState, timelineItems: readonly TimelineItem[], language: AppLanguage): string | undefined {
+  if (agent.currentAction?.intent) {
+    return truncateMapActivityText(formatSimulationText(language, agent.currentAction.intent) ?? agent.currentAction.intent);
+  }
+  const recentItem = findRecentAgentTimelineItem(timelineItems, agent.id);
+  return recentItem ? truncateMapActivityText(recentItem.detail) : undefined;
+}
+
+function findRecentAgentTimelineItem(timelineItems: readonly TimelineItem[], agentId: string): TimelineItem | undefined {
+  return timelineItems.find((item) => item.event.actorId === agentId || item.event.targetIds.includes(agentId));
+}
+
+function truncateMapActivityText(text: string): string {
+  return text.length > 96 ? `${text.slice(0, 93)}…` : text;
 }
 
 function createConfiguredFacts(persona: PersonaSpec, language: AppLanguage = DEFAULT_LANGUAGE): ConfiguredFactItem[] {

@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createLlmProposalInterventionDraft, parseLlmProposalDraftText } from "../src/app/llm/actionProposalDraft.js";
+import {
+  createLlmProposalInterventionDraft,
+  createLlmProposalReviewDraftForm,
+  createSubmitAdminInputFromLlmProposalReviewDraftForm,
+  parseLlmProposalDraftText,
+} from "../src/app/llm/actionProposalDraft.js";
 import type { LlmActionProposalResponse } from "../src/server/admin/index.js";
 
 const completedProposal: LlmActionProposalResponse = {
@@ -87,6 +92,52 @@ test("deduplicates draft targets when proposal target matches selected agent", (
 
   assert.deepEqual(draft?.targetIds, ["agent_elysia"]);
   assert.equal(draft?.payload.eventKind, "llm.proposal.reflect");
+});
+
+test("maps a structured proposal review form back to a typed admin input", () => {
+  const draft = createLlmProposalInterventionDraft(completedProposal);
+  assert.ok(draft);
+  const form = createLlmProposalReviewDraftForm(draft);
+  assert.ok(form);
+
+  const parsed = createSubmitAdminInputFromLlmProposalReviewDraftForm({
+    ...form,
+    targetIdsText: "agent_elysia, garden\nagent_kevin",
+    description: "User reviewed and softened the movement proposal.",
+    reason: "Keep the morning greeting gentle.",
+    intent: "Walk slowly toward the garden path.",
+    basePayload: {
+      ...form.basePayload,
+      customDebugNote: "preserved for advanced review",
+      apiKey: "sk-should-not-survive",
+    },
+  });
+
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.value.kind, "realmEvent");
+  assert.equal(parsed.value.source, "user");
+  assert.deepEqual(parsed.value.targetIds, ["agent_elysia", "garden", "agent_kevin"]);
+  assert.equal(parsed.value.payload.description, "User reviewed and softened the movement proposal.");
+  assert.equal(parsed.value.payload.reason, "Keep the morning greeting gentle.");
+  assert.equal(parsed.value.payload.intent, "Walk slowly toward the garden path.");
+  assert.equal(parsed.value.payload.provenance, "user-reviewed-llm-proposal");
+  assert.equal(parsed.value.payload.reviewedBy, "user");
+  assert.equal(parsed.value.payload.customDebugNote, "preserved for advanced review");
+  assert.equal("apiKey" in parsed.value.payload, false);
+  assert.equal(JSON.stringify(parsed.value).includes("apiKey"), false);
+});
+
+test("rejects structured proposal review forms without typed targets or required review fields", () => {
+  const draft = createLlmProposalInterventionDraft(completedProposal);
+  assert.ok(draft);
+  const form = createLlmProposalReviewDraftForm(draft);
+  assert.ok(form);
+
+  assert.deepEqual(createSubmitAdminInputFromLlmProposalReviewDraftForm({ ...form, targetIdsText: "" }), { ok: false, error: "draftShape" });
+  assert.deepEqual(createSubmitAdminInputFromLlmProposalReviewDraftForm({ ...form, eventKind: "" }), { ok: false, error: "draftShape" });
+  assert.deepEqual(createSubmitAdminInputFromLlmProposalReviewDraftForm({ ...form, description: "" }), { ok: false, error: "draftShape" });
+  assert.deepEqual(createSubmitAdminInputFromLlmProposalReviewDraftForm({ ...form, reason: "" }), { ok: false, error: "draftShape" });
 });
 
 test("parses edited draft JSON as an explicit user realm event", () => {

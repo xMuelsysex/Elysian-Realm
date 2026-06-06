@@ -39,6 +39,31 @@ export function AgentDetailPanel({ language, viewModel }: AgentDetailPanelProps)
       {viewModel.state === "selected" && viewModel.agent ? (
         <div className="agent-detail-content">
           <p className="muted">{copy.agents.runtimeNote}</p>
+          <div className="agent-dossier-hero">
+            <div>
+              <p className="eyebrow">{language === "zh" ? "角色档案" : "Character dossier"}</p>
+              <h3>{displayName}</h3>
+              <p><Badge tone="agent">{formatAgentStatusLabel(language, viewModel.agent.status)}</Badge> <code>{viewModel.agent.id}</code></p>
+            </div>
+            <div className="agent-dossier-current">
+              <span className="eyebrow">{copy.agents.currentAction}</span>
+              <strong>{viewModel.agent.currentAction?.intent ?? copy.agents.noAction}</strong>
+              <p>
+                {copy.agents.currentLocation}: {viewModel.location ? formatLocationName(language, viewModel.location.id, viewModel.location.displayName) : viewModel.agent.locationId}
+              </p>
+              <div className="button-row agent-dossier-provenance" aria-label={language === "zh" ? "档案来源标记" : "Dossier provenance labels"}>
+                <Badge tone="system">{formatProvenanceLabel(language, "system")}</Badge>
+                {viewModel.persona ? <Badge tone="neutral">{formatProvenanceLabel(language, "configured")}</Badge> : null}
+                {viewModel.recentMemoryIndex.some((memory) => memory.provenance === "user") ? <Badge tone="user">{formatProvenanceLabel(language, "user")}</Badge> : null}
+              </div>
+            </div>
+          </div>
+          <dl className="agent-dossier-strip" aria-label={language === "zh" ? "档案重点" : "Dossier highlights"}>
+            <div><dt>{copy.agents.currentLocation}</dt><dd>{viewModel.location ? <code>{viewModel.location.id}</code> : <code>{viewModel.agent.locationId}</code>}</dd></div>
+            <div><dt>{copy.agents.relationships}</dt><dd>{viewModel.agent.relationshipRefs.length}</dd></div>
+            <div><dt>{copy.agents.relatedEvents}</dt><dd>{viewModel.relatedEvents.length}</dd></div>
+            <div><dt>{language === "zh" ? "记忆索引" : "Memory index"}</dt><dd>{viewModel.recentMemoryIndex.length}</dd></div>
+          </dl>
           <dl className="metric-grid" aria-label={copy.agents.runtimeState}>
             <div><dt>{copy.agents.displayName}</dt><dd>{displayName}</dd></div>
             <div><dt>{copy.agents.agentId}</dt><dd><code>{viewModel.agent.id}</code></dd></div>

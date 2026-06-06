@@ -258,6 +258,11 @@ export function createReplayCursorViewModel(
   cursor: number,
 ): ReplayCursorViewModel;
 
+export function findReplayCursorForEvent(
+  timelineItems: readonly TimelineItem[],
+  eventId: string,
+): number | undefined;
+
 export function createMemoryViewModel(
   personas: readonly PersonaSpec[],
   timelineItems: readonly TimelineItem[],
@@ -297,18 +302,20 @@ export function createDebugExportViewModel(
 ### 3. Contracts
 
 - The UI reads `AdminStateResponse` from `/api/admin/state` and replaces its server state only with backend responses.
-- Local React state is limited to loading/error flags, form drafts, selected agent/event ids, timeline filters/search, replay cursor, auto-step flag, previous response reference for diff/receipt display, last submitted input, export timestamp, and UI-only preferences such as timeline `TimelineDetailMode`.
+- Local React state is limited to loading/error flags, form drafts, selected agent/event ids, timeline filters/search, replay cursor/playback/speed, auto-step flag, previous response reference for diff/receipt display, last submitted input, export timestamp, and UI-only preferences such as timeline `TimelineDetailMode`.
 - Components render typed DTOs or view models. Event detail projection, timeline filtering/search, agent-detail lookup, relationship rows, world inspector, receipts, replay cursor, memory/message projections, diagnostics center, state diff, action plans, topology, and debug export models live in `shared/viewModels.ts`; components may pass already-projected payloads to `JsonDetails` for raw inspection but must not infer simulation rules from payload fields.
 - Timeline detail mode has two local UI modes: `user` shows natural sentences, while `debug` shows the sentence plus key facts and raw payload JSON.
+- `RealmMapPanel` renders `RealmMapViewModel` only. Map atmosphere fields such as location occupancy labels, recent activity labels, agent role labels, relationship counts, and speech/activity bubbles must be display-only values derived in `shared/viewModels.ts` from `WorldSnapshot` plus projected `TimelineItem[]`; map interactions only select local agent/location filters.
 - `LocationBoard` may expose agent selection as accessible buttons, but selection only updates local `selectedAgentId`; it must not mutate `WorldSnapshot` or submit simulation commands.
-- `AgentDetailPanel` renders selected-agent runtime state from `WorldSnapshot`, clearly labeled as runtime/debug state rather than configured persona canon. Configured persona summaries and long-term goals come from `AdminStateResponse.personas` through `createAgentDetailViewModel`.
+- `AgentDetailPanel` renders selected-agent runtime state from `WorldSnapshot`, clearly labeled as runtime/debug state rather than configured persona canon. Configured persona summaries and long-term goals come from `AdminStateResponse.personas` through `createAgentDetailViewModel`; dossier-style hero/current-action sections are visual hierarchy only, not new simulation facts.
 - Agent related events are filtered centrally from projected `TimelineItem[]`; related means the selected agent is `event.actorId` or appears in `event.targetIds`.
 - Relationship network interaction counts must count only explicit actor-target pair events where one agent is `event.actorId` and the other appears in `event.targetIds`; broad system events targeting many agents such as `memory.seeded` are not relationship interactions. `recentInteractions` may be capped for display, but `interactionCount` is the full count.
 - `InterventionPanel` is the only MVP owner of debug command forms. It submits `SubmitAdminInputRequest` for pause, resume, set time scale, realm event, and direct private message.
 - `DebugPanel` renders backend diagnostics, replay summary, and queued inputs for inspection; it must not hide rejected inputs.
 - Diagnostics center categories (`rejectedInputs`, `validationErrors`, `anomalies`) are computed from the full diagnostics list; only the `latest` display list is capped.
 - `ObservabilityPanels.tsx` owns semantic read-only panels for relationship network, world inspector, receipt, replay, persona read-only page, memory view, message stream, diagnostics center, state diff, action plan, topology, and local JSON export. These panels receive view models only.
-- Auto-step calls the existing step command on an interval and must stop through local UI state; jump-to-tick/replay cursor only changes which persisted event is selected.
+- Replay play/pause/speed controls are local viewing state over existing `TimelineItem[]`. They may advance `replayCursor`, update `selectedEventId`, and use `findReplayCursorForEvent` for event jumps; they must not call LLM providers, create simulation events, or call live `onStep`.
+- Auto-step calls the existing live step command on an interval and must stop through local UI state; it must be labeled separately from replay playback. Jump-to-event/replay cursor only changes which persisted event is selected.
 - World inspector and debug export must expose current state, event count/list, timeline count/list, replay summary, diagnostics, conversations/queues, and derived diffs so local audits do not need a second data source.
 - Debug export creates a browser download blob from the current `AdminStateResponse` and derived view models; it must not write repository files or mutate simulation state.
 - Source/provenance badges must render text labels for `system`, `user`, `agent`, `llm`, and `test` when those sources appear.
@@ -333,6 +340,8 @@ export function createDebugExportViewModel(
 - no receipt context -> receipt panel shows no-recent-input state
 - rejected simulation input -> receipt and diagnostics center show rejection reason and related event/input ids
 - empty replay/message/memory/diff/topology history -> explicit empty states
+- replay play/pause at final event -> playback stops locally or restarts cursor only after explicit play action; no live simulation step is sent
+- event selection in timeline -> replay cursor may sync to that persisted event via `findReplayCursorForEvent`; not found leaves cursor unchanged
 - export action -> browser download only; no server or filesystem write
 
 ### 5. Good/Base/Bad Cases
@@ -446,6 +455,31 @@ export function createLlmProposalInterventionDraft(
 
 export type LlmProposalDraftParseError = "draftJson" | "draftShape";
 
+export interface LlmProposalReviewDraftForm {
+  targetIdsText: string;
+  eventKind: string;
+  description: string;
+  reason: string;
+  intent: string;
+  targetLocationId: string;
+  targetAgentId: string;
+  agentId: string;
+  proposalAction: string;
+  llmOperationId: string;
+  sandbox: boolean;
+  provenance: string;
+  reviewedBy: string;
+  basePayload: Record<string, unknown>;
+}
+
+export function createLlmProposalReviewDraftForm(
+  draft: SubmitAdminInputRequest,
+): LlmProposalReviewDraftForm | undefined;
+
+export function createSubmitAdminInputFromLlmProposalReviewDraftForm(
+  form: LlmProposalReviewDraftForm,
+): { ok: true; value: SubmitAdminInputRequest } | { ok: false; error: LlmProposalDraftParseError };
+
 export function parseLlmProposalDraftText(
   text: string,
 ): { ok: true; value: SubmitAdminInputRequest } | { ok: false; error: LlmProposalDraftParseError };
@@ -473,22 +507,24 @@ onSubmitInput: (input: SubmitAdminInputRequest) => Promise<void>;
   - `proposalAction`
   - `reason`
   - optional `intent`, `targetLocationId`, `targetAgentId`
-- Draft JSON is local React state only. It may be edited or cleared without making a request.
-- Draft submission parses the edited JSON, normalizes `source` to `"user"`, then calls the provided `onSubmitInput(parsed.value)` handler.
-- API keys and provider secrets must never be copied into the draft payload, stored in browser storage, or included in operation response rendering.
+- Structured review form state is the primary apply path. It is created from the default draft through `createLlmProposalReviewDraftForm`, exposes supported fields such as targets, event kind, description, reason, intent, optional targets, and audit metadata, and remains local until explicit submit.
+- Structured review submission calls `createSubmitAdminInputFromLlmProposalReviewDraftForm`, which returns a user-sourced `realmEvent` `SubmitAdminInputRequest`; the component then calls the provided `onSubmitInput(parsed.value)` handler.
+- Raw draft JSON may remain available only under an advanced/debug affordance. It is not the normal apply path; if submitted, it must still parse through `parseLlmProposalDraftText`, normalize `source` to `"user"`, and call the same `onSubmitInput` handler.
+- API keys and provider secrets must never be copied into the draft payload, structured review form base payload, browser storage, or operation response rendering. Review helper code must sanitize secret-like payload keys before rebuilding a submit request.
 
 ### 4. Validation & Error Matrix
 
 - action proposal operation not completed -> draft helper returns `undefined`; copy/apply button stays disabled
 - action proposal missing `proposal` -> draft helper returns `undefined`; failed metadata remains display-only
 - failed/invalid LLM proposal result -> no draft, no hidden fallback, no admin input submission
-- malformed draft JSON -> `draftJson`, visible form error, no request sent
-- parsed draft is not a `realmEvent` -> `draftShape`, visible form error, no request sent
-- draft `targetIds` missing/empty/non-string -> `draftShape`, visible form error, no request sent
-- draft `payload` missing or not an object -> `draftShape`, visible form error, no request sent
+- malformed advanced draft JSON -> `draftJson`, visible form error, no request sent
+- parsed advanced draft is not a `realmEvent` -> `draftShape`, visible form error, no request sent
+- draft/review `targetIds` missing/empty/non-string -> `draftShape`, visible form error, no request sent
+- draft/review `payload` missing or not an object -> `draftShape`, visible form error, no request sent
+- structured review `eventKind`, `description`, or `reason` blank -> `draftShape`, visible form error, no request sent
 - draft `source` present and not `"user"` -> `draftShape`, visible form error, no request sent
 - clear/close draft -> local state reset only; no backend request and no world mutation
-- valid submitted draft -> submit through existing admin input path and render the usual receipt/diagnostics from backend state
+- valid structured review or valid advanced JSON submission -> submit through existing admin input path and render the usual receipt/diagnostics from backend state
 
 ### 5. Good/Base/Bad Cases
 

@@ -96,6 +96,13 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .stacked-form { display: grid; gap: 0.5rem; border-top: 1px solid #263244; margin-top: 0.85rem; padding-top: 0.85rem; }
 .inline-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
 .agent-detail-content, .agent-detail-sections, .inline-list, .related-event-list { display: grid; gap: 0.75rem; }
+.agent-dossier-hero { display: grid; grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr); gap: 0.85rem; border: 1px solid #334155; border-radius: 0.9rem; padding: 0.9rem; background: linear-gradient(135deg, #0f172a, #111827); }
+.agent-dossier-current { display: grid; gap: 0.35rem; border-left: 3px solid #38bdf8; padding-left: 0.8rem; }
+.agent-dossier-current strong { font-size: 1.05rem; color: #f8fafc; }
+.agent-dossier-current p { margin: 0; color: #cbd5e1; }
+.agent-dossier-provenance { margin: 0; }
+.agent-dossier-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; margin: 0; }
+.agent-dossier-strip div { border: 1px solid #263244; border-radius: 0.7rem; padding: 0.6rem; background: #0b1220; }
 .agent-detail-sections { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .detail-card { border: 1px solid #263244; border-radius: 0.75rem; padding: 0.75rem; background: #0b1220; }
 .detail-card h3 { margin-bottom: 0.5rem; }
@@ -120,6 +127,12 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .llm-proposal-preview { display: grid; gap: 0.55rem; margin: 0; border: 1px solid #263244; border-radius: 0.65rem; padding: 0.65rem; background: #0f172a; }
 .llm-proposal-preview div { display: grid; gap: 0.25rem; }
 .llm-proposal-preview dd { color: #e2e8f0; }
+.llm-review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.65rem; }
+.llm-review-grid label { display: grid; gap: 0.35rem; color: #cbd5e1; font-weight: 700; }
+.llm-review-wide { grid-column: 1 / -1; }
+.llm-review-audit { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid #263244; border-radius: 0.75rem; padding: 0.75rem; background: #0b1220; }
+.llm-advanced-draft { margin-top: 0.85rem; border: 1px dashed #475569; border-radius: 0.75rem; padding: 0.75rem; background: #0b1220; }
+.llm-advanced-draft textarea { width: 100%; margin-top: 0.65rem; }
 
 .realm-map-panel { overflow: hidden; }
 .realm-map-mode { align-self: center; border: 1px solid #334155; border-radius: 999px; padding: 0.2rem 0.65rem; color: #bfdbfe; background: #0f172a; font-size: 0.78rem; font-weight: 800; }
@@ -156,14 +169,16 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .realm-map-location:hover:not(:disabled), .realm-map-location:focus-visible { background: linear-gradient(135deg, #1e3a5f, #172554); }
 .realm-map-location--selected { border-color: #fbbf24; box-shadow: 0 8px 0 #451a03, 0 0 0 2px #facc15 inset, 0 0 22px rgb(250 204 21 / 0.35); }
 .realm-map-location-title { font-weight: 900; letter-spacing: 0.02em; }
-.realm-map-location-code, .realm-map-location-count { color: #94a3b8; font-size: 0.75rem; }
+.realm-map-location-code, .realm-map-location-count, .realm-map-location-activity { color: #94a3b8; font-size: 0.75rem; }
+.realm-map-location-activity { color: #bfdbfe; }
 .realm-map-selected-text { color: #fde68a; font-size: 0.74rem; font-weight: 900; text-transform: uppercase; }
 .realm-map-agents { position: absolute; left: 50%; top: 64%; display: flex; justify-content: center; align-items: center; width: 1px; height: 1px; pointer-events: none; }
 .realm-map-agent {
   position: absolute;
   display: grid;
   justify-items: center;
-  min-width: 58px;
+  min-width: 96px;
+  max-width: 160px;
   gap: 0.12rem;
   border: 2px solid #10b981;
   border-radius: 0.45rem;
@@ -177,8 +192,11 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .realm-map-agent:hover:not(:disabled), .realm-map-agent:focus-visible { background: #065f46; }
 .realm-map-agent--selected { border-color: #fbbf24; color: #fef3c7; background: #422006; box-shadow: 0 5px 0 #1c0d02, 0 0 16px rgb(250 204 21 / 0.45); }
 .realm-map-agent-face { display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid currentColor; border-radius: 999px 999px 0.55rem 0.55rem; background: rgb(255 255 255 / 0.08); font-size: 0.78rem; font-weight: 900; }
-.realm-map-agent-name { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.realm-map-agent-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.realm-map-agent-role { color: #a7f3d0; font-size: 0.6rem; text-transform: uppercase; }
 .realm-map-agent-status { color: #bbf7d0; font-size: 0.62rem; }
+.realm-map-agent-bubble { position: absolute; left: 50%; bottom: calc(100% + 0.35rem); display: grid; gap: 0.18rem; min-width: 130px; max-width: 190px; transform: translateX(-50%); border: 1px solid #7dd3fc; border-radius: 0.8rem 0.8rem 0.8rem 0.2rem; padding: 0.35rem 0.45rem; background: #020617; color: #e0f2fe; box-shadow: 0 0 18px rgb(56 189 248 / 0.32); font-size: 0.65rem; text-align: left; z-index: 2; }
+.realm-map-agent-bubble::after { content: ""; position: absolute; left: 1rem; bottom: -0.38rem; border-width: 0.4rem 0.35rem 0 0; border-style: solid; border-color: #7dd3fc transparent transparent transparent; }
 .realm-map-pulses { position: absolute; left: 50%; top: -0.55rem; display: grid; gap: 0.25rem; transform: translateX(-50%); pointer-events: none; }
 .realm-map-pulse { display: inline-flex; gap: 0.3rem; align-items: center; max-width: 190px; border: 1px solid #475569; border-radius: 0.35rem; padding: 0.18rem 0.35rem; background: #020617; color: #dbeafe; font-size: 0.66rem; font-weight: 800; box-shadow: 0 0 18px rgb(96 165 250 / 0.32); }
 .realm-map-pulse--error { border-color: #ef4444; box-shadow: 0 0 18px rgb(239 68 68 / 0.36); }
@@ -186,11 +204,21 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .realm-map-text-fallback h3 { margin: 0 0 0.45rem; }
 .realm-map-text-fallback ul { margin: 0; padding-left: 1.2rem; }
 
+.replay-panel { display: grid; gap: 0.75rem; }
+.replay-status-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; color: #cbd5e1; }
+.replay-status-strip span { border: 1px solid #263244; border-radius: 999px; padding: 0.25rem 0.6rem; background: #0b1220; }
+.replay-progress { height: 0.6rem; overflow: hidden; border: 1px solid #334155; border-radius: 999px; background: #020617; }
+.replay-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #38bdf8, #facc15); transition: width 160ms ease; }
+.replay-controls { align-items: center; margin-bottom: 0; }
+.replay-speed-label { display: inline-flex; gap: 0.4rem; align-items: center; color: #cbd5e1; font-weight: 700; }
+.replay-selected-card { border-color: #38bdf8; }
+
 @media (max-width: 980px) {
   .dashboard-grid, .world-header, .timeline-layout { grid-template-columns: 1fr; }
   .dashboard-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-tab { min-height: auto; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agent-dossier-hero { grid-template-columns: 1fr; }
   .realm-map-board { display: grid; min-height: auto; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; padding: 0.75rem; }
   .realm-map-links { display: none; }
   .realm-map-location-wrap { position: relative; left: auto !important; top: auto !important; width: auto; min-height: 140px; transform: none; }

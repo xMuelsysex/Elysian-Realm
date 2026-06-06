@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist and quality gate"}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Realm UI responsibilities, replay/debug, provenance, and intervention rules"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Frontend state ownership and replay state constraints"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed projections and command parsing rules"}
+{"file": ".trellis/tasks/06-06-frontend-realm-observation-ux-mvp/research/frontend-reference-projects.md", "reason": "Reference project UI patterns to borrow without backend architecture"}
