@@ -380,3 +380,37 @@ Implemented and verified a reference-inspired frontend visual polish pass that r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Browser visual QA responsive polish
+
+**Date**: 2026-06-09
+**Task**: Browser visual QA responsive polish
+**Branch**: `main`
+
+### Summary
+
+Ran real-browser observatory QA at desktop, tablet, and mobile widths; fixed responsive overflow and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f0c7152` | (see git log) |
+| `b7dbc0a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
