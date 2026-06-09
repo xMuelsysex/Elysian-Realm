@@ -186,7 +186,8 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .inline-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.55rem; }
 .agent-detail-content, .agent-detail-sections, .inline-list, .related-event-list { display: grid; gap: 0.85rem; }
 .agent-dossier-hero { position: relative; display: grid; grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr); gap: var(--space-4); overflow: hidden; border: 1px solid rgb(248 198 106 / 0.28); border-radius: 1.05rem; padding: var(--space-5); background: radial-gradient(circle at 12% 18%, rgb(248 198 106 / 0.16), transparent 30%), linear-gradient(135deg, rgb(21 33 58 / 0.92), rgb(7 12 26 / 0.9)); box-shadow: var(--glow-gold), var(--shadow-card); }
-.agent-dossier-hero::after { content: ""; position: absolute; right: -3rem; top: -3rem; width: 9rem; height: 9rem; border: 1px solid rgb(103 232 249 / 0.18); border-radius: 999px; box-shadow: inset 0 0 40px rgb(103 232 249 / 0.08); }
+.agent-dossier-hero::after { content: ""; position: absolute; right: 0.85rem; top: 0.85rem; width: 7rem; height: 7rem; border: 1px solid rgb(103 232 249 / 0.18); border-radius: 999px; box-shadow: inset 0 0 40px rgb(103 232 249 / 0.08); opacity: 0.55; }
+.agent-dossier-hero > * { min-width: 0; }
 .agent-dossier-current { display: grid; gap: 0.4rem; border-left: 3px solid var(--realm-cyan); padding-left: 0.9rem; }
 .agent-dossier-current strong { font-size: clamp(1.05rem, 1.5vw, 1.35rem); color: #fff7df; }
 .agent-dossier-current p { margin: 0; color: var(--realm-ink-soft); }
@@ -496,6 +497,15 @@ dd { margin: 0; overflow-wrap: anywhere; }
 }
 .realm-observatory-sidebar--left > .panel:first-child .panel-heading,
 .realm-observatory-sidebar--right .agent-detail-panel .panel-heading { padding-bottom: 0.5rem; }
+.realm-observatory-sidebar .panel-heading {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.realm-observatory-sidebar .panel-heading .secondary-button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .realm-observatory-sidebar--left > .panel:first-child .filter-grid { display: none; }
 .realm-observatory-sidebar--left > .panel:first-child .timeline-layout {
   display: block;
@@ -610,12 +620,17 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .realm-observatory-stage .replay-controls button:first-child {
   width: 4.1rem;
   height: 4.1rem;
+  overflow: hidden;
   border-radius: 999px;
   color: transparent;
   position: relative;
   background: radial-gradient(circle, rgb(248 198 106 / 0.22), rgb(24 39 68 / 0.9));
   border-color: var(--realm-gold);
   box-shadow: var(--glow-gold), 0 18px 35px rgb(0 0 0 / 0.36);
+}
+.realm-observatory-stage .replay-controls button:first-child,
+.realm-observatory-stage .replay-controls .secondary-button:not(:first-child) {
+  font-size: 0;
 }
 .realm-observatory-stage .replay-controls button:first-child::after {
   content: "▶";
@@ -1055,4 +1070,178 @@ dd { margin: 0; overflow-wrap: anywhere; }
   .realm-map-location-wrap { width: 172px; }
   .realm-map-location { transform: scale(0.96); }
   .realm-map-agent { transform-origin: center; }
+}
+
+@media (min-width: 1180px) and (max-width: 1359px) {
+  .dashboard-shell {
+    width: min(100vw, 1280px);
+    padding: 0.85rem 1rem 1.1rem;
+  }
+  .dashboard-tab-page:has(.realm-observatory-layout) {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .realm-observatory-layout {
+    height: auto;
+    grid-template-columns: minmax(240px, 0.72fr) minmax(560px, 1.62fr) minmax(245px, 0.74fr);
+    grid-template-rows: minmax(570px, 62vh) 9.8rem;
+    grid-template-areas:
+      "left stage right"
+      "left replay right";
+    gap: 0.85rem;
+    align-items: stretch;
+  }
+  .realm-observatory-stage {
+    display: contents;
+    padding-bottom: 0;
+  }
+  .realm-map-stage-shell {
+    grid-area: stage;
+    height: 100%;
+    min-height: 0;
+  }
+  .realm-map-stage-shell .realm-map-panel {
+    height: 100%;
+  }
+  .realm-map-stage-shell .realm-map-board {
+    height: calc(100% - 6.7rem);
+    min-height: 0;
+  }
+  .realm-observatory-stage .replay-panel {
+    grid-area: replay;
+    position: static;
+    width: 100%;
+    height: 100%;
+    transform: none;
+    margin: 0;
+    padding: 0.85rem 1rem;
+  }
+  .realm-observatory-sidebar--left,
+  .realm-observatory-sidebar--right {
+    height: 100%;
+    overflow: hidden;
+  }
+  .realm-observatory-sidebar--left {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 43%) minmax(0, 57%);
+  }
+  .realm-observatory-sidebar--right {
+    grid-template-rows: minmax(0, 76%) minmax(8rem, 22%);
+  }
+  .realm-observatory-sidebar--left .panel,
+  .realm-observatory-sidebar--right .panel {
+    min-height: 0;
+    overflow: auto;
+    padding: 0.85rem;
+  }
+  .realm-observatory-sidebar--right .agent-dossier-hero {
+    min-width: 0;
+    min-height: 14rem;
+    padding: 0.85rem;
+  }
+  .realm-observatory-sidebar--right .agent-dossier-current strong {
+    font-size: clamp(1rem, 1.9vw, 1.12rem);
+    overflow-wrap: anywhere;
+  }
+  .realm-observatory-sidebar--right .agent-dossier-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .realm-observatory-support {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .command-center-frame {
+    grid-template-columns: 1fr;
+  }
+  .realm-map-stage-shell {
+    overflow: visible;
+  }
+  .realm-map-stage-shell::before,
+  .realm-map-stage-shell::after,
+  .realm-map-stage-shell .realm-map-board::before {
+    display: none;
+  }
+  .realm-map-stage-shell .realm-map-board {
+    min-height: auto;
+    height: auto;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  .realm-map-location-wrap {
+    min-height: 0;
+  }
+  .realm-map-location {
+    min-height: 112px;
+    transform: none;
+  }
+  .realm-map-agents {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    width: auto;
+    height: auto;
+    margin-top: 0.55rem;
+    gap: 0.45rem;
+    pointer-events: auto;
+  }
+  .realm-map-agent,
+  .realm-map-agent[style] {
+    position: relative;
+    transform: none !important;
+    min-width: min(100%, 7.4rem);
+    max-width: 100%;
+    flex: 1 1 7.4rem;
+  }
+  .realm-map-agent-bubble {
+    position: static;
+    transform: none;
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 0.35rem;
+  }
+  .realm-map-agent-bubble::after {
+    display: none;
+  }
+  .agent-dossier-hero {
+    min-width: 0;
+  }
+  .agent-dossier-current strong {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 560px) {
+  .realm-map-stage-shell .realm-map-panel > .panel-heading,
+  .realm-map-stage-shell .realm-map-summary,
+  .realm-map-stage-shell .realm-map-text-fallback {
+    margin-inline: 0.85rem;
+  }
+  .realm-map-stage-shell .realm-map-board {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+    padding: 0.7rem;
+  }
+  .realm-map-location {
+    min-height: 100px;
+    padding: 0.68rem;
+  }
+  .realm-map-agent,
+  .realm-map-agent[style] {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .realm-map-agent-name {
+    max-width: 100%;
+  }
+  .realm-map-agent-bubble {
+    display: none;
+  }
+  .agent-dossier-hero {
+    padding: 0.9rem;
+  }
 }
