@@ -12,6 +12,7 @@ interface WorldHeaderProps {
 
 export function WorldHeader({ language, snapshot, eventCount, onToggleLanguage }: WorldHeaderProps) {
   const copy = getCopy(language);
+  void onToggleLanguage;
 
   return (
     <section className="panel world-header" aria-labelledby="world-heading">
@@ -20,9 +21,6 @@ export function WorldHeader({ language, snapshot, eventCount, onToggleLanguage }
           <p className="eyebrow">{copy.app.eyebrow}</p>
           <h1 id="world-heading">{copy.app.title}</h1>
         </div>
-        <button type="button" className="secondary-button" aria-label={copy.language.toggleAriaLabel} onClick={onToggleLanguage}>
-          {copy.language.toggleButton}
-        </button>
       </div>
       <dl className="metric-grid" aria-label={copy.world.metricsLabel}>
         <div>

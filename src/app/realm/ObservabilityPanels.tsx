@@ -71,9 +71,9 @@ interface WorldInspectorProps {
 
 export function WorldInspector({ language, viewModel }: WorldInspectorProps) {
   return (
-    <section className="panel" aria-labelledby="world-inspector-heading">
-      <PanelTitle eyebrow={language === "zh" ? "只读快照" : "Read-only snapshot"} title={language === "zh" ? "世界状态检查器" : "World state inspector"} id="world-inspector-heading" />
-      <dl className="metric-grid">
+    <section className="panel system-overview-panel" aria-labelledby="world-inspector-heading">
+      <PanelTitle eyebrow={language === "zh" ? "系统总览" : "System overview"} title={language === "zh" ? "世界状态仪表" : "World state console"} id="world-inspector-heading" />
+      <dl className="metric-grid system-overview-grid">
         <Metric label={language === "zh" ? "世界编号" : "World"} value={viewModel.worldId} code />
         <Metric label={language === "zh" ? "状态" : "Status"} value={viewModel.status} />
         <Metric label={language === "zh" ? "时间" : "Time"} value={viewModel.currentTime} />
@@ -84,6 +84,9 @@ export function WorldInspector({ language, viewModel }: WorldInspectorProps) {
         <Metric label={language === "zh" ? "会话" : "Conversations"} value={viewModel.activeConversationCount} />
         <Metric label={language === "zh" ? "回放终点" : "Replay final"} value={`${viewModel.replayFinalStepId} @ ${viewModel.replayFinalTime}`} code />
       </dl>
+      <div className="system-flow-strip" aria-hidden="true">
+        <span /><span /><span /><span /><span />
+      </div>
       <JsonDetails title={language === "zh" ? "位置数据" : "Locations JSON"} value={viewModel.locations} />
       <JsonDetails title={language === "zh" ? "角色数据" : "Agents JSON"} value={viewModel.agents} />
       <JsonDetails title={language === "zh" ? "会话数据" : "Conversations JSON"} value={viewModel.activeConversations} />
@@ -275,10 +278,10 @@ interface DiagnosticsCenterProps {
 
 export function DiagnosticsCenter({ language, viewModel }: DiagnosticsCenterProps) {
   return (
-    <section className="panel" aria-labelledby="diagnostics-center-heading">
-      <PanelTitle eyebrow={language === "zh" ? "聚合诊断" : "Aggregated diagnostics"} title={language === "zh" ? "增强诊断中心" : "Enhanced diagnostics center"} id="diagnostics-center-heading" />
-      <dl className="compact-metrics"><Metric label={language === "zh" ? "总数" : "Total"} value={viewModel.total} /><Metric label={language === "zh" ? "已拒绝" : "Rejected"} value={viewModel.rejectedInputs.length} /><Metric label={language === "zh" ? "异常" : "Anomalies"} value={viewModel.anomalies.length} /></dl>
-      {viewModel.latest.length === 0 ? <p className="empty-state">{language === "zh" ? "暂无诊断。" : "No diagnostics."}</p> : <ul className="diagnostic-list">{viewModel.latest.map((diagnostic) => <li key={diagnostic.id}><Badge tone={diagnostic.level === "error" ? "error" : "neutral"}>{formatDiagnosticLevelLabel(language, diagnostic.level)}</Badge> <strong>{diagnostic.message}</strong><p className="muted"><code>{diagnostic.eventId ?? diagnostic.inputId ?? diagnostic.id}</code></p></li>)}</ul>}
+    <section className="panel debug-metrics-panel" aria-labelledby="diagnostics-center-heading">
+      <PanelTitle eyebrow={language === "zh" ? "调试指标" : "Debug metrics"} title={language === "zh" ? "运行诊断" : "Runtime diagnostics"} id="diagnostics-center-heading" />
+      <dl className="compact-metrics debug-metrics-grid"><Metric label={language === "zh" ? "总数" : "Total"} value={viewModel.total} /><Metric label={language === "zh" ? "已拒绝" : "Rejected"} value={viewModel.rejectedInputs.length} /><Metric label={language === "zh" ? "异常" : "Anomalies"} value={viewModel.anomalies.length} /></dl>
+      {viewModel.latest.length === 0 ? <p className="empty-state">{language === "zh" ? "暂无诊断。" : "No diagnostics."}</p> : <ul className="diagnostic-list debug-diagnostic-list">{viewModel.latest.map((diagnostic) => <li key={diagnostic.id}><Badge tone={diagnostic.level === "error" ? "error" : "neutral"}>{formatDiagnosticLevelLabel(language, diagnostic.level)}</Badge> <strong>{diagnostic.message}</strong><p className="muted"><code>{diagnostic.eventId ?? diagnostic.inputId ?? diagnostic.id}</code></p></li>)}</ul>}
     </section>
   );
 }

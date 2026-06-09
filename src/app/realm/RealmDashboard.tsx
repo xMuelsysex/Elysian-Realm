@@ -80,7 +80,7 @@ export function RealmDashboard({
   onReset,
   onSubmitInput,
 }: RealmDashboardProps) {
-  const [selectedAgentId, setSelectedAgentId] = useState<string>();
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(state.snapshot.agents[0]?.id);
   const [selectedLocationId, setSelectedLocationId] = useState<string>();
   const [selectedEventId, setSelectedEventId] = useState<string>();
   const [timelineDetailMode, setTimelineDetailMode] = useState<TimelineDetailMode>("user");
@@ -90,7 +90,7 @@ export function RealmDashboard({
   const [replaySpeed, setReplaySpeed] = useState(1);
   const [autoStep, setAutoStep] = useState(false);
   const [exportedAt, setExportedAt] = useState<string>();
-  const [activeTab, setActiveTab] = useState<DashboardTabId>(DEFAULT_DASHBOARD_TAB_ID);
+  const [activeTab, setActiveTab] = useState<DashboardTabId>("map");
 
   const timelineItems = useMemo(
     () => createTimelineItems(state.events, state.timeline, language, timelineDetailMode),
@@ -117,6 +117,11 @@ export function RealmDashboard({
   const kindOptions = [...new Set(state.events.map((event) => event.kind))].sort();
   const sourceOptions = [...new Set(state.events.map((event) => event.source))].sort();
   const toggleTimelineDetailMode = () => setTimelineDetailMode((mode) => (mode === "user" ? "debug" : "user"));
+
+  useEffect(() => {
+    if (selectedAgentId && state.snapshot.agents.some((agent) => agent.id === selectedAgentId)) return;
+    setSelectedAgentId(state.snapshot.agents[0]?.id);
+  }, [selectedAgentId, state.snapshot.agents]);
 
   useEffect(() => {
     if (!autoStep || loading) return undefined;
@@ -200,10 +205,10 @@ export function RealmDashboard({
 
   return (
     <main className="dashboard-shell">
-      <WorldHeader language={language} snapshot={state.snapshot} eventCount={state.events.length} onToggleLanguage={onToggleLanguage} />
-      {error ? <p className="error-banner" role="alert">{error}</p> : null}
+      <div className="command-center-frame">
+        <WorldHeader language={language} snapshot={state.snapshot} eventCount={state.events.length} onToggleLanguage={onToggleLanguage} />
 
-      <nav className="dashboard-tabs" aria-label={language === "zh" ? "管理台子页面" : "Dashboard pages"} role="tablist">
+        <nav className="dashboard-tabs" aria-label={language === "zh" ? "管理台子页面" : "Dashboard pages"} role="tablist">
         {DASHBOARD_TABS.map((tab) => {
           const selected = tab.id === activeTab;
           return (
@@ -222,7 +227,25 @@ export function RealmDashboard({
             </button>
           );
         })}
-      </nav>
+        </nav>
+
+        <aside className="command-center-tools" aria-label={language === "zh" ? "观测台状态工具" : "Observatory status tools"}>
+          <div className="command-center-status">
+            <span>{language === "zh" ? "模拟状态" : "Simulation status"}</span>
+            <strong>{state.snapshot.status}</strong>
+          </div>
+          <div className="command-center-status">
+            <span>{language === "zh" ? "时间倍率" : "Time scale"}</span>
+            <strong>{state.snapshot.timeScale}×</strong>
+          </div>
+          <button type="button" className="secondary-button command-center-language" aria-label={language === "zh" ? "切换语言" : "Toggle language"} onClick={onToggleLanguage}>
+            {language === "zh" ? "EN" : "中"}
+          </button>
+          <span className="command-center-icon" aria-hidden="true">⚙</span>
+          <span className="command-center-icon" aria-hidden="true">◌</span>
+        </aside>
+      </div>
+      {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
       <section
         id={`dashboard-tabpanel-${activeTab}`}
@@ -246,9 +269,32 @@ export function RealmDashboard({
         ) : null}
 
         {activeTab === "map" ? (
-          <div className="dashboard-page-stack">
-            <RealmMapPanel language={language} viewModel={realmMap} onSelectAgent={setSelectedAgentId} onSelectLocation={selectLocation} />
-            <div className="dashboard-page-grid dashboard-page-grid--balanced">
+          <div className="realm-observatory-layout" aria-label={language === "zh" ? "乐土观测台布局" : "Realm observatory layout"}>
+            <div className="realm-observatory-sidebar realm-observatory-sidebar--left">
+              {timeline}
+              <WorldInspector language={language} viewModel={worldInspector} />
+            </div>
+            <div className="realm-observatory-stage">
+              <div className="realm-map-stage-shell">
+                <RealmMapPanel language={language} viewModel={realmMap} onSelectAgent={setSelectedAgentId} onSelectLocation={selectLocation} />
+              </div>
+              <ReplayPanel
+                language={language}
+                viewModel={replay}
+                replayPlaying={replayPlaying}
+                replaySpeed={replaySpeed}
+                autoStep={autoStep}
+                onReplayPlayingChange={setReplayPlaying}
+                onReplaySpeedChange={setReplaySpeed}
+                onAutoStepChange={setAutoStep}
+                onCursorChange={jumpReplayCursor}
+              />
+            </div>
+            <div className="realm-observatory-sidebar realm-observatory-sidebar--right">
+              <AgentDetailPanel language={language} viewModel={agentDetailViewModel} />
+              <DiagnosticsCenter language={language} viewModel={diagnostics} />
+            </div>
+            <div className="realm-observatory-support">
               <LocationTopology language={language} viewModel={topology} />
               <LocationBoard language={language} groups={locationGroups} selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
             </div>

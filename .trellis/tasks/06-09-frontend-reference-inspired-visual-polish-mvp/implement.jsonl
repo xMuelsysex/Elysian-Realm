@@ -1,0 +1,8 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist and quality gate"}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Realm UI boundaries, provenance, replay, and intervention rules"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component composition, accessibility, and visual structure rules"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Ensure visual polish does not introduce frontend-owned simulation state"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed view-model and event projection constraints"}
+{"file": ".trellis/tasks/06-09-frontend-reference-inspired-visual-polish-mvp/research/reference-visual-polish.md", "reason": "Reference-inspired visual direction and scope boundaries"}
+{"file": ".trellis/tasks/06-09-frontend-reference-inspired-visual-polish-mvp/research/visual-concept.md", "reason": "Generated visual concept moodboard and implementation notes"}
