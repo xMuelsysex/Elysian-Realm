@@ -414,3 +414,37 @@ Ran real-browser observatory QA at desktop, tablet, and mobile widths; fixed res
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Web Observatory Stage Spike (Pixi.js)
+
+**Date**: 2026-06-12
+**Task**: Web Observatory Stage Spike (Pixi.js)
+**Branch**: `main`
+
+### Summary
+
+Replaced the dead-end Unity observatory direction with a web-native Pixi.js stage spike. The map tab now renders a Pixi-driven stage from createRealmMapViewModel (locations, links, agents, selection, event pulses) while preserving the DOM text fallback and existing dashboard panels. No second source of simulation state was introduced. Verified typecheck, 86 Node tests, UI build (Pixi chunk-size warning acceptable for spike), and task validation. Committed spike files only; task documentation was intentionally not committed per user direction.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7584ac35` | (see git log) |
+| `a3653815` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
