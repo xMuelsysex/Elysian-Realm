@@ -390,6 +390,8 @@ test("creates realm map nodes markers pulses and location target filters", () =>
 
   assert.equal(viewModel.locations.length, rejected.body.snapshot.locations.length);
   assert.equal(viewModel.agents.length, rejected.body.snapshot.agents.length);
+  assert.ok(viewModel.locations.every((location) => Number.isFinite(location.x) && Number.isFinite(location.y)));
+  assert.ok(viewModel.agents.every((agent) => Number.isFinite(agent.xOffset) && Number.isFinite(agent.yOffset)));
   assert.equal(atrium?.x, 50);
   assert.equal(atrium?.y, 42);
   assert.equal(garden?.selected, true);
@@ -400,6 +402,7 @@ test("creates realm map nodes markers pulses and location target filters", () =>
   assert.equal(elysia?.selected, true);
   assert.ok(elysia?.activityText);
   assert.ok(viewModel.links.some((link) => link.fromLocationId === "atrium" && link.toLocationId === "garden"));
+  assert.ok(viewModel.links.every((link) => viewModel.locations.some((location) => location.id === link.fromLocationId) && viewModel.locations.some((location) => location.id === link.toLocationId)));
   assert.ok(viewModel.pulses.some((pulse) => pulse.locationId === "garden" && pulse.source === "user"));
   assert.ok(viewModel.pulses.some((pulse) => pulse.tone === "error"));
   assert.match(viewModel.summary, /locations/);

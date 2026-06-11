@@ -2,6 +2,7 @@ import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { formatSourceLabel } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
+import { RealmPixiStage } from "./RealmPixiStage.js";
 
 interface RealmMapPanelProps {
   language: AppLanguage;
@@ -23,16 +24,9 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
 
       <p className="realm-map-summary">{viewModel.summary}</p>
 
-      <div className="realm-map-board" role="group" aria-label={language === "zh" ? "位置与角色地图" : "Location and agent map"}>
-        <div className="realm-map-links" aria-hidden="true">
-          {viewModel.links.map((link) => {
-            const from = viewModel.locations.find((location) => location.id === link.fromLocationId);
-            const to = viewModel.locations.find((location) => location.id === link.toLocationId);
-            if (!from || !to) return null;
-            return <MapLink key={`${link.fromLocationId}:${link.toLocationId}`} from={from} to={to} />;
-          })}
-        </div>
+      <RealmPixiStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} />
 
+      <div className="realm-map-dom-fallback" role="group" aria-label={language === "zh" ? "位置与角色地图文本控件" : "Location and agent map text controls"}>
         {viewModel.locations.map((location) => (
           <MapLocation
             key={location.id}
@@ -131,25 +125,6 @@ function MapPulse({ pulse, language }: { pulse: RealmMapEventPulse; language: Ap
   );
 }
 
-function MapLink({ from, to }: { from: RealmMapLocationNode; to: RealmMapLocationNode }) {
-  const x1 = from.x;
-  const y1 = from.y;
-  const x2 = to.x;
-  const y2 = to.y;
-  const length = Math.hypot(x2 - x1, y2 - y1);
-  const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-  return (
-    <span
-      className="realm-map-link"
-      style={{
-        left: `${x1}%`,
-        top: `${y1}%`,
-        width: `${length}%`,
-        transform: `rotate(${angle}deg)`,
-      }}
-    />
-  );
-}
 
 function createAgentInitials(displayName: string): string {
   const letters = displayName
