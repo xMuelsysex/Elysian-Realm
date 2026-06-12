@@ -41,6 +41,19 @@ const COLORS = {
   slate: 0x1e293b,
 };
 
+// Per-location accent palette so each node reads as a distinct glowing waypoint,
+// matching the concept image's purple/cyan/green/amber waypoints. Assigned by
+// stable location order so colors stay deterministic across renders.
+const LOCATION_ACCENTS = [COLORS.cyan, COLORS.violet, COLORS.emerald, COLORS.gold, 0x60a5fa, 0xfb7185];
+
+// Decorative glyphs for the location badge medallions. Purely cosmetic; the
+// node identity still comes from the backend-owned location order.
+const LOCATION_GLYPHS = ["✦", "◈", "❉", "✧", "❖", "✸"];
+
+function accentForIndex(index: number): number {
+  return LOCATION_ACCENTS[index % LOCATION_ACCENTS.length];
+}
+
 export function RealmPixiStage({ language, viewModel, onSelectAgent, onSelectLocation }: RealmPixiStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | undefined>(undefined);
@@ -57,8 +70,27 @@ export function RealmPixiStage({ language, viewModel, onSelectAgent, onSelectLoc
     if (!host) return undefined;
 
     let disposed = false;
+    let initialized = false;
+    let tornDown = false;
     let resizeObserver: ResizeObserver | undefined;
     const app = new Application();
+
+    // Pixi v8's Application.init() is async. Under React StrictMode the effect
+    // mounts, unmounts, and remounts, so cleanup can run before init resolves.
+    // Destroying an app whose ResizePlugin is not installed yet throws
+    // "this._cancelResize is not a function" and crashes the component, so we
+    // only tear down once init has completed.
+    const teardown = () => {
+      // Idempotent: both the cleanup path and the disposed/init-rejection paths
+      // can call teardown, so guard against double-destroying the app.
+      if (tornDown) return;
+      tornDown = true;
+      resizeObserver?.disconnect();
+      resizeObserver = undefined;
+      if (appRef.current === app) appRef.current = undefined;
+      app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
+      app.destroy({ removeView: true }, { children: true });
+    };
 
     void app.init({
       antialias: true,
@@ -67,8 +99,9 @@ export function RealmPixiStage({ language, viewModel, onSelectAgent, onSelectLoc
       resolution: Math.min(window.devicePixelRatio || 1, 2),
       resizeTo: host,
     }).then(() => {
+      initialized = true;
       if (disposed) {
-        app.destroy({ removeView: true }, { children: true });
+        teardown();
         return;
       }
       app.canvas.setAttribute("aria-hidden", "true");
@@ -78,14 +111,19 @@ export function RealmPixiStage({ language, viewModel, onSelectAgent, onSelectLoc
       renderLatestStage(app, latestRenderRef.current);
       resizeObserver = new ResizeObserver(() => renderLatestStage(app, latestRenderRef.current));
       resizeObserver.observe(host);
+    }).catch((error: unknown) => {
+      // Pixi init can reject (e.g. WebGL context creation failure). Surface it
+      // visibly instead of leaving an unhandled rejection, and release any
+      // partially-initialized resources once plugins are installed.
+      if (!disposed) console.error("RealmPixiStage failed to initialize Pixi application", error);
+      if (initialized) teardown();
     });
 
     return () => {
       disposed = true;
-      resizeObserver?.disconnect();
-      appRef.current = undefined;
-      app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
-      app.destroy({ removeView: true }, { children: true });
+      // If init has not resolved yet, the .then callback above will detect
+      // `disposed` and tear down safely once the plugins are installed.
+      if (initialized) teardown();
     };
   }, []);
 
@@ -139,35 +177,71 @@ function drawBackdrop(root: Container, size: StageSize): void {
   }
   root.addChild(grid);
 
+  const centerX = size.width * 0.5;
+  const centerY = size.height * 0.46;
+
+  // Layered nebula glow: distant colored clouds plus a bright central core so the
+  // stage reads as a luminous "tree of life" island like the concept image.
   const halo = new Graphics()
-    .circle(size.width * 0.5, size.height * 0.44, Math.min(size.width, size.height) * 0.32)
-    .fill({ color: COLORS.gold, alpha: 0.08 })
-    .circle(size.width * 0.22, size.height * 0.24, Math.min(size.width, size.height) * 0.18)
-    .fill({ color: COLORS.emerald, alpha: 0.09 })
-    .circle(size.width * 0.78, size.height * 0.28, Math.min(size.width, size.height) * 0.17)
-    .fill({ color: COLORS.violet, alpha: 0.08 })
-    .circle(size.width * 0.68, size.height * 0.78, Math.min(size.width, size.height) * 0.18)
-    .fill({ color: COLORS.cyan, alpha: 0.08 });
+    .circle(size.width * 0.22, size.height * 0.24, Math.min(size.width, size.height) * 0.2)
+    .fill({ color: COLORS.emerald, alpha: 0.1 })
+    .circle(size.width * 0.78, size.height * 0.26, Math.min(size.width, size.height) * 0.19)
+    .fill({ color: COLORS.violet, alpha: 0.1 })
+    .circle(size.width * 0.7, size.height * 0.8, Math.min(size.width, size.height) * 0.2)
+    .fill({ color: COLORS.cyan, alpha: 0.09 })
+    .circle(size.width * 0.26, size.height * 0.78, Math.min(size.width, size.height) * 0.18)
+    .fill({ color: 0x60a5fa, alpha: 0.08 });
   root.addChild(halo);
+
+  // Central core: concentric translucent rings + warm core glow build a bright
+  // focal bloom under the central waypoint cluster.
+  const core = new Graphics();
+  const coreReach = Math.min(size.width, size.height) * 0.42;
+  for (let ring = 6; ring >= 1; ring -= 1) {
+    core
+      .circle(centerX, centerY, (coreReach / 6) * ring)
+      .fill({ color: COLORS.gold, alpha: 0.018 + (6 - ring) * 0.012 });
+  }
+  core
+    .circle(centerX, centerY, coreReach * 0.34)
+    .fill({ color: COLORS.cyan, alpha: 0.1 })
+    .circle(centerX, centerY, coreReach * 0.18)
+    .fill({ color: COLORS.gold, alpha: 0.16 });
+  root.addChild(core);
+
+  // Faint orbital ring framing the central composition.
+  const orbit = new Graphics()
+    .ellipse(centerX, centerY, coreReach * 0.92, coreReach * 0.72)
+    .stroke({ width: 1, color: COLORS.cyan, alpha: 0.12 })
+    .ellipse(centerX, centerY, coreReach * 0.64, coreReach * 0.5)
+    .stroke({ width: 1, color: COLORS.gold, alpha: 0.1 });
+  root.addChild(orbit);
 }
 
 function drawLinks(root: Container, viewModel: RealmMapViewModel, size: StageSize): void {
   const locationById = new Map(viewModel.locations.map((location) => [location.id, location]));
-  const links = new Graphics();
+  // Three stacked strokes per link build a glowing light-path: a wide soft halo,
+  // a warm mid core, and a bright cyan filament, matching the concept image's
+  // luminous connections between waypoints.
+  const glow = new Graphics();
+  const core = new Graphics();
+  const filament = new Graphics();
   for (const link of viewModel.links) {
     const from = locationById.get(link.fromLocationId);
     const to = locationById.get(link.toLocationId);
     if (!from || !to) continue;
     const fromPoint = toStagePoint(from, size);
     const toPoint = toStagePoint(to, size);
-    links.moveTo(fromPoint.x, fromPoint.y)
-      .lineTo(toPoint.x, toPoint.y)
-      .stroke({ width: 4, color: COLORS.gold, alpha: 0.42 });
-    links.moveTo(fromPoint.x, fromPoint.y)
-      .lineTo(toPoint.x, toPoint.y)
-      .stroke({ width: 1, color: COLORS.cyan, alpha: 0.58 });
+    glow.moveTo(fromPoint.x, fromPoint.y).lineTo(toPoint.x, toPoint.y)
+      .stroke({ width: 9, color: COLORS.gold, alpha: 0.16 });
+    core.moveTo(fromPoint.x, fromPoint.y).lineTo(toPoint.x, toPoint.y)
+      .stroke({ width: 3.5, color: COLORS.gold, alpha: 0.5 });
+    filament.moveTo(fromPoint.x, fromPoint.y).lineTo(toPoint.x, toPoint.y)
+      .stroke({ width: 1, color: COLORS.cyan, alpha: 0.72 });
   }
-  root.addChild(links);
+  root.addChild(glow);
+  root.addChild(core);
+  root.addChild(filament);
 }
 
 function drawLocations(
@@ -177,7 +251,7 @@ function drawLocations(
   language: AppLanguage,
   onSelectLocation: (locationId: string) => void,
 ): void {
-  for (const location of viewModel.locations) {
+  viewModel.locations.forEach((location, index) => {
     const point = toStagePoint(location, size);
     const node = new Container();
     node.x = point.x;
@@ -186,33 +260,55 @@ function drawLocations(
     node.cursor = "pointer";
     node.on("pointertap", () => onSelectLocation(location.id));
 
+    // Each waypoint gets a stable accent color so the cluster reads as the
+    // concept image's distinct glowing nodes rather than one uniform palette.
+    const accent = location.selected ? COLORS.gold : accentForIndex(index);
     const fillColor = location.selected ? COLORS.goldDark : COLORS.panel;
-    const strokeColor = location.selected ? COLORS.gold : COLORS.cyan;
+
+    // Outer bloom: layered translucent halos build a soft glow around the node.
+    const glow = new Graphics()
+      .circle(0, 0, LOCATION_RADIUS + 26)
+      .fill({ color: accent, alpha: location.selected ? 0.16 : 0.07 })
+      .circle(0, 0, LOCATION_RADIUS + 14)
+      .fill({ color: accent, alpha: location.selected ? 0.22 : 0.1 });
+    node.addChild(glow);
+
     const shell = new Graphics()
-      .circle(0, 0, LOCATION_RADIUS + 10)
-      .fill({ color: strokeColor, alpha: location.selected ? 0.18 : 0.08 })
       .circle(0, 0, LOCATION_RADIUS)
       .fill({ color: fillColor, alpha: 0.92 })
-      .stroke({ width: location.selected ? 4 : 2, color: strokeColor, alpha: location.selected ? 0.95 : 0.72 });
+      .stroke({ width: location.selected ? 4 : 2.5, color: accent, alpha: location.selected ? 0.96 : 0.82 });
     node.addChild(shell);
+
+    // Inner accent ring + glyph badge near the top, echoing the concept image's
+    // colored icon medallions.
+    const badge = new Graphics()
+      .circle(0, -LOCATION_RADIUS + 6, 13)
+      .fill({ color: accent, alpha: 0.95 })
+      .stroke({ width: 1.5, color: COLORS.ink, alpha: 0.7 });
+    node.addChild(badge);
+
+    const glyph = createText(LOCATION_GLYPHS[index % LOCATION_GLYPHS.length], 13, COLORS.background, "bold");
+    glyph.anchor.set(0.5);
+    glyph.y = -LOCATION_RADIUS + 6;
+    node.addChild(glyph);
 
     const title = createText(location.displayName, 15, COLORS.ink, "bold");
     title.anchor.set(0.5);
-    title.y = -17;
+    title.y = -6;
     node.addChild(title);
 
     const occupancy = createText(location.occupancyLabel, 11, COLORS.inkMuted);
     occupancy.anchor.set(0.5);
-    occupancy.y = 8;
+    occupancy.y = 15;
     node.addChild(occupancy);
 
-    const recent = createText(formatRecentActivity(language, location.recentEventCount), 10, COLORS.cyan);
+    const recent = createText(formatRecentActivity(language, location.recentEventCount), 10, accent);
     recent.anchor.set(0.5);
-    recent.y = 28;
+    recent.y = 33;
     node.addChild(recent);
 
     root.addChild(node);
-  }
+  });
 }
 
 function drawAgents(
@@ -235,6 +331,12 @@ function drawAgents(
     marker.on("pointertap", () => onSelectAgent(agent.id));
 
     const sourceColor = colorForSource(agent.activitySource);
+    // Soft outer halo so each agent reads as a glowing presence on the stage.
+    const halo = new Graphics()
+      .circle(0, 0, AGENT_RADIUS + (agent.selected ? 12 : 8))
+      .fill({ color: agent.selected ? COLORS.gold : sourceColor, alpha: agent.selected ? 0.26 : 0.14 });
+    marker.addChild(halo);
+
     const body = new Graphics()
       .circle(0, 0, AGENT_RADIUS + (agent.selected ? 5 : 1))
       .fill({ color: agent.selected ? COLORS.gold : sourceColor, alpha: agent.selected ? 0.32 : 0.16 })
