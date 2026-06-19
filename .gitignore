@@ -1,5 +1,11 @@
 node_modules/
 dist/
+outputs/
+.playwright-mcp/
+
+# Unity local/generated project data
+unity/
+
 .env
 .env.*
 !.env.example
