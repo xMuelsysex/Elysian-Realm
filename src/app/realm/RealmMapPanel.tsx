@@ -2,7 +2,7 @@ import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { formatSourceLabel } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
-import { RealmPixiStage } from "./RealmPixiStage.js";
+import { RealmIsometricStage } from "./RealmIsometricStage.js";
 
 interface RealmMapPanelProps {
   language: AppLanguage;
@@ -16,15 +16,15 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
     <section className="panel realm-map-panel" aria-labelledby="realm-map-heading">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">{language === "zh" ? "像素地图" : "Pixel map"}</p>
-          <h2 id="realm-map-heading">{language === "zh" ? "乐土 2D 地图" : "2D Realm map"}</h2>
+          <p className="eyebrow">{language === "zh" ? "2.5D 地图" : "2.5D map"}</p>
+          <h2 id="realm-map-heading">{language === "zh" ? "乐土宿舍场景" : "Realm dorm scene"}</h2>
         </div>
         <span className="realm-map-mode">{language === "zh" ? "后端快照投影" : "Backend snapshot projection"}</span>
       </div>
 
       <p className="realm-map-summary">{viewModel.summary}</p>
 
-      <RealmPixiStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} />
+      <RealmIsometricStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} />
 
       <div className="realm-map-dom-fallback" role="group" aria-label={language === "zh" ? "位置与角色地图文本控件" : "Location and agent map text controls"}>
         {viewModel.locations.map((location) => (
