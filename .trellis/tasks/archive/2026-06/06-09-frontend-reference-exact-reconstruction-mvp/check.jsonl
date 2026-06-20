@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality review checklist"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Ensure visual changes keep typed projection boundaries"}
+{"file": ".trellis/tasks/06-09-frontend-reference-exact-reconstruction-mvp/research/reference-exact-reconstruction.md", "reason": "Verify implementation matches scoped exactness constraints"}

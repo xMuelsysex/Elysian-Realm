@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PixiJS-style Runtime Canvas Prototype</title>
+<style>
+  :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, #13233d, #030712 72%); }
+  .shell { width: min(1024px, 100vw); aspect-ratio: 1; position: relative; border-radius: 24px; overflow: hidden; box-shadow: 0 40px 120px rgb(0 0 0 / .62); border: 1px solid rgb(148 163 184 / .18); }
+  canvas { width: 100%; height: 100%; display: block; background: #050914; }
+  .runtime-badge { position: absolute; left: 24px; top: 20px; z-index: 2; padding: 8px 12px; border: 1px solid rgb(103 232 249 / .32); border-radius: 999px; color: #bff7ff; background: rgb(2 6 23 / .56); backdrop-filter: blur(8px); font: 700 11px/1.2 ui-sans-serif, system-ui; letter-spacing: .14em; text-transform: uppercase; }
+  .runtime-note { position: absolute; left: 24px; right: 24px; bottom: 18px; z-index: 2; display: flex; justify-content: space-between; gap: 16px; color: rgb(226 242 255 / .72); font: 600 12px/1.2 ui-sans-serif, system-ui; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <canvas id="stage" width="1024" height="1024" aria-label="PixiJS-style runtime canvas prototype"></canvas>
+  <div class="runtime-badge">Runtime Canvas Prototype · 1024 Stage</div>
+  <div class="runtime-note"><span>Layered islands / bridges / particles / beacons</span><span>Live data would map to stage coordinates</span></div>
+</div>
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const W = 1024;
+const H = 1024;
+const DPR = 1;
+ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+const TAU = Math.PI * 2;
+const palette = {
+  cyan: '#67e8f9', blue: '#38bdf8', gold: '#f8c66a', green: '#74f0b2', violet: '#c084fc', ink: '#020617'
+};
+function rand(seed) {
+  let value = seed % 2147483647;
+  return () => {
+    value = value * 16807 % 2147483647;
+    return (value - 1) / 2147483646;
+  };
+}
+const random = rand(9487);
+function radial(x, y, r0, r1, stops) {
+  const g = ctx.createRadialGradient(x, y, r0, x, y, r1);
+  stops.forEach(([p, c]) => g.addColorStop(p, c));
+  return g;
+}
+function linear(x0, y0, x1, y1, stops) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  stops.forEach(([p, c]) => g.addColorStop(p, c));
+  return g;
+}
+function glowStroke(pathFn, color, width, alpha = 1, blur = 18) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  pathFn();
+  ctx.stroke();
+  ctx.restore();
+}
+function fillCircle(x, y, r, color, alpha = 1, blur = 0) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+function drawBackground() {
+  ctx.fillStyle = radial(W/2, H/2, 40, 720, [[0, '#172554'], [.34, '#0f1e3d'], [.78, '#06111f'], [1, '#020617']]);
+  ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = radial(410, 230, 0, 420, [[0, 'rgba(80,180,255,.42)'], [.36, 'rgba(30,70,160,.20)'], [1, 'rgba(0,0,0,0)']]);
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = radial(780, 420, 0, 460, [[0, 'rgba(168,85,247,.24)'], [.38, 'rgba(59,130,246,.16)'], [1, 'rgba(0,0,0,0)']]);
+  ctx.fillRect(0,0,W,H);
+  ctx.restore();
+  for (let i=0; i<620; i++) {
+    const x = random() * W;
+    const y = random() * H;
+    const r = random() < .94 ? random()*1.2+.25 : random()*2.4+1.1;
+    const a = random() * .72 + .2;
+    const hue = random() < .76 ? '180,235,255' : random() < .5 ? '248,198,106' : '196,181,253';
+    fillCircle(x, y, r, `rgba(${hue},${a})`, 1, random() * 8);
+  }
+  ctx.save();
+  ctx.globalAlpha = .55;
+  for (let i=0; i<18; i++) {
+    const cx = 512 + Math.cos(i*.8) * (120 + random()*260);
+    const cy = 400 + Math.sin(i*.7) * (90 + random()*220);
+    glowStroke(() => { ctx.beginPath(); ctx.arc(cx, cy, 90 + random()*180, random()*TAU, random()*TAU + 1.1); }, i%3===0 ? palette.violet : palette.blue, 1.2, .22, 8);
+  }
+  ctx.restore();
+}
+function drawDomeAndFrame() {
+  ctx.save();
+  ctx.globalAlpha = .48;
+  for (let r of [760, 680, 610, 520]) {
+    glowStroke(() => { ctx.beginPath(); ctx.arc(512, 676, r, Math.PI*1.02, Math.PI*1.98); }, 'rgba(248,198,106,.52)', 2, .65, 10);
+  }
+  for (let i=0; i<9; i++) {
+    const a = Math.PI * (1.05 + i * .112);
+    const x = 512 + Math.cos(a) * 720;
+    const y = 676 + Math.sin(a) * 720;
+    glowStroke(() => { ctx.beginPath(); ctx.moveTo(512, 676); ctx.lineTo(x, y); }, 'rgba(148,163,184,.22)', 1, .45, 0);
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = 'rgba(248,198,106,.42)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(248,198,106,.65)';
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.roundRect(26, 26, 972, 972, 28);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(512, 44, 30, 0, TAU); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(512, 44, 15, 0, TAU); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(480, 44); ctx.lineTo(544, 44); ctx.moveTo(512, 12); ctx.lineTo(512, 76); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.fillStyle = 'rgba(2,6,23,.48)';
+  ctx.strokeStyle = 'rgba(248,198,106,.22)';
+  ctx.lineWidth = 1.5;
+  for (const [x,y,w,h] of [[72,852,168,70],[784,852,168,70],[365,900,270,64],[42,110,42,320],[940,110,42,320]]) {
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,18); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawBridge(a, b, lift = -20) {
+  const cx = (a.x + b.x) / 2;
+  const cy = (a.y + b.y) / 2 + lift;
+  const path = () => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(cx, cy, b.x, b.y); };
+  glowStroke(path, 'rgba(248,198,106,.24)', 18, 1, 24);
+  glowStroke(path, 'rgba(248,198,106,.84)', 8, 1, 16);
+  glowStroke(path, 'rgba(255,246,198,.92)', 2.2, 1, 8);
+  for (let t=0.08; t<.94; t+=.12) {
+    const x = (1-t)*(1-t)*a.x + 2*(1-t)*t*cx + t*t*b.x;
+    const y = (1-t)*(1-t)*a.y + 2*(1-t)*t*cy + t*t*b.y;
+    fillCircle(x, y, 3.2, 'rgba(255,238,170,.92)', 1, 10);
+  }
+}
+function drawIsland(island) {
+  const {x,y,rx,ry,accent,trees=18,main=false} = island;
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.shadowColor = 'rgba(0,0,0,.76)'; ctx.shadowBlur = 42; ctx.shadowOffsetY = 38;
+  ctx.fillStyle = radial(0, -20, 10, Math.max(rx, ry), [[0, 'rgba(132,185,122,.98)'], [.38, 'rgba(45,92,68,.98)'], [.62, 'rgba(70,48,35,.98)'], [.86, 'rgba(31,24,25,.96)'], [1, 'rgba(0,0,0,0)']]);
+  ctx.beginPath(); ctx.ellipse(0,0,rx,ry,0,0,TAU); ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = accent; ctx.globalAlpha = .42; ctx.lineWidth = 2;
+  for (let r=0.66; r<=1.02; r+=.16) { ctx.beginPath(); ctx.ellipse(0,0,rx*r,ry*r,0,0,TAU); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(246,223,166,.86)';
+  ctx.beginPath(); ctx.ellipse(0, -8, rx*.34, ry*.24, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(248,198,106,.76)'; ctx.lineWidth = 3; ctx.stroke();
+  for (let i=0; i<trees; i++) {
+    const a = random()*TAU;
+    const rr = Math.sqrt(random()) * .78;
+    const tx = Math.cos(a)*rx*rr;
+    const ty = Math.sin(a)*ry*rr - 8;
+    if (Math.abs(tx) < rx*.28 && Math.abs(ty) < ry*.22) continue;
+    ctx.fillStyle = random() < .75 ? 'rgba(28,86,62,.94)' : 'rgba(118,79,168,.86)';
+    ctx.beginPath(); ctx.moveTo(tx, ty-15); ctx.lineTo(tx-10, ty+6); ctx.lineTo(tx+10, ty+6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(82,51,32,.9)'; ctx.fillRect(tx-1.5, ty+3, 3, 8);
+  }
+  ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.globalAlpha = .5;
+  for (let i=0; i<3; i++) { ctx.beginPath(); ctx.arc(0, -8, 30+i*18, 0, TAU); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  if (main) {
+    ctx.fillStyle = 'rgba(245,211,137,.95)';
+    ctx.beginPath(); ctx.arc(0, -52, 36, Math.PI, 0); ctx.lineTo(36, -2); ctx.lineTo(-36, -2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(248,198,106,.9)'; ctx.fillRect(-40, -2, 80, 32);
+    ctx.fillStyle = 'rgba(103,232,249,.95)'; ctx.beginPath(); ctx.arc(0, 24, 22, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.strokeStyle = accent; ctx.lineWidth = 2;
+  for (let i=0;i<3;i++) {
+    ctx.globalAlpha = .28 - i*.06;
+    ctx.shadowColor = accent; ctx.shadowBlur = 16 + i*16;
+    ctx.beginPath(); ctx.ellipse(x, y, rx + 22 + i*20, ry + 14 + i*16, 0, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+  for (let i=0;i<4;i++) {
+    const wx = x + (random()-.5)*rx*.9;
+    const wy = y + ry*.58 + random()*8;
+    ctx.save();
+    ctx.globalAlpha = .62;
+    ctx.strokeStyle = 'rgba(103,232,249,.65)'; ctx.lineWidth = 2 + random()*2; ctx.shadowColor = palette.cyan; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.moveTo(wx, wy); ctx.bezierCurveTo(wx+8, wy+80, wx-18, wy+130, wx+random()*24-12, wy+190); ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawBeacon(x, y, color, icon) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  glowStroke(() => { ctx.beginPath(); ctx.moveTo(x, y-6); ctx.lineTo(x, y-100); }, color, 4, .75, 22);
+  fillCircle(x, y-108, 38, 'rgba(2,6,23,.82)', 1, 20);
+  ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.shadowColor = color; ctx.shadowBlur = 24;
+  ctx.beginPath(); ctx.arc(x, y-108, 38, 0, TAU); ctx.stroke();
+  ctx.globalAlpha = .42; ctx.beginPath(); ctx.arc(x, y-108, 56, 0, TAU); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.fillStyle = color; ctx.font = '700 24px ui-sans-serif, system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(icon, x, y-108);
+  ctx.beginPath(); ctx.moveTo(x, y-70); ctx.lineTo(x-13, y-50); ctx.lineTo(x+13, y-50); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawParticles() {
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i=0; i<120; i++) {
+    const x = 120 + random()*784;
+    const y = 190 + random()*650;
+    const c = random() < .5 ? palette.cyan : random() < .7 ? palette.gold : palette.violet;
+    fillCircle(x, y, random()*2.6+0.7, c, random()*.55+.12, 14);
+  }
+  ctx.restore();
+}
+function drawBottomHud() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(2,6,23,.66)'; ctx.strokeStyle = 'rgba(248,198,106,.32)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(322, 908, 380, 70, 22); ctx.fill(); ctx.stroke();
+  const icons = ['✦','♧','⬡','◎','≋','◇','⌁'];
+  icons.forEach((icon, i) => {
+    const x = 382 + i*42;
+    fillCircle(x, 942, i===3 ? 30 : 20, i===3 ? 'rgba(248,198,106,.22)' : 'rgba(15,23,42,.85)', 1, i===3 ? 20 : 0);
+    ctx.strokeStyle = i===3 ? palette.gold : 'rgba(103,232,249,.35)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(x, 942, i===3 ? 30 : 20, 0, TAU); ctx.stroke();
+    ctx.fillStyle = i===3 ? palette.gold : 'rgba(190,230,255,.9)'; ctx.font = '700 15px ui-sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(icon, x, 942);
+  });
+  ctx.restore();
+}
+function render() {
+  drawBackground();
+  drawDomeAndFrame();
+  const islands = {
+    center: {x:512,y:518,rx:180,ry:138,accent:palette.gold,trees:38,main:true},
+    topLeft: {x:340,y:302,rx:128,ry:92,accent:palette.cyan,trees:27},
+    topRight:{x:724,y:300,rx:132,ry:92,accent:palette.violet,trees:24},
+    lowLeft:{x:262,y:682,rx:146,ry:104,accent:palette.green,trees:30},
+    lowRight:{x:758,y:678,rx:142,ry:104,accent:palette.blue,trees:26},
+  };
+  drawBridge({x:512,y:480}, {x:340,y:310}, -40);
+  drawBridge({x:512,y:486}, {x:724,y:310}, -38);
+  drawBridge({x:492,y:584}, {x:262,y:650}, -4);
+  drawBridge({x:560,y:580}, {x:758,y:650}, -6);
+  drawBridge({x:340,y:300}, {x:724,y:300}, -95);
+  Object.values(islands).forEach(drawIsland);
+  drawParticles();
+  drawBeacon(340, 286, palette.cyan, '艾');
+  drawBeacon(724, 286, palette.violet, '伊');
+  drawBeacon(610, 478, palette.gold, '中');
+  drawBeacon(262, 650, palette.green, '叶');
+  drawBeacon(758, 650, palette.blue, '澜');
+  drawBottomHud();
+}
+render();
+</script>
+</body>
+</html>

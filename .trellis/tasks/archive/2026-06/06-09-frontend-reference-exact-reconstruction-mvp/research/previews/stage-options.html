@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reference Stage Options Preview</title>
+<style>
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; --cyan:#67e8f9; --gold:#f8c66a; --green:#74f0b2; --violet:#c4b5fd; --ink:#eff8ff; --muted:#9fb4ca; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 30%, #142238, #050812 70%); color: var(--ink); }
+.preview-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; width: min(1940px, 100vw); padding: 24px; }
+.preview-card { display: grid; gap: 12px; }
+.preview-card h1 { margin: 0; font-size: 20px; letter-spacing: .08em; text-transform: uppercase; }
+.stage { position: relative; width: min(920px, 100%); aspect-ratio: 1; overflow: hidden; border: 1px solid rgb(139 172 207 / .25); border-radius: 28px; background: #07101f; box-shadow: 0 35px 90px rgb(0 0 0 / .45); }
+.stage::before { content:""; position:absolute; inset:0; pointer-events:none; background: linear-gradient(90deg, transparent 49.9%, rgb(248 198 106 / .26) 50%, transparent 50.1%), radial-gradient(circle at 50% 45%, transparent 0 340px, rgb(2 6 23 / .45) 520px), radial-gradient(circle at 50% 18%, rgb(103 232 249 / .16), transparent 420px); z-index:3; }
+.stage-label { position: absolute; left: 28px; top: 24px; z-index: 8; display:grid; gap:6px; }
+.stage-label small { color: var(--cyan); font-weight:900; letter-spacing:.14em; text-transform:uppercase; }
+.stage-label strong { font-size: 28px; }
+.top-hud, .bottom-hud, .left-rail, .right-rail { position:absolute; z-index:6; border: 1px solid rgb(139 172 207 / .22); background: rgb(5 12 25 / .72); backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgb(255 255 255 / .06); }
+.top-hud { left: 22px; right:22px; top:18px; height:74px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:18px; }
+.top-hud span { width:54px; height:42px; display:grid; place-items:center; border:1px solid rgb(139 172 207 / .18); border-radius:999px; color:var(--muted); }
+.top-hud span:nth-child(4) { width:74px; height:54px; color:var(--gold); border-color:rgb(248 198 106 / .55); box-shadow:0 0 26px rgb(248 198 106 / .24); }
+.left-rail { left:22px; top:112px; bottom:166px; width:214px; border-radius:18px; padding:16px; display:grid; gap:12px; }
+.event { min-height:70px; border:1px solid rgb(139 172 207 / .16); border-radius:12px; background:linear-gradient(135deg, rgb(15 23 42 / .85), rgb(2 6 23 / .7)); padding:12px; }
+.event::before { content:""; display:block; width:64px; height:7px; border-radius:99px; background:linear-gradient(90deg, var(--gold), transparent); margin-bottom:12px; }
+.event:nth-child(2)::before { background:linear-gradient(90deg, var(--violet), transparent); }
+.event:nth-child(3)::before { background:linear-gradient(90deg, var(--cyan), transparent); }
+.event:nth-child(4)::before { background:linear-gradient(90deg, var(--green), transparent); }
+.right-rail { right:22px; top:112px; bottom:166px; width:214px; border-radius:18px; padding:16px; display:grid; align-content:start; gap:14px; }
+.avatar { width:86px; height:86px; margin:0 auto; border:2px solid var(--cyan); border-radius:999px; background: radial-gradient(circle at 50% 40%, rgb(103 232 249 / .55), rgb(2 6 23) 58%); box-shadow:0 0 26px rgb(103 232 249 / .35); }
+.bar { height:8px; border-radius:99px; background:linear-gradient(90deg, var(--cyan) 70%, rgb(148 163 184 / .2) 70%); }
+.icon-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+.icon-grid span { aspect-ratio:1; display:grid; place-items:center; border:1px solid rgb(248 198 106 / .32); border-radius:999px; color:var(--gold); }
+.bottom-hud { left:260px; right:260px; bottom:22px; height:132px; border-radius:18px; padding:16px 24px; display:grid; gap:14px; }
+.timeline { height:16px; border-radius:99px; background:linear-gradient(90deg, rgb(139 172 207 / .15), rgb(139 172 207 / .3)); position:relative; }
+.timeline::before { content:""; position:absolute; left:50%; top:-4px; width:8px; height:28px; border-radius:99px; background:var(--cyan); box-shadow:0 0 18px var(--cyan); }
+.controls { display:flex; justify-content:center; gap:22px; }
+.controls span { width:44px; height:44px; display:grid; place-items:center; border:1px solid rgb(139 172 207 / .2); border-radius:999px; background:rgb(15 23 42 / .78); }
+.controls span:nth-child(3) { width:58px; height:58px; margin-top:-8px; border-color:rgb(248 198 106 / .5); color:var(--gold); }
+.board { position:absolute; left:250px; right:250px; top:112px; bottom:166px; z-index:4; }
+.board svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+.bridge { stroke: url(#bridge); stroke-width: 10; stroke-linecap: round; filter: drop-shadow(0 0 10px rgb(248 198 106 / .7)); opacity:.82; }
+.island { position:absolute; width:170px; height:132px; border-radius:50%; transform:translate(-50%,-50%); background: radial-gradient(ellipse at 50% 30%, rgb(120 160 110 / .95), rgb(47 83 64 / .95) 42%, rgb(42 31 24 / .98) 60%, transparent 61%); filter: drop-shadow(0 28px 26px rgb(0 0 0 / .55)) drop-shadow(0 0 18px rgb(116 240 178 / .22)); }
+.island::before { content:""; position:absolute; inset:20px 32px 48px; border-radius:50%; background: radial-gradient(circle, rgb(255 236 174 / .95), transparent 18%), radial-gradient(circle at 65% 50%, rgb(103 232 249 / .35), transparent 26%); }
+.island::after { content:""; position:absolute; left:50%; top:32%; width:44px; height:44px; transform:translate(-50%,-50%); border:2px solid currentColor; border-radius:999px; color:var(--cyan); box-shadow:0 0 22px currentColor; }
+.island.main { left:50%; top:50%; width:220px; height:170px; color:var(--gold); }
+.island.a { left:30%; top:38%; color:var(--cyan); }
+.island.b { left:70%; top:36%; color:var(--violet); }
+.island.c { left:34%; top:70%; color:var(--green); }
+.island.d { left:70%; top:72%; color:var(--cyan); }
+.beacon { position:absolute; width:58px; height:58px; transform:translate(-50%,-100%); border:2px solid currentColor; border-radius:999px; display:grid; place-items:center; background:rgb(2 6 23 / .65); box-shadow:0 0 25px currentColor; z-index:5; }
+.beacon::after { content:""; position:absolute; left:50%; top:100%; width:3px; height:72px; background:linear-gradient(currentColor, transparent); }
+.beacon.a { left:30%; top:34%; color:var(--cyan); }
+.beacon.b { left:70%; top:33%; color:var(--violet); }
+.beacon.c { left:50%; top:43%; color:var(--gold); }
+.beacon.d { left:70%; top:68%; color:var(--cyan); }
+.css-stage { background: radial-gradient(circle at 50% 20%, #263d66, #07111f 62%, #040812), linear-gradient(#07101f,#07101f); }
+.css-stage .stars { position:absolute; inset:70px 220px 160px; z-index:1; border:1px solid rgb(248 198 106 / .18); border-radius:50%; background: radial-gradient(circle at 40% 20%, white 0 1px, transparent 2px), radial-gradient(circle at 60% 35%, white 0 1px, transparent 2px), radial-gradient(circle at 55% 16%, rgb(103 232 249 / .8) 0 1px, transparent 2px), radial-gradient(circle at 50% 45%, rgb(103 232 249 / .16), transparent 230px); }
+.image-stage { background-image: linear-gradient(rgb(2 6 23 / .25), rgb(2 6 23 / .25)), url('../reference-concept.png'); background-size: cover; background-position: center; }
+.image-stage .board { left:260px; right:260px; top:190px; bottom:190px; }
+.image-stage .left-rail, .image-stage .right-rail, .image-stage .bottom-hud, .image-stage .top-hud { background: rgb(5 12 25 / .5); }
+.image-stage .island, .image-stage .bridge { opacity:0; }
+.image-stage .beacon { transform:translate(-50%,-50%); background:rgb(2 6 23 / .32); }
+.caption { color:var(--muted); margin:0; font-size:14px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="preview-page">
+  <section class="preview-card">
+    <h1>Option A · SVG/CSS stage + live DOM controls</h1>
+    <div class="stage css-stage">
+      <div class="stars"></div>
+      <div class="top-hud"><span>✦</span><span>▣</span><span>◇</span><span>◎</span><span>▦</span><span>⌾</span></div>
+      <div class="left-rail"><div class="event"></div><div class="event"></div><div class="event"></div><div class="event"></div></div>
+      <div class="right-rail"><div class="avatar"></div><div class="bar"></div><div class="bar"></div><div class="icon-grid"><span>♜</span><span>✺</span><span>✧</span><span>✹</span><span>⌘</span></div></div>
+      <div class="board">
+        <svg viewBox="0 0 520 520" aria-hidden="true"><defs><linearGradient id="bridge"><stop stop-color="#67e8f9" stop-opacity=".15"/><stop offset=".5" stop-color="#f8c66a"/><stop offset="1" stop-color="#74f0b2" stop-opacity=".25"/></linearGradient></defs><path class="bridge" d="M260 260 L155 195 M260 260 L365 185 M260 260 L170 360 M260 260 L365 370 M155 195 L365 185"/></svg>
+        <div class="island main"></div><div class="island a"></div><div class="island b"></div><div class="island c"></div><div class="island d"></div>
+        <div class="beacon a">艾</div><div class="beacon b">伊</div><div class="beacon c">中</div><div class="beacon d">凯</div>
+      </div>
+      <div class="bottom-hud"><div class="timeline"></div><div class="controls"><span>◀</span><span>↻</span><span>▶</span><span>▶▶</span></div></div>
+      <div class="stage-label"><small>portable 1024 stage</small><strong>SVG/CSS 可迁移舞台</strong></div>
+    </div>
+    <p class="caption">优点：真实数据/按钮可直接挂接，坐标可迁移到桌面壳；缺点：要手绘浮岛与光效，短期不如原图像素相似。</p>
+  </section>
+  <section class="preview-card">
+    <h1>Option B · Reference image-backed stage + live markers</h1>
+    <div class="stage image-stage">
+      <div class="top-hud"><span>✦</span><span>▣</span><span>◇</span><span>◎</span><span>▦</span><span>⌾</span></div>
+      <div class="left-rail"><div class="event"></div><div class="event"></div><div class="event"></div><div class="event"></div></div>
+      <div class="right-rail"><div class="avatar"></div><div class="bar"></div><div class="bar"></div><div class="icon-grid"><span>♜</span><span>✺</span><span>✧</span><span>✹</span><span>⌘</span></div></div>
+      <div class="board"><div class="beacon a">艾</div><div class="beacon b">伊</div><div class="beacon c">中</div><div class="beacon d">凯</div></div>
+      <div class="bottom-hud"><div class="timeline"></div><div class="controls"><span>◀</span><span>↻</span><span>▶</span><span>▶▶</span></div></div>
+      <div class="stage-label"><small>image-backed reference</small><strong>背景图 + live markers</strong></div>
+    </div>
+    <p class="caption">优点：第一眼最像参考图，开发快；缺点：背景上的岛/桥和真实位置可能不一致，后续桌面原生复用较弱。</p>
+  </section>
+</div>
+</body>
+</html>
