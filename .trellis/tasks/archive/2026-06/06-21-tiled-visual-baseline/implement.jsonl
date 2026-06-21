@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist and quality gate for typed projection UI."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Realm map must preserve backend projection rendering, accessibility, and diagnostics boundaries."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/prd.md", "reason": "Task requirements and acceptance criteria for the original Tiled visual baseline."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/design.md", "reason": "Technical design for Tiled asset boundaries, runtime rendering, validation, and rollback."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/implement.md", "reason": "Execution checklist and validation commands for implementation."}

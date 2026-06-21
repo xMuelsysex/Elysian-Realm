@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality check list."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Check data-flow, accessibility, and diagnostic constraints."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/prd.md", "reason": "Check implementation against acceptance criteria."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/design.md", "reason": "Check implementation against design boundaries and rollback contract."}
+{"file": ".trellis/tasks/06-21-tiled-visual-baseline/implement.md", "reason": "Check required validation steps and evidence."}
