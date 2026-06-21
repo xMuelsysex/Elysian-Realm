@@ -482,3 +482,36 @@ Added the procedural RealmIsometricStage baseline, then implemented a Tiled .tmj
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Polish Tiled visual baseline
+
+**Date**: 2026-06-21
+**Task**: Polish Tiled visual baseline
+**Branch**: `feature/tiled-pixi-isometric-map`
+
+### Summary
+
+Polished the Tiled map into an original soft blue-white dorm/archive visual baseline, added a Tiled validation command, preserved overlays and failure diagnostics, validated typecheck, build, tests, browser smoke, and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bd36c6b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
