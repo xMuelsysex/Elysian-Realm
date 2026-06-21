@@ -1,0 +1,7 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Frontend pre-development checklist and quality gate for React/Pixi UI work."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Realm map renderer must preserve backend projection boundaries, provenance, accessibility, and visible failure handling."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Tiled renderer must keep backend-owned state authoritative and limit new state to UI/load diagnostics."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Tiled .tmj/object-layer data crosses a serialized asset boundary and needs typed/validated handling."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Implementation should reuse the existing RealmIsometricStage lifecycle and avoid duplicate projection logic."}
+{"file":".trellis/tasks/06-20-map-visual-style-open-source-research/research/open-source-map-style-references.md","reason":"Prior route-2 research identifies pixi-tiledmap and Tiled/isometric map constraints."}
+{"file":".trellis/tasks/06-20-map-visual-style-open-source-research/research/previews/high-fidelity-dorm-archive-prototype-notes.md","reason":"Accepted visual readability constraints: avoid blocking center geometry and duplicate-looking labels."}

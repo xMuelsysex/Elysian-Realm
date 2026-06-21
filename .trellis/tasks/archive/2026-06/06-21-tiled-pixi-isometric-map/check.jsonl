@@ -1,0 +1,8 @@
+{"file":".trellis/spec/frontend/index.md","reason":"Check frontend pre-development checklist and quality gate coverage."}
+{"file":".trellis/spec/frontend/realm-interface.md","reason":"Verify backend projection boundary, DOM fallback, and accessible diagnostics remain intact."}
+{"file":".trellis/spec/frontend/state-management.md","reason":"Verify no authoritative simulation state moved into frontend renderer state."}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"Verify serialized Tiled asset data and object anchors are handled through typed boundaries."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify visible failure states, accessibility, and validation commands."}
+{"file":".trellis/tasks/06-21-tiled-pixi-isometric-map/prd.md","reason":"Check implementation against current route-2 requirements and acceptance criteria."}
+{"file":".trellis/tasks/06-21-tiled-pixi-isometric-map/design.md","reason":"Check rendering boundary, data flow, failure behavior, asset policy, and rollback shape."}
+{"file":".trellis/tasks/06-21-tiled-pixi-isometric-map/implement.md","reason":"Check ordered implementation checklist and validation commands are satisfied."}
