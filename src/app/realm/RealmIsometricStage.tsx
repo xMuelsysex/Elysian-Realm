@@ -1,13 +1,17 @@
 import { useEffect, useRef } from "react";
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Assets, Container, Graphics, Text, Texture } from "pixi.js";
+import { parseMap, TiledMap } from "pixi-tiledmap";
+import type { ResolvedLayer, ResolvedMap, ResolvedObjectLayer, TiledMapData } from "pixi-tiledmap";
 import type { AppLanguage } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
+import { REALM_TILED_MAP_ASSET } from "./realmTiledMapAssets.js";
 
 interface RealmIsometricStageProps {
   language: AppLanguage;
   viewModel: RealmMapViewModel;
   onSelectAgent: (agentId: string) => void;
   onSelectLocation: (locationId: string) => void;
+  onTiledMapErrorChange?: (message: string | undefined) => void;
 }
 
 interface StageSize {
@@ -33,6 +37,17 @@ interface IsoProjection {
   roomWidth: number;
   roomHeight: number;
   slabHeight: number;
+}
+
+interface RealmTiledMapResource {
+  mapData: ResolvedMap;
+  tilesetTextures: Map<string, Texture>;
+  anchors: Map<string, StagePoint>;
+}
+
+interface LocationRenderEntry {
+  location: RealmMapLocationNode;
+  index: number;
 }
 
 const STAGE_MIN_HEIGHT = 560;
@@ -77,16 +92,20 @@ const ISO_LAYOUT: Record<string, IsoPoint> = {
   overlook: { gridX: 7.4, gridY: 6.35 },
 };
 
-export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSelectLocation }: RealmIsometricStageProps) {
+let tiledMapResourcePromise: Promise<RealmTiledMapResource> | undefined;
+
+export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange }: RealmIsometricStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | undefined>(undefined);
-  const latestRenderRef = useRef({ language, viewModel, onSelectAgent, onSelectLocation });
+  const tiledMapResourceRef = useRef<RealmTiledMapResource | undefined>(undefined);
+  const tiledMapErrorRef = useRef<string | undefined>(undefined);
+  const latestRenderRef = useRef({ language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange });
 
   useEffect(() => {
-    latestRenderRef.current = { language, viewModel, onSelectAgent, onSelectLocation };
+    latestRenderRef.current = { language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange };
     const app = appRef.current;
-    if (app) renderLatestStage(app, latestRenderRef.current);
-  }, [language, onSelectAgent, onSelectLocation, viewModel]);
+    if (app) renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current);
+  }, [language, onSelectAgent, onSelectLocation, onTiledMapErrorChange, viewModel]);
 
   useEffect(() => {
     const host = containerRef.current;
@@ -97,6 +116,11 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
     let tornDown = false;
     let resizeObserver: ResizeObserver | undefined;
     const app = new Application();
+
+    const setTiledMapError = (message: string | undefined) => {
+      tiledMapErrorRef.current = message;
+      latestRenderRef.current.onTiledMapErrorChange?.(message);
+    };
 
     const teardown = () => {
       if (tornDown) return;
@@ -124,9 +148,22 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
       app.canvas.classList.add("realm-pixi-canvas");
       host.appendChild(app.canvas);
       appRef.current = app;
-      renderLatestStage(app, latestRenderRef.current);
-      resizeObserver = new ResizeObserver(() => renderLatestStage(app, latestRenderRef.current));
+      renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current);
+      resizeObserver = new ResizeObserver(() => renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current));
       resizeObserver.observe(host);
+
+      void loadRealmTiledMapResource().then((resource) => {
+        if (disposed || tornDown) return;
+        tiledMapResourceRef.current = resource;
+        setTiledMapError(undefined);
+        renderLatestStage(app, latestRenderRef.current, resource, undefined);
+      }).catch((error: unknown) => {
+        if (disposed || tornDown) return;
+        const message = formatUnknownError(error);
+        console.error("RealmIsometricStage failed to load Tiled map; keeping procedural fallback", error);
+        setTiledMapError(message);
+        renderLatestStage(app, latestRenderRef.current, undefined, message);
+      });
     }).catch((error: unknown) => {
       if (!disposed) console.error("RealmIsometricStage failed to initialize Pixi application", error);
       if (initialized) teardown();
@@ -141,8 +178,13 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
   return <div className="realm-pixi-stage realm-isometric-stage" ref={containerRef} aria-hidden="true" />;
 }
 
-function renderLatestStage(app: Application, renderInput: RealmIsometricStageProps): void {
-  renderStage(app, renderInput.viewModel, renderInput.language, renderInput.onSelectAgent, renderInput.onSelectLocation);
+function renderLatestStage(
+  app: Application,
+  renderInput: RealmIsometricStageProps,
+  tiledMapResource: RealmTiledMapResource | undefined,
+  tiledMapError: string | undefined,
+): void {
+  renderStage(app, renderInput.viewModel, renderInput.language, renderInput.onSelectAgent, renderInput.onSelectLocation, tiledMapResource, tiledMapError);
 }
 
 function renderStage(
@@ -151,6 +193,8 @@ function renderStage(
   language: AppLanguage,
   onSelectAgent: (agentId: string) => void,
   onSelectLocation: (locationId: string) => void,
+  tiledMapResource: RealmTiledMapResource | undefined,
+  tiledMapError: string | undefined,
 ): void {
   app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
 
@@ -160,11 +204,13 @@ function renderStage(
   app.stage.addChild(root);
 
   drawBackdrop(root, size);
-  drawRoomShell(root, projection);
-  drawLocationZones(root, viewModel.locations, projection);
-  drawLocations(root, viewModel, projection, onSelectLocation);
-  drawAgents(root, viewModel, projection, onSelectAgent);
-  drawPulses(root, viewModel.pulses.slice(0, PULSE_LIMIT), viewModel.locations, projection, language);
+  if (tiledMapResource && !tiledMapError) drawTiledRoom(root, tiledMapResource, projection);
+  else drawRoomShell(root, projection);
+  drawLocationZones(root, viewModel.locations, projection, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
+  drawLocations(root, viewModel, projection, onSelectLocation, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
+  drawAgents(root, viewModel, projection, onSelectAgent, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
+  drawPulses(root, viewModel.pulses.slice(0, PULSE_LIMIT), viewModel.locations, projection, language, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
+  if (tiledMapError) drawTiledMapDiagnostic(root, size, tiledMapError, language);
 }
 
 function createStageSize(canvas: HTMLCanvasElement): StageSize {
@@ -213,6 +259,65 @@ function drawBackdrop(root: Container, size: StageSize): void {
   root.addChild(glow);
 }
 
+function drawTiledRoom(root: Container, resource: RealmTiledMapResource, projection: IsoProjection): void {
+  drawTiledRoomShadow(root, resource.mapData, projection);
+  drawTiledRoomBackEdges(root, resource.mapData, projection);
+  const tiledMap = new TiledMap(resource.mapData, { tilesetTextures: resource.tilesetTextures });
+  const scale = createTiledMapScale(resource.mapData, projection);
+  tiledMap.x = projection.originX;
+  tiledMap.y = projection.originY;
+  tiledMap.scale.set(scale);
+  tiledMap.alpha = 0.98;
+  root.addChild(tiledMap);
+}
+
+function drawTiledRoomBackEdges(root: Container, mapData: ResolvedMap, projection: IsoProjection): void {
+  const scale = createTiledMapScale(mapData, projection);
+  const top = localTiledToScreen(projection, 0, 0, scale);
+  const right = localTiledToScreen(projection, mapData.width * mapData.tilewidth * 0.5, mapData.width * mapData.tileheight * 0.5, scale);
+  const left = localTiledToScreen(projection, -mapData.height * mapData.tilewidth * 0.5, mapData.height * mapData.tileheight * 0.5, scale);
+  const height = projection.tileHeight * 2.4;
+  const edges = new Graphics()
+    .moveTo(top.x, top.y - height)
+    .lineTo(right.x, right.y - height)
+    .lineTo(right.x, right.y + projection.tileHeight * 0.18)
+    .lineTo(top.x, top.y + projection.tileHeight * 0.18)
+    .closePath()
+    .fill({ color: COLORS.wallRight, alpha: 0.42 })
+    .stroke({ width: 2, color: COLORS.white, alpha: 0.52 })
+    .moveTo(top.x, top.y - height)
+    .lineTo(left.x, left.y - height)
+    .lineTo(left.x, left.y + projection.tileHeight * 0.18)
+    .lineTo(top.x, top.y + projection.tileHeight * 0.18)
+    .closePath()
+    .fill({ color: COLORS.wallLeft, alpha: 0.48 })
+    .stroke({ width: 2, color: COLORS.white, alpha: 0.5 });
+  root.addChild(edges);
+}
+
+function drawTiledRoomShadow(root: Container, mapData: ResolvedMap, projection: IsoProjection): void {
+  const scale = createTiledMapScale(mapData, projection);
+  const top = localTiledToScreen(projection, 0, 0, scale);
+  const right = localTiledToScreen(projection, mapData.width * mapData.tilewidth * 0.5, mapData.width * mapData.tileheight * 0.5, scale);
+  const bottom = localTiledToScreen(projection, (mapData.width - mapData.height) * mapData.tilewidth * 0.5, (mapData.width + mapData.height) * mapData.tileheight * 0.5, scale);
+  const left = localTiledToScreen(projection, -mapData.height * mapData.tilewidth * 0.5, mapData.height * mapData.tileheight * 0.5, scale);
+  const shadow = new Graphics()
+    .moveTo(left.x, left.y + projection.slabHeight * 0.35)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.35)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight)
+    .lineTo(left.x, left.y + projection.slabHeight)
+    .closePath()
+    .fill({ color: COLORS.slabLeft, alpha: 0.36 })
+    .moveTo(right.x, right.y + projection.slabHeight * 0.35)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.35)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight)
+    .lineTo(right.x, right.y + projection.slabHeight)
+    .closePath()
+    .fill({ color: COLORS.slabRight, alpha: 0.32 });
+  root.addChild(shadow);
+  void top;
+}
+
 function drawRoomShell(root: Container, projection: IsoProjection): void {
   drawWalls(root, projection);
   drawFloor(root, projection);
@@ -257,7 +362,6 @@ function drawWalls(root: Container, projection: IsoProjection): void {
 }
 
 function drawFloor(root: Container, projection: IsoProjection): void {
-  const top = isoToScreen(projection, 0, 0);
   const right = isoToScreen(projection, projection.roomWidth, 0);
   const bottom = isoToScreen(projection, projection.roomWidth, projection.roomHeight);
   const left = isoToScreen(projection, 0, projection.roomHeight);
@@ -299,12 +403,16 @@ function drawFloor(root: Container, projection: IsoProjection): void {
   root.addChild(rug);
 }
 
-function drawLocationZones(root: Container, locations: readonly RealmMapLocationNode[], projection: IsoProjection): void {
+function drawLocationZones(
+  root: Container,
+  locations: readonly RealmMapLocationNode[],
+  projection: IsoProjection,
+  tiledMapResource: RealmTiledMapResource | undefined,
+): void {
   const zones = new Graphics();
   locations.forEach((location, index) => {
     if (location.id === "atrium") return;
-    const point = resolveLocationPoint(location, index);
-    const center = isoToScreen(projection, point.gridX + 0.5, point.gridY + 0.5);
+    const center = resolveLocationScreen(location, index, projection, tiledMapResource);
     drawDiamond(zones, center.x, center.y, projection.tileWidth * 1.28, projection.tileHeight * 0.86)
       .fill({ color: accentForIndex(index), alpha: 0.18 })
       .stroke({ width: 2, color: accentForIndex(index), alpha: 0.32 });
@@ -317,10 +425,10 @@ function drawLocations(
   viewModel: RealmMapViewModel,
   projection: IsoProjection,
   onSelectLocation: (locationId: string) => void,
+  tiledMapResource: RealmTiledMapResource | undefined,
 ): void {
   viewModel.locations.forEach((location, index) => {
-    const point = resolveLocationPoint(location, index);
-    const screen = isoToScreen(projection, point.gridX + 0.5, point.gridY + 0.5, projection.tileHeight * 0.46);
+    const screen = resolveLocationScreen(location, index, projection, tiledMapResource, projection.tileHeight * 0.46);
     const accent = location.selected ? COLORS.gold : accentForIndex(index);
     const node = new Container();
     node.x = screen.x;
@@ -360,18 +468,15 @@ function drawAgents(
   viewModel: RealmMapViewModel,
   projection: IsoProjection,
   onSelectAgent: (agentId: string) => void,
+  tiledMapResource: RealmTiledMapResource | undefined,
 ): void {
-  const locations = new Map(viewModel.locations.map((location, index) => [location.id, resolveLocationPoint(location, index)]));
-  const sortedAgents = [...viewModel.agents].sort((left, right) => {
-    const leftLocation = locations.get(left.locationId);
-    const rightLocation = locations.get(right.locationId);
-    return (leftLocation ? leftLocation.gridX + leftLocation.gridY : 0) - (rightLocation ? rightLocation.gridX + rightLocation.gridY : 0);
-  });
+  const locationEntries = new Map(viewModel.locations.map((location, index) => [location.id, { location, index }]));
+  const sortedAgents = [...viewModel.agents].sort((left, right) => resolveLocationDepth(left.locationId, locationEntries, tiledMapResource) - resolveLocationDepth(right.locationId, locationEntries, tiledMapResource));
 
   sortedAgents.forEach((agent) => {
-    const point = locations.get(agent.locationId);
-    if (!point) return;
-    const base = isoToScreen(projection, point.gridX + 0.7, point.gridY + 0.72);
+    const entry = locationEntries.get(agent.locationId);
+    if (!entry) return;
+    const base = resolveAgentScreen(entry.location, entry.index, projection, tiledMapResource);
     const marker = new Container();
     marker.x = base.x + agent.xOffset * 0.35;
     marker.y = base.y + agent.yOffset * 0.25;
@@ -411,13 +516,13 @@ function drawPulses(
   locations: readonly RealmMapLocationNode[],
   projection: IsoProjection,
   language: AppLanguage,
+  tiledMapResource: RealmTiledMapResource | undefined,
 ): void {
   const locationById = new Map(locations.map((location, index) => [location.id, { location, index }]));
   pulses.forEach((pulse, pulseIndex) => {
     const entry = locationById.get(pulse.locationId);
     if (!entry) return;
-    const point = resolveLocationPoint(entry.location, entry.index);
-    const screen = isoToScreen(projection, point.gridX + 0.5, point.gridY + 0.5, 4);
+    const screen = resolveLocationScreen(entry.location, entry.index, projection, tiledMapResource, 4);
     const color = colorForPulse(pulse);
     const ring = new Graphics()
       .ellipse(screen.x, screen.y + 3, projection.tileWidth * (0.45 + pulseIndex * 0.035), projection.tileHeight * (0.24 + pulseIndex * 0.02))
@@ -434,11 +539,93 @@ function drawPulses(
   });
 }
 
+function drawTiledMapDiagnostic(root: Container, size: StageSize, errorMessage: string, language: AppLanguage): void {
+  const width = Math.min(560, size.width - 48);
+  const box = new Container();
+  box.x = 24;
+  box.y = 24;
+  const panel = new Graphics()
+    .roundRect(0, 0, width, 96, 18)
+    .fill({ color: 0x3b0f1a, alpha: 0.9 })
+    .stroke({ width: 2, color: COLORS.red, alpha: 0.78 });
+  box.addChild(panel);
+
+  const title = createText(language === "zh" ? "Tiled 地图加载失败" : "Tiled map failed to load", 14, COLORS.white, "bold");
+  title.x = 18;
+  title.y = 14;
+  box.addChild(title);
+
+  const detail = new Text({
+    text: `${language === "zh" ? "当前显示程序化回退场景。" : "Showing procedural fallback scene."} ${truncateDiagnostic(errorMessage)}`,
+    style: {
+      fill: 0xffd7df,
+      fontFamily: "Nunito, Inter, ui-sans-serif, system-ui, sans-serif",
+      fontSize: 11,
+      fontWeight: "bold",
+      lineHeight: 15,
+      wordWrap: true,
+      wordWrapWidth: width - 36,
+    },
+  });
+  detail.x = 18;
+  detail.y = 42;
+  box.addChild(detail);
+  root.addChild(box);
+}
+
 function isoToScreen(projection: IsoProjection, gridX: number, gridY: number, z = 0): StagePoint {
   return {
     x: projection.originX + (gridX - gridY) * projection.tileWidth * 0.5,
     y: projection.originY + (gridX + gridY) * projection.tileHeight * 0.5 - z,
   };
+}
+
+function localTiledToScreen(projection: IsoProjection, localX: number, localY: number, scale: number, z = 0): StagePoint {
+  return {
+    x: projection.originX + localX * scale,
+    y: projection.originY + localY * scale - z,
+  };
+}
+
+function createTiledMapScale(mapData: ResolvedMap, projection: IsoProjection): number {
+  return projection.tileWidth / mapData.tilewidth;
+}
+
+function resolveLocationScreen(
+  location: RealmMapLocationNode,
+  index: number,
+  projection: IsoProjection,
+  tiledMapResource: RealmTiledMapResource | undefined,
+  z = 0,
+): StagePoint {
+  const tiledAnchor = tiledMapResource?.anchors.get(location.id);
+  if (tiledAnchor && tiledMapResource) return localTiledToScreen(projection, tiledAnchor.x, tiledAnchor.y, createTiledMapScale(tiledMapResource.mapData, projection), z);
+  const point = resolveLocationPoint(location, index);
+  return isoToScreen(projection, point.gridX + 0.5, point.gridY + 0.5, z);
+}
+
+function resolveAgentScreen(
+  location: RealmMapLocationNode,
+  index: number,
+  projection: IsoProjection,
+  tiledMapResource: RealmTiledMapResource | undefined,
+): StagePoint {
+  const tiledAnchor = tiledMapResource?.anchors.get(location.id);
+  if (tiledAnchor && tiledMapResource) {
+    const scale = createTiledMapScale(tiledMapResource.mapData, projection);
+    return localTiledToScreen(projection, tiledAnchor.x + tiledMapResource.mapData.tilewidth * 0.18, tiledAnchor.y + tiledMapResource.mapData.tileheight * 0.22, scale);
+  }
+  const point = resolveLocationPoint(location, index);
+  return isoToScreen(projection, point.gridX + 0.7, point.gridY + 0.72);
+}
+
+function resolveLocationDepth(locationId: string, locationEntries: ReadonlyMap<string, LocationRenderEntry>, tiledMapResource: RealmTiledMapResource | undefined): number {
+  const entry = locationEntries.get(locationId);
+  if (!entry) return 0;
+  const tiledAnchor = tiledMapResource?.anchors.get(locationId);
+  if (tiledAnchor) return tiledAnchor.y;
+  const point = resolveLocationPoint(entry.location, entry.index);
+  return point.gridX + point.gridY;
 }
 
 function drawDiamond(graphics: Graphics, x: number, y: number, width: number, height: number): Graphics {
@@ -500,3 +687,82 @@ function formatPulseLabel(pulse: RealmMapEventPulse, language: AppLanguage): str
   return pulse.label;
 }
 
+async function loadRealmTiledMapResource(): Promise<RealmTiledMapResource> {
+  tiledMapResourcePromise ??= loadRealmTiledMapResourceOnce().catch((error: unknown) => {
+    tiledMapResourcePromise = undefined;
+    throw error;
+  });
+  return tiledMapResourcePromise;
+}
+
+async function loadRealmTiledMapResourceOnce(): Promise<RealmTiledMapResource> {
+  const response = await fetch(REALM_TILED_MAP_ASSET.mapUrl);
+  if (!response.ok) throw new Error(`Failed to fetch ${REALM_TILED_MAP_ASSET.mapUrl}: ${response.status} ${response.statusText}`);
+  const data = await response.json() as unknown;
+  if (!isTiledMapData(data)) throw new Error(`Invalid Tiled map shape at ${REALM_TILED_MAP_ASSET.mapUrl}`);
+  if (data.orientation !== "isometric") throw new Error(`Expected isometric Tiled map, received ${data.orientation}`);
+  if (data.width !== ROOM_WIDTH || data.height !== ROOM_HEIGHT) throw new Error(`Expected ${ROOM_WIDTH}×${ROOM_HEIGHT} Tiled map, received ${data.width}×${data.height}`);
+
+  const mapData = parseMap(data);
+  const anchors = createTiledAnchorMap(mapData);
+  const tilesetTextures = await loadTilesetTextures(mapData);
+  return { mapData, tilesetTextures, anchors };
+}
+
+async function loadTilesetTextures(mapData: ResolvedMap): Promise<Map<string, Texture>> {
+  const entries = await Promise.all(mapData.tilesets.map(async (tileset) => {
+    if (!tileset.image) return undefined;
+    const texture = await Assets.load<Texture>(`${REALM_TILED_MAP_ASSET.basePath}${tileset.image}`);
+    return [tileset.image, texture] as const;
+  }));
+  return new Map(entries.filter((entry): entry is readonly [string, Texture] => entry !== undefined));
+}
+
+function createTiledAnchorMap(mapData: ResolvedMap): Map<string, StagePoint> {
+  const layer = findObjectLayer(mapData.layers, REALM_TILED_MAP_ASSET.hotspotLayerName);
+  if (!layer) throw new Error(`Tiled map is missing object layer "${REALM_TILED_MAP_ASSET.hotspotLayerName}"`);
+  const anchors = new Map<string, StagePoint>();
+  for (const object of layer.objects) {
+    if (!object.visible || !object.point || !object.name) continue;
+    anchors.set(object.name, { x: object.x, y: object.y });
+  }
+  if (anchors.size === 0) throw new Error(`Tiled object layer "${REALM_TILED_MAP_ASSET.hotspotLayerName}" has no visible point anchors`);
+  return anchors;
+}
+
+function findObjectLayer(layers: readonly ResolvedLayer[], name: string): ResolvedObjectLayer | undefined {
+  for (const layer of layers) {
+    if (layer.type === "objectgroup" && layer.name === name) return layer;
+    if (layer.type === "group") {
+      const nested = findObjectLayer(layer.layers, name);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
+}
+
+function isTiledMapData(value: unknown): value is TiledMapData {
+  if (!isObjectRecord(value)) return false;
+  return value.type === "map"
+    && typeof value.width === "number"
+    && typeof value.height === "number"
+    && typeof value.tilewidth === "number"
+    && typeof value.tileheight === "number"
+    && typeof value.orientation === "string"
+    && Array.isArray(value.layers)
+    && Array.isArray(value.tilesets);
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown Tiled map load error";
+}
+
+function truncateDiagnostic(message: string): string {
+  return message.length > 150 ? `${message.slice(0, 147)}…` : message;
+}

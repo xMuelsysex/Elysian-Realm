@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { formatSourceLabel } from "../shared/i18n.js";
@@ -12,6 +13,8 @@ interface RealmMapPanelProps {
 }
 
 export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLocation }: RealmMapPanelProps) {
+  const [tiledMapError, setTiledMapError] = useState<string | undefined>();
+
   return (
     <section className="panel realm-map-panel" aria-labelledby="realm-map-heading">
       <div className="panel-heading">
@@ -24,7 +27,15 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
 
       <p className="realm-map-summary">{viewModel.summary}</p>
 
-      <RealmIsometricStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} />
+      <RealmIsometricStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} onTiledMapErrorChange={setTiledMapError} />
+
+      {tiledMapError ? (
+        <p className="realm-map-diagnostic" role="status">
+          <strong>{language === "zh" ? "Tiled 地图加载失败" : "Tiled map failed to load"}</strong>
+          <span>{language === "zh" ? "当前显示程序化回退场景。" : "Showing procedural fallback scene."}</span>
+          <code>{tiledMapError}</code>
+        </p>
+      ) : null}
 
       <div className="realm-map-dom-fallback" role="group" aria-label={language === "zh" ? "位置与角色地图文本控件" : "Location and agent map text controls"}>
         {viewModel.locations.map((location) => (
