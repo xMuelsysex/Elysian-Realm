@@ -229,7 +229,7 @@ function createProjection(size: StageSize): IsoProjection {
     tileHeight: TILE_HEIGHT * scale,
     roomWidth: ROOM_WIDTH,
     roomHeight: ROOM_HEIGHT,
-    slabHeight: 34 * scale,
+    slabHeight: 24 * scale,
   };
 }
 
@@ -261,7 +261,7 @@ function drawBackdrop(root: Container, size: StageSize): void {
 
 function drawTiledRoom(root: Container, resource: RealmTiledMapResource, projection: IsoProjection): void {
   drawTiledRoomShadow(root, resource.mapData, projection);
-  drawTiledRoomBackEdges(root, resource.mapData, projection);
+  drawTiledRoomBackWalls(root, resource.mapData, projection);
   const tiledMap = new TiledMap(resource.mapData, { tilesetTextures: resource.tilesetTextures });
   const scale = createTiledMapScale(resource.mapData, projection);
   tiledMap.x = projection.originX;
@@ -271,51 +271,62 @@ function drawTiledRoom(root: Container, resource: RealmTiledMapResource, project
   root.addChild(tiledMap);
 }
 
-function drawTiledRoomBackEdges(root: Container, mapData: ResolvedMap, projection: IsoProjection): void {
-  const scale = createTiledMapScale(mapData, projection);
-  const top = localTiledToScreen(projection, 0, 0, scale);
-  const right = localTiledToScreen(projection, mapData.width * mapData.tilewidth * 0.5, mapData.width * mapData.tileheight * 0.5, scale);
-  const left = localTiledToScreen(projection, -mapData.height * mapData.tilewidth * 0.5, mapData.height * mapData.tileheight * 0.5, scale);
-  const height = projection.tileHeight * 2.4;
-  const edges = new Graphics()
-    .moveTo(top.x, top.y - height)
-    .lineTo(right.x, right.y - height)
-    .lineTo(right.x, right.y + projection.tileHeight * 0.18)
-    .lineTo(top.x, top.y + projection.tileHeight * 0.18)
+function drawTiledRoomBackWalls(root: Container, mapData: ResolvedMap, projection: IsoProjection): void {
+  const { top, right, left } = createTiledFootprint(mapData, projection);
+  const wallHeight = projection.tileHeight * 2.35;
+  const wallFoot = projection.tileHeight * 0.2;
+  const walls = new Graphics()
+    .moveTo(top.x, top.y - wallHeight)
+    .lineTo(right.x, right.y - wallHeight)
+    .lineTo(right.x, right.y + wallFoot)
+    .lineTo(top.x, top.y + wallFoot)
     .closePath()
-    .fill({ color: COLORS.wallRight, alpha: 0.42 })
-    .stroke({ width: 2, color: COLORS.white, alpha: 0.52 })
-    .moveTo(top.x, top.y - height)
-    .lineTo(left.x, left.y - height)
-    .lineTo(left.x, left.y + projection.tileHeight * 0.18)
-    .lineTo(top.x, top.y + projection.tileHeight * 0.18)
+    .fill({ color: COLORS.wallRight, alpha: 0.46 })
+    .stroke({ width: 2, color: COLORS.white, alpha: 0.56 })
+    .moveTo(top.x, top.y - wallHeight)
+    .lineTo(left.x, left.y - wallHeight)
+    .lineTo(left.x, left.y + wallFoot)
+    .lineTo(top.x, top.y + wallFoot)
     .closePath()
-    .fill({ color: COLORS.wallLeft, alpha: 0.48 })
-    .stroke({ width: 2, color: COLORS.white, alpha: 0.5 });
-  root.addChild(edges);
+    .fill({ color: COLORS.wallLeft, alpha: 0.5 })
+    .stroke({ width: 2, color: COLORS.white, alpha: 0.54 });
+  root.addChild(walls);
 }
 
 function drawTiledRoomShadow(root: Container, mapData: ResolvedMap, projection: IsoProjection): void {
-  const scale = createTiledMapScale(mapData, projection);
-  const top = localTiledToScreen(projection, 0, 0, scale);
-  const right = localTiledToScreen(projection, mapData.width * mapData.tilewidth * 0.5, mapData.width * mapData.tileheight * 0.5, scale);
-  const bottom = localTiledToScreen(projection, (mapData.width - mapData.height) * mapData.tilewidth * 0.5, (mapData.width + mapData.height) * mapData.tileheight * 0.5, scale);
-  const left = localTiledToScreen(projection, -mapData.height * mapData.tilewidth * 0.5, mapData.height * mapData.tileheight * 0.5, scale);
+  const { top, right, bottom, left } = createTiledFootprint(mapData, projection);
+  const contactShadow = new Graphics()
+    .ellipse(bottom.x, bottom.y + projection.slabHeight * 1.05, projection.tileWidth * 3.7, projection.tileHeight * 0.72)
+    .fill({ color: COLORS.ink, alpha: 0.045 });
+  root.addChild(contactShadow);
+
   const shadow = new Graphics()
-    .moveTo(left.x, left.y + projection.slabHeight * 0.35)
-    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.35)
+    .moveTo(left.x, left.y + projection.slabHeight * 0.28)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.28)
     .lineTo(bottom.x, bottom.y + projection.slabHeight)
     .lineTo(left.x, left.y + projection.slabHeight)
     .closePath()
-    .fill({ color: COLORS.slabLeft, alpha: 0.36 })
-    .moveTo(right.x, right.y + projection.slabHeight * 0.35)
-    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.35)
+    .fill({ color: COLORS.slabLeft, alpha: 0.28 })
+    .moveTo(right.x, right.y + projection.slabHeight * 0.28)
+    .lineTo(bottom.x, bottom.y + projection.slabHeight * 0.28)
     .lineTo(bottom.x, bottom.y + projection.slabHeight)
     .lineTo(right.x, right.y + projection.slabHeight)
     .closePath()
-    .fill({ color: COLORS.slabRight, alpha: 0.32 });
+    .fill({ color: COLORS.slabRight, alpha: 0.25 });
   root.addChild(shadow);
   void top;
+}
+
+function createTiledFootprint(mapData: ResolvedMap, projection: IsoProjection): { top: StagePoint; right: StagePoint; bottom: StagePoint; left: StagePoint } {
+  const scale = createTiledMapScale(mapData, projection);
+  const halfTileWidth = mapData.tilewidth * 0.5;
+  const halfTileHeight = mapData.tileheight * 0.5;
+  return {
+    top: localTiledToScreen(projection, halfTileWidth, 0, scale),
+    right: localTiledToScreen(projection, (mapData.width + 1) * halfTileWidth, mapData.width * halfTileHeight, scale),
+    bottom: localTiledToScreen(projection, (mapData.width - mapData.height + 1) * halfTileWidth, (mapData.width + mapData.height) * halfTileHeight, scale),
+    left: localTiledToScreen(projection, (1 - mapData.height) * halfTileWidth, mapData.height * halfTileHeight, scale),
+  };
 }
 
 function drawRoomShell(root: Container, projection: IsoProjection): void {
