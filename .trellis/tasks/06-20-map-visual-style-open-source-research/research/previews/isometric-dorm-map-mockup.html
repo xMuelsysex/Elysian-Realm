@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Elysian Realm Isometric Dorm Map Mockup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #061827;
+      --panel: rgba(244, 251, 255, 0.92);
+      --ink: #163047;
+      --muted: #6a8294;
+      --blue: #65c7ff;
+      --blue-2: #1494e7;
+      --gold: #ffd37a;
+      --pink: #ff8fb4;
+      --green: #77e3b0;
+      --violet: #bba4ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(101, 199, 255, 0.22), transparent 32%),
+        radial-gradient(circle at 84% 24%, rgba(255, 143, 180, 0.18), transparent 28%),
+        linear-gradient(145deg, #07101d, #0b2841 48%, #081524);
+      font-family: Inter, "SF Pro Display", "Segoe UI", "PingFang SC", sans-serif;
+    }
+
+    .frame {
+      width: min(1180px, calc(100vw - 36px));
+      aspect-ratio: 16 / 9;
+      min-height: 640px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 34px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0)),
+        radial-gradient(circle at 48% 44%, rgba(91, 194, 255, 0.18), transparent 38%),
+        var(--bg);
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+
+    .frame::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 38px 38px;
+      mask-image: radial-gradient(circle at 50% 45%, black, transparent 72%);
+    }
+
+    .topbar {
+      position: absolute;
+      left: 34px;
+      right: 34px;
+      top: 26px;
+      height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: white;
+    }
+
+    .brand-mark {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      color: #05375a;
+      font-weight: 900;
+      background: linear-gradient(135deg, #ffffff, #9de6ff 68%, #7cc9ff);
+      box-shadow: 0 12px 30px rgba(101, 199, 255, 0.32);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: rgba(235, 248, 255, 0.72);
+      font-size: 13px;
+    }
+
+    .chips { display: flex; gap: 10px; }
+
+    .chip {
+      color: #11314b;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.95);
+      border-radius: 999px;
+      padding: 10px 15px;
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 12px 26px rgba(3, 22, 38, 0.18);
+    }
+
+    .stage {
+      position: absolute;
+      inset: 112px 30px 30px;
+      border-radius: 28px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .room {
+      position: absolute;
+      left: 50%;
+      top: 55%;
+      width: 720px;
+      height: 430px;
+      transform: translate(-50%, -50%);
+      filter: drop-shadow(0 34px 34px rgba(0,0,0,0.32));
+    }
+
+    .floor {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 620px;
+      height: 310px;
+      transform: translate(-50%, -24%) rotate(45deg) skew(-10deg, -10deg);
+      border-radius: 18px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.26) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px),
+        linear-gradient(135deg, #bce9ff, #8fd2ff 42%, #d5efff 43%, #9bd8fb 70%, #f0d9a3);
+      background-size: 52px 52px, 52px 52px, auto;
+      border: 3px solid rgba(255,255,255,0.86);
+      box-shadow: inset 0 0 0 10px rgba(255,255,255,0.16), 0 22px 50px rgba(2, 18, 31, 0.28);
+    }
+
+    .wall-left,
+    .wall-right {
+      position: absolute;
+      top: 74px;
+      width: 356px;
+      height: 190px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.72), rgba(206,237,255,0.88)),
+        repeating-linear-gradient(90deg, transparent 0 56px, rgba(20, 148, 231, 0.12) 57px 59px);
+      border: 3px solid rgba(255,255,255,0.78);
+      box-shadow: inset 0 -24px 0 rgba(101,199,255,0.1);
+    }
+
+    .wall-left {
+      left: 105px;
+      transform: skewY(24deg);
+      border-radius: 20px 0 0 16px;
+    }
+
+    .wall-right {
+      right: 105px;
+      transform: skewY(-24deg);
+      border-radius: 0 20px 16px 0;
+    }
+
+    .rug {
+      position: absolute;
+      left: 274px;
+      top: 242px;
+      width: 172px;
+      height: 88px;
+      border-radius: 50%;
+      transform: rotate(0deg) skew(-18deg);
+      background: radial-gradient(circle, rgba(255,255,255,0.55), transparent 42%), linear-gradient(135deg, #ffe2ef, #ff9fc0);
+      border: 3px solid rgba(255,255,255,0.74);
+      opacity: 0.92;
+    }
+
+    .furniture {
+      position: absolute;
+      border-radius: 12px;
+      border: 3px solid rgba(255,255,255,0.75);
+      box-shadow: 0 13px 16px rgba(5, 35, 58, 0.22);
+    }
+
+    .desk { left: 182px; top: 156px; width: 128px; height: 74px; background: linear-gradient(135deg, #fff4c7, #f7c86e); transform: skew(-12deg); }
+    .sofa { left: 466px; top: 186px; width: 148px; height: 78px; background: linear-gradient(135deg, #bba4ff, #7da8ff); transform: skew(12deg); }
+    .bed { left: 130px; top: 286px; width: 158px; height: 84px; background: linear-gradient(135deg, #dff8ff, #8edbff); transform: skew(12deg); }
+    .shelf { left: 492px; top: 94px; width: 122px; height: 92px; background: linear-gradient(135deg, #fff7df, #d9a862); transform: skew(-12deg); }
+    .plant { left: 348px; top: 122px; width: 62px; height: 62px; border-radius: 50%; background: radial-gradient(circle, #86efac, #159a65); }
+    .tea { left: 406px; top: 302px; width: 92px; height: 56px; background: linear-gradient(135deg, #ffffff, #d6f4ff); transform: skew(-12deg); }
+
+    .hotspot {
+      position: absolute;
+      width: 112px;
+      height: 112px;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+
+    .hotspot::before {
+      content: "";
+      position: absolute;
+      inset: 20px;
+      border-radius: 999px;
+      background: var(--accent);
+      opacity: 0.18;
+      animation: pulse 2.6s infinite ease-in-out;
+    }
+
+    .pin {
+      position: absolute;
+      left: 50%;
+      top: 42%;
+      width: 48px;
+      height: 48px;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(235,248,255,0.92));
+      border: 2px solid var(--accent);
+      color: var(--accent-ink);
+      font-weight: 900;
+      box-shadow: 0 12px 22px rgba(0,0,0,0.18), 0 0 22px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+
+    .label {
+      position: absolute;
+      left: 50%;
+      top: 70%;
+      transform: translateX(-50%);
+      min-width: 86px;
+      text-align: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: #13314b;
+      font-size: 12px;
+      font-weight: 900;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.95);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+    }
+
+    .agent {
+      position: absolute;
+      width: 42px;
+      height: 54px;
+      transform: translate(-50%, -100%);
+      z-index: 18;
+    }
+
+    .agent .head {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #fff, var(--hair));
+      border: 3px solid #fff;
+      box-shadow: 0 10px 16px rgba(0,0,0,0.18);
+    }
+
+    .agent .body {
+      width: 30px;
+      height: 24px;
+      margin: -4px auto 0;
+      border-radius: 14px 14px 10px 10px;
+      background: linear-gradient(180deg, #fff, var(--uniform));
+      border: 2px solid rgba(255,255,255,0.86);
+    }
+
+    .bubble {
+      position: absolute;
+      left: 50%;
+      top: -34px;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      padding: 6px 10px;
+      border-radius: 12px 12px 12px 4px;
+      background: rgba(255,255,255,0.94);
+      color: #17314a;
+      font-size: 11px;
+      font-weight: 800;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.14);
+    }
+
+    .event {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border: 4px solid var(--gold);
+      box-shadow: 0 0 0 8px rgba(255, 211, 122, 0.18), 0 0 24px rgba(255, 211, 122, 0.58);
+      animation: ping 1.8s infinite ease-out;
+      z-index: 16;
+    }
+
+    .panel {
+      position: absolute;
+      right: 28px;
+      bottom: 28px;
+      width: 292px;
+      padding: 18px;
+      border-radius: 24px;
+      background: var(--panel);
+      color: var(--ink);
+      z-index: 30;
+      border: 1px solid rgba(255,255,255,0.95);
+      box-shadow: 0 22px 42px rgba(0,0,0,0.22);
+    }
+
+    .panel h2 { margin: 0 0 8px; font-size: 18px; }
+    .panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .legend span {
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(20, 148, 231, 0.1);
+      color: #126596;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .fallback {
+      position: absolute;
+      left: 28px;
+      bottom: 28px;
+      padding: 12px 15px;
+      border-radius: 18px;
+      background: rgba(5, 22, 38, 0.56);
+      color: rgba(235,248,255,0.72);
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      z-index: 30;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.82); opacity: 0.12; }
+      50% { transform: scale(1.12); opacity: 0.28; }
+    }
+
+    @keyframes ping {
+      0% { box-shadow: 0 0 0 0 rgba(255, 211, 122, 0.45), 0 0 22px rgba(255, 211, 122, 0.62); }
+      100% { box-shadow: 0 0 0 28px rgba(255, 211, 122, 0), 0 0 22px rgba(255, 211, 122, 0.62); }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame" aria-label="Elysian Realm isometric dorm map mockup">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">ER</div>
+        <div>
+          <h1>Elysian Realm Map</h1>
+          <p>Isometric dorm-style visual prototype · Pixi stage target</p>
+        </div>
+      </div>
+      <div class="chips">
+        <div class="chip">7 locations</div>
+        <div class="chip">3 active agents</div>
+        <div class="chip">event pulse</div>
+      </div>
+    </header>
+
+    <section class="stage">
+      <div class="room">
+        <div class="wall-left"></div>
+        <div class="wall-right"></div>
+        <div class="floor"></div>
+        <div class="rug"></div>
+        <div class="furniture desk"></div>
+        <div class="furniture sofa"></div>
+        <div class="furniture bed"></div>
+        <div class="furniture shelf"></div>
+        <div class="furniture plant"></div>
+        <div class="furniture tea"></div>
+
+        <div class="hotspot" style="left:50%;top:52%;--accent:#65c7ff;--accent-ink:#0b6aa5"><div class="pin">✦</div><div class="label">中庭</div></div>
+        <div class="hotspot" style="left:36%;top:42%;--accent:#77e3b0;--accent-ink:#0e7a50"><div class="pin">❉</div><div class="label">花园</div></div>
+        <div class="hotspot" style="left:66%;top:48%;--accent:#bba4ff;--accent-ink:#604dc4"><div class="pin">◈</div><div class="label">休息室</div></div>
+        <div class="hotspot" style="left:30%;top:70%;--accent:#ffd37a;--accent-ink:#8f5e00"><div class="pin">⌂</div><div class="label">居所</div></div>
+        <div class="hotspot" style="left:73%;top:32%;--accent:#ff8fb4;--accent-ink:#a82d5d"><div class="pin">▣</div><div class="label">档案室</div></div>
+        <div class="hotspot" style="left:64%;top:74%;--accent:#9ee7ff;--accent-ink:#08759a"><div class="pin">✧</div><div class="label">眺望台</div></div>
+        <div class="hotspot" style="left:48%;top:28%;--accent:#ffe58f;--accent-ink:#8b6400"><div class="pin">✸</div><div class="label">训练厅</div></div>
+
+        <div class="event" style="left:51%;top:45%"></div>
+        <div class="event" style="left:67%;top:42%"></div>
+
+        <div class="agent" style="left:45%;top:48%;--hair:#ffd6e4;--uniform:#8fd2ff"><div class="bubble">整理花束</div><div class="head"></div><div class="body"></div></div>
+        <div class="agent" style="left:63%;top:57%;--hair:#d7c4ff;--uniform:#c8efff"><div class="bubble">准备茶会</div><div class="head"></div><div class="body"></div></div>
+        <div class="agent" style="left:72%;top:33%;--hair:#b7f7d4;--uniform:#ffe2a8"><div class="bubble">记录回忆</div><div class="head"></div><div class="body"></div></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <h2>推荐视觉方向</h2>
+      <p>用等距房间承载地点热点：背景是静态 tilemap，前景用现有 view model 渲染 agent、pulse、selection。蓝白 UI 和柔和动效只作为原创风格语言。</p>
+      <div class="legend"><span>PixiJS v8</span><span>Tiled .tmj</span><span>CC0 assets</span><span>DOM fallback kept</span></div>
+    </aside>
+
+    <div class="fallback">Accessible DOM fallback remains below the Pixi stage in production.</div>
+  </main>
+</body>
+</html>

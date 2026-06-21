@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-06-12
+- **Total Sessions**: 14
+- **Last Active**: 2026-06-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~450 | Active |
+| `journal-1.md` | ~484 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-06-21 | Implement Tiled Pixi isometric map | `7bff97a`, `136ef0a` | `feature/tiled-pixi-isometric-map` |
 | 13 | 2026-06-12 | Web Observatory Stage Spike (Pixi.js) | `7584ac35`, `a3653815` | `main` |
 | 12 | 2026-06-09 | Browser visual QA responsive polish | `f0c7152`, `b7dbc0a` | `main` |
 | 11 | 2026-06-09 | Reference Inspired Frontend Visual Polish MVP | `7a60395` | `main` |

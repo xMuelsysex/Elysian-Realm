@@ -448,3 +448,37 @@ Replaced the dead-end Unity observatory direction with a web-native Pixi.js stag
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Implement Tiled Pixi isometric map
+
+**Date**: 2026-06-21
+**Task**: Implement Tiled Pixi isometric map
+**Branch**: `feature/tiled-pixi-isometric-map`
+
+### Summary
+
+Added the procedural RealmIsometricStage baseline, then implemented a Tiled .tmj PixiJS v8 map pipeline with original placeholder tiles, object-layer anchors, dynamic overlays, fallback diagnostics, and smoke evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7bff97a` | (see git log) |
+| `136ef0a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
