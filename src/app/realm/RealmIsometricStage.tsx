@@ -6,9 +6,15 @@ import type { AppLanguage } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
 import { REALM_TILED_MAP_ASSET } from "./realmTiledMapAssets.js";
 
+export type RealmMapInspectedItem =
+  | { kind: "location"; id: string }
+  | { kind: "agent"; id: string };
+
 interface RealmIsometricStageProps {
   language: AppLanguage;
   viewModel: RealmMapViewModel;
+  inspectedItem?: RealmMapInspectedItem;
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void;
   onSelectAgent: (agentId: string) => void;
   onSelectLocation: (locationId: string) => void;
   onTiledMapErrorChange?: (message: string | undefined) => void;
@@ -56,6 +62,11 @@ const ROOM_HEIGHT = 8;
 const TILE_WIDTH = 76;
 const TILE_HEIGHT = 38;
 const PULSE_LIMIT = 8;
+const DETAIL_CARD_WIDTH = 282;
+const DETAIL_CARD_PADDING = 14;
+const DETAIL_CARD_LINE_GAP = 6;
+const ANIMATION_FRAME_INTERVAL_MS = 1000 / 24;
+const BREATH_SPEED = 2.6;
 
 const COLORS = {
   background: 0xf5fbff,
@@ -94,18 +105,19 @@ const ISO_LAYOUT: Record<string, IsoPoint> = {
 
 let tiledMapResourcePromise: Promise<RealmTiledMapResource> | undefined;
 
-export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange }: RealmIsometricStageProps) {
+export function RealmIsometricStage({ language, viewModel, inspectedItem, onInspectItemChange, onSelectAgent, onSelectLocation, onTiledMapErrorChange }: RealmIsometricStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | undefined>(undefined);
   const tiledMapResourceRef = useRef<RealmTiledMapResource | undefined>(undefined);
   const tiledMapErrorRef = useRef<string | undefined>(undefined);
-  const latestRenderRef = useRef({ language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange });
+  const latestRenderRef = useRef({ language, viewModel, inspectedItem, onInspectItemChange, onSelectAgent, onSelectLocation, onTiledMapErrorChange });
+  const animationPhaseRef = useRef(0);
 
   useEffect(() => {
-    latestRenderRef.current = { language, viewModel, onSelectAgent, onSelectLocation, onTiledMapErrorChange };
+    latestRenderRef.current = { language, viewModel, inspectedItem, onInspectItemChange, onSelectAgent, onSelectLocation, onTiledMapErrorChange };
     const app = appRef.current;
-    if (app) renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current);
-  }, [language, onSelectAgent, onSelectLocation, onTiledMapErrorChange, viewModel]);
+    if (app) renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current, animationPhaseRef.current);
+  }, [language, inspectedItem, onInspectItemChange, onSelectAgent, onSelectLocation, onTiledMapErrorChange, viewModel]);
 
   useEffect(() => {
     const host = containerRef.current;
@@ -115,7 +127,17 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
     let initialized = false;
     let tornDown = false;
     let resizeObserver: ResizeObserver | undefined;
+    let lastAnimationRenderAt = 0;
     const app = new Application();
+
+    const renderCurrentStage = () => renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current, animationPhaseRef.current);
+    const onAnimationTick = () => {
+      const now = performance.now();
+      if (now - lastAnimationRenderAt < ANIMATION_FRAME_INTERVAL_MS) return;
+      lastAnimationRenderAt = now;
+      animationPhaseRef.current = now * 0.001 * BREATH_SPEED;
+      renderCurrentStage();
+    };
 
     const setTiledMapError = (message: string | undefined) => {
       tiledMapErrorRef.current = message;
@@ -127,6 +149,7 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
       tornDown = true;
       resizeObserver?.disconnect();
       resizeObserver = undefined;
+      app.ticker.remove(onAnimationTick);
       if (appRef.current === app) appRef.current = undefined;
       app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
       app.destroy({ removeView: true }, { children: true });
@@ -148,21 +171,22 @@ export function RealmIsometricStage({ language, viewModel, onSelectAgent, onSele
       app.canvas.classList.add("realm-pixi-canvas");
       host.appendChild(app.canvas);
       appRef.current = app;
-      renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current);
-      resizeObserver = new ResizeObserver(() => renderLatestStage(app, latestRenderRef.current, tiledMapResourceRef.current, tiledMapErrorRef.current));
+      renderCurrentStage();
+      app.ticker.add(onAnimationTick);
+      resizeObserver = new ResizeObserver(renderCurrentStage);
       resizeObserver.observe(host);
 
       void loadRealmTiledMapResource().then((resource) => {
         if (disposed || tornDown) return;
         tiledMapResourceRef.current = resource;
         setTiledMapError(undefined);
-        renderLatestStage(app, latestRenderRef.current, resource, undefined);
+        renderCurrentStage();
       }).catch((error: unknown) => {
         if (disposed || tornDown) return;
         const message = formatUnknownError(error);
         console.error("RealmIsometricStage failed to load Tiled map; keeping procedural fallback", error);
         setTiledMapError(message);
-        renderLatestStage(app, latestRenderRef.current, undefined, message);
+        renderCurrentStage();
       });
     }).catch((error: unknown) => {
       if (!disposed) console.error("RealmIsometricStage failed to initialize Pixi application", error);
@@ -183,18 +207,22 @@ function renderLatestStage(
   renderInput: RealmIsometricStageProps,
   tiledMapResource: RealmTiledMapResource | undefined,
   tiledMapError: string | undefined,
+  animationPhase: number,
 ): void {
-  renderStage(app, renderInput.viewModel, renderInput.language, renderInput.onSelectAgent, renderInput.onSelectLocation, tiledMapResource, tiledMapError);
+  renderStage(app, renderInput.viewModel, renderInput.language, renderInput.inspectedItem, renderInput.onInspectItemChange, renderInput.onSelectAgent, renderInput.onSelectLocation, tiledMapResource, tiledMapError, animationPhase);
 }
 
 function renderStage(
   app: Application,
   viewModel: RealmMapViewModel,
   language: AppLanguage,
+  inspectedItem: RealmMapInspectedItem | undefined,
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void,
   onSelectAgent: (agentId: string) => void,
   onSelectLocation: (locationId: string) => void,
   tiledMapResource: RealmTiledMapResource | undefined,
   tiledMapError: string | undefined,
+  animationPhase: number,
 ): void {
   app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
 
@@ -203,13 +231,18 @@ function renderStage(
   const root = new Container();
   app.stage.addChild(root);
 
+  const activeTiledMapResource = tiledMapResource && !tiledMapError ? tiledMapResource : undefined;
+  const inspectedTarget = resolveInspectedTarget(viewModel, inspectedItem);
+  const detailTarget = inspectedTarget ?? resolveSelectedDetailTarget(viewModel);
+
   drawBackdrop(root, size);
-  if (tiledMapResource && !tiledMapError) drawTiledRoom(root, tiledMapResource, projection);
+  if (activeTiledMapResource) drawTiledRoom(root, activeTiledMapResource, projection);
   else drawRoomShell(root, projection);
-  drawLocationZones(root, viewModel.locations, projection, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
-  drawLocations(root, viewModel, projection, onSelectLocation, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
-  drawAgents(root, viewModel, projection, onSelectAgent, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
-  drawPulses(root, viewModel.pulses.slice(0, PULSE_LIMIT), viewModel.locations, projection, language, tiledMapResource && !tiledMapError ? tiledMapResource : undefined);
+  drawLocationZones(root, viewModel.locations, projection, activeTiledMapResource, inspectedTarget, animationPhase);
+  drawLocations(root, viewModel, projection, inspectedTarget, onInspectItemChange, onSelectLocation, activeTiledMapResource, animationPhase);
+  drawAgents(root, viewModel, projection, inspectedTarget, onInspectItemChange, onSelectAgent, activeTiledMapResource, animationPhase);
+  drawPulses(root, viewModel.pulses.slice(0, PULSE_LIMIT), viewModel.locations, projection, language, activeTiledMapResource, animationPhase);
+  if (detailTarget) drawDetailCard(root, size, projection, viewModel, detailTarget, activeTiledMapResource, language, animationPhase);
   if (tiledMapError) drawTiledMapDiagnostic(root, size, tiledMapError, language);
 }
 
@@ -419,39 +452,74 @@ function drawLocationZones(
   locations: readonly RealmMapLocationNode[],
   projection: IsoProjection,
   tiledMapResource: RealmTiledMapResource | undefined,
+  detailTarget: RealmMapInspectedItem | undefined,
+  animationPhase: number,
 ): void {
   const zones = new Graphics();
   locations.forEach((location, index) => {
     if (location.id === "atrium") return;
+    const inspected = detailTarget?.kind === "location" && detailTarget.id === location.id;
+    const selected = location.selected;
+    const motion = selected || inspected ? pulseWave(animationPhase, index * 0.45) : 0;
+    const zoneScale = 1 + motion * 0.045;
     const center = resolveLocationScreen(location, index, projection, tiledMapResource);
-    drawDiamond(zones, center.x, center.y, projection.tileWidth * 1.28, projection.tileHeight * 0.86)
-      .fill({ color: accentForIndex(index), alpha: 0.18 })
-      .stroke({ width: 2, color: accentForIndex(index), alpha: 0.32 });
+    drawDiamond(zones, center.x, center.y, projection.tileWidth * (inspected ? 1.46 : 1.28) * zoneScale, projection.tileHeight * (inspected ? 1.02 : 0.86) * zoneScale)
+      .fill({ color: selected ? COLORS.gold : accentForIndex(index), alpha: inspected ? 0.28 + motion * 0.08 : selected ? 0.22 + motion * 0.07 : 0.18 })
+      .stroke({ width: inspected ? 4 : selected ? 3 : 2, color: selected ? COLORS.gold : accentForIndex(index), alpha: inspected ? 0.62 + motion * 0.16 : selected ? 0.46 + motion * 0.12 : 0.32 });
   });
   root.addChild(zones);
+}
+
+function isSameInspectedItem(left: RealmMapInspectedItem | undefined, right: RealmMapInspectedItem): boolean {
+  return left?.kind === right.kind && left.id === right.id;
+}
+
+function pulseWave(animationPhase: number, offset = 0): number {
+  return (Math.sin(animationPhase + offset) + 1) * 0.5;
 }
 
 function drawLocations(
   root: Container,
   viewModel: RealmMapViewModel,
   projection: IsoProjection,
+  detailTarget: RealmMapInspectedItem | undefined,
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void,
   onSelectLocation: (locationId: string) => void,
   tiledMapResource: RealmTiledMapResource | undefined,
+  animationPhase: number,
 ): void {
   viewModel.locations.forEach((location, index) => {
+    const inspectedItem = { kind: "location", id: location.id } as const;
+    const inspected = isSameInspectedItem(detailTarget, inspectedItem);
+    const selected = location.selected;
+    const motion = selected || inspected ? pulseWave(animationPhase, index * 0.5) : 0;
     const screen = resolveLocationScreen(location, index, projection, tiledMapResource, projection.tileHeight * 0.46);
-    const accent = location.selected ? COLORS.gold : accentForIndex(index);
+    const accent = selected ? COLORS.gold : accentForIndex(index);
     const node = new Container();
     node.x = screen.x;
-    node.y = screen.y;
+    node.y = screen.y - motion * 1.6;
+    node.scale.set((inspected ? 1.06 : 1) + motion * (inspected ? 0.022 : selected ? 0.014 : 0));
     node.eventMode = "static";
     node.cursor = "pointer";
-    node.on("pointertap", () => onSelectLocation(location.id));
+    node.on("pointerover", () => onInspectItemChange(inspectedItem));
+    node.on("pointerout", () => onInspectItemChange(undefined));
+    node.on("pointertap", () => {
+      onInspectItemChange(inspectedItem);
+      onSelectLocation(location.id);
+    });
+
+    if (inspected || selected) {
+      const glow = new Graphics()
+        .roundRect(-25 - motion * 1.6, -63 - motion * 1.6, 50 + motion * 3.2, 52 + motion * 3.2, 16)
+        .fill({ color: accent, alpha: inspected ? 0.16 + motion * 0.08 : 0.1 + motion * 0.05 })
+        .stroke({ width: inspected ? 4 : 3, color: accent, alpha: inspected ? 0.4 + motion * 0.16 : 0.26 + motion * 0.12 });
+      node.addChild(glow);
+    }
 
     const marker = new Graphics()
       .roundRect(-20, -58, 40, 42, 12)
       .fill({ color: COLORS.white, alpha: 0.96 })
-      .stroke({ width: location.selected ? 3 : 2, color: accent, alpha: 0.92 });
+      .stroke({ width: inspected ? 4 : selected ? 3 : 2, color: accent, alpha: inspected ? 1 : 0.92 });
     node.addChild(marker);
 
     const glyph = createText(LOCATION_GLYPHS[index % LOCATION_GLYPHS.length], 15, COLORS.ink, "bold");
@@ -478,8 +546,11 @@ function drawAgents(
   root: Container,
   viewModel: RealmMapViewModel,
   projection: IsoProjection,
+  detailTarget: RealmMapInspectedItem | undefined,
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void,
   onSelectAgent: (agentId: string) => void,
   tiledMapResource: RealmTiledMapResource | undefined,
+  animationPhase: number,
 ): void {
   const locationEntries = new Map(viewModel.locations.map((location, index) => [location.id, { location, index }]));
   const sortedAgents = [...viewModel.agents].sort((left, right) => resolveLocationDepth(left.locationId, locationEntries, tiledMapResource) - resolveLocationDepth(right.locationId, locationEntries, tiledMapResource));
@@ -487,27 +558,46 @@ function drawAgents(
   sortedAgents.forEach((agent) => {
     const entry = locationEntries.get(agent.locationId);
     if (!entry) return;
+    const inspectedItem = { kind: "agent", id: agent.id } as const;
+    const inspected = isSameInspectedItem(detailTarget, inspectedItem);
+    const selected = agent.selected;
+    const motion = selected || inspected ? pulseWave(animationPhase, entry.index * 0.4 + agent.id.length * 0.13) : 0;
     const base = resolveAgentScreen(entry.location, entry.index, projection, tiledMapResource);
     const marker = new Container();
     marker.x = base.x + agent.xOffset * 0.35;
-    marker.y = base.y + agent.yOffset * 0.25;
+    marker.y = base.y + agent.yOffset * 0.25 - motion * (inspected ? 3.2 : selected ? 2.2 : 0);
+    marker.scale.set((inspected ? 1.08 : 1) + motion * (inspected ? 0.025 : selected ? 0.016 : 0));
     marker.eventMode = "static";
     marker.cursor = "pointer";
-    marker.on("pointertap", () => onSelectAgent(agent.id));
+    marker.on("pointerover", () => onInspectItemChange(inspectedItem));
+    marker.on("pointerout", () => onInspectItemChange(undefined));
+    marker.on("pointertap", () => {
+      onInspectItemChange(inspectedItem);
+      onSelectAgent(agent.id);
+    });
 
     const sourceColor = colorForSource(agent.activitySource);
+    const accent = selected ? COLORS.gold : sourceColor;
     const shadow = new Graphics()
-      .ellipse(0, 24, 18, 7)
-      .fill({ color: COLORS.ink, alpha: 0.16 });
+      .ellipse(0, 24, inspected ? 23 : selected ? 21 : 18, inspected ? 10 : 7)
+      .fill({ color: selected ? COLORS.gold : COLORS.ink, alpha: inspected ? 0.24 : selected ? 0.2 : 0.16 });
     marker.addChild(shadow);
+
+    if (inspected || selected) {
+      const halo = new Graphics()
+        .circle(0, -2, (inspected ? 25 : 22) + motion * 3.4)
+        .fill({ color: accent, alpha: inspected ? 0.1 + motion * 0.08 : 0.06 + motion * 0.05 })
+        .stroke({ width: inspected ? 4 : 3, color: accent, alpha: inspected ? 0.42 + motion * 0.18 : 0.28 + motion * 0.14 });
+      marker.addChild(halo);
+    }
 
     const body = new Graphics()
       .roundRect(-12, 2, 24, 30, 12)
-      .fill({ color: agent.selected ? COLORS.gold : sourceColor, alpha: 0.78 })
-      .stroke({ width: 2, color: COLORS.white, alpha: 0.92 })
+      .fill({ color: selected ? COLORS.gold : sourceColor, alpha: 0.78 })
+      .stroke({ width: inspected ? 3 : 2, color: inspected ? accent : COLORS.white, alpha: inspected ? 1 : 0.92 })
       .circle(0, -8, 15)
       .fill({ color: 0xffd5e4, alpha: 0.98 })
-      .stroke({ width: 2, color: COLORS.white, alpha: 0.94 });
+      .stroke({ width: inspected ? 3 : 2, color: selected ? COLORS.gold : COLORS.white, alpha: inspected || selected ? 1 : 0.94 });
     marker.addChild(body);
 
     const eyes = new Graphics()
@@ -528,6 +618,7 @@ function drawPulses(
   projection: IsoProjection,
   language: AppLanguage,
   tiledMapResource: RealmTiledMapResource | undefined,
+  animationPhase: number,
 ): void {
   const locationById = new Map(locations.map((location, index) => [location.id, { location, index }]));
   pulses.forEach((pulse, pulseIndex) => {
@@ -535,19 +626,86 @@ function drawPulses(
     if (!entry) return;
     const screen = resolveLocationScreen(entry.location, entry.index, projection, tiledMapResource, 4);
     const color = colorForPulse(pulse);
+    const motion = pulseWave(animationPhase, pulseIndex * 0.72);
     const ring = new Graphics()
-      .ellipse(screen.x, screen.y + 3, projection.tileWidth * (0.45 + pulseIndex * 0.035), projection.tileHeight * (0.24 + pulseIndex * 0.02))
-      .stroke({ width: 2, color, alpha: Math.max(0.14, 0.52 - pulseIndex * 0.06) });
+      .ellipse(screen.x, screen.y + 3, projection.tileWidth * (0.45 + pulseIndex * 0.035 + motion * 0.035), projection.tileHeight * (0.24 + pulseIndex * 0.02 + motion * 0.018))
+      .stroke({ width: 2, color, alpha: Math.max(0.12, 0.48 - pulseIndex * 0.055 + motion * 0.11) });
     root.addChild(ring);
 
     if (pulseIndex < 2) {
       const label = createText(formatPulseLabel(pulse, language), 10, color, "bold");
       label.anchor.set(0.5);
       label.x = screen.x;
-      label.y = screen.y - projection.tileHeight * 0.78 - pulseIndex * 14;
+      label.y = screen.y - projection.tileHeight * 0.78 - pulseIndex * 14 - motion * 2;
+      label.alpha = 0.86 + motion * 0.14;
       root.addChild(label);
     }
   });
+}
+
+function drawDetailCard(
+  root: Container,
+  size: StageSize,
+  projection: IsoProjection,
+  viewModel: RealmMapViewModel,
+  detailTarget: RealmMapInspectedItem,
+  tiledMapResource: RealmTiledMapResource | undefined,
+  language: AppLanguage,
+  animationPhase: number,
+): void {
+  const detail = createDetailCardContent(viewModel, detailTarget, language);
+  if (!detail) return;
+
+  const anchor = resolveDetailAnchor(viewModel, detailTarget, projection, tiledMapResource);
+  if (!anchor) return;
+
+  const card = new Container();
+  const content = new Container();
+
+  const tag = createText(detail.kindLabel, 10, detail.accent, "bold");
+  tag.x = DETAIL_CARD_PADDING;
+  tag.y = 12;
+  content.addChild(tag);
+
+  const title = createText(detail.title, 14, COLORS.ink, "bold");
+  title.x = DETAIL_CARD_PADDING;
+  title.y = 29;
+  content.addChild(title);
+
+  let nextLineY = 54;
+  detail.lines.forEach((line, index) => {
+    const text = new Text({
+      text: line,
+      style: {
+        fill: index === 0 ? COLORS.ink : COLORS.inkMuted,
+        fontFamily: "Nunito, Inter, ui-sans-serif, system-ui, sans-serif",
+        fontSize: 11,
+        fontWeight: "bold",
+        lineHeight: 15,
+        wordWrap: true,
+        wordWrapWidth: DETAIL_CARD_WIDTH - DETAIL_CARD_PADDING * 2,
+      },
+    });
+    text.x = DETAIL_CARD_PADDING;
+    text.y = nextLineY;
+    content.addChild(text);
+    nextLineY += text.height + DETAIL_CARD_LINE_GAP;
+  });
+
+  const cardHeight = Math.max(92, nextLineY + DETAIL_CARD_PADDING - DETAIL_CARD_LINE_GAP);
+  const position = clampCardPosition(anchor.x + 24, anchor.y - cardHeight - 20, DETAIL_CARD_WIDTH, cardHeight, size);
+  const motion = pulseWave(animationPhase, detailTarget.kind === "agent" ? 0.35 : 0);
+  card.x = position.x;
+  card.y = position.y - motion * 1.5;
+  card.alpha = 0.94 + motion * 0.06;
+
+  const panel = new Graphics()
+    .roundRect(0, 0, DETAIL_CARD_WIDTH, cardHeight, 18)
+    .fill({ color: COLORS.white, alpha: 0.96 })
+    .stroke({ width: 2, color: detail.accent, alpha: 0.82 });
+  card.addChild(panel);
+  card.addChild(content);
+  root.addChild(card);
 }
 
 function drawTiledMapDiagnostic(root: Container, size: StageSize, errorMessage: string, language: AppLanguage): void {
@@ -628,6 +786,73 @@ function resolveAgentScreen(
   }
   const point = resolveLocationPoint(location, index);
   return isoToScreen(projection, point.gridX + 0.7, point.gridY + 0.72);
+}
+
+function resolveInspectedTarget(viewModel: RealmMapViewModel, inspectedItem: RealmMapInspectedItem | undefined): RealmMapInspectedItem | undefined {
+  if (inspectedItem?.kind === "location" && viewModel.locations.some((location) => location.id === inspectedItem.id)) return inspectedItem;
+  if (inspectedItem?.kind === "agent" && viewModel.agents.some((agent) => agent.id === inspectedItem.id)) return inspectedItem;
+  return undefined;
+}
+
+function resolveSelectedDetailTarget(viewModel: RealmMapViewModel): RealmMapInspectedItem | undefined {
+  if (viewModel.selectedAgentId && viewModel.agents.some((agent) => agent.id === viewModel.selectedAgentId)) return { kind: "agent", id: viewModel.selectedAgentId };
+  if (viewModel.selectedLocationId && viewModel.locations.some((location) => location.id === viewModel.selectedLocationId)) return { kind: "location", id: viewModel.selectedLocationId };
+  return undefined;
+}
+
+function resolveDetailAnchor(
+  viewModel: RealmMapViewModel,
+  detailTarget: RealmMapInspectedItem,
+  projection: IsoProjection,
+  tiledMapResource: RealmTiledMapResource | undefined,
+): StagePoint | undefined {
+  if (detailTarget.kind === "location") {
+    const index = viewModel.locations.findIndex((location) => location.id === detailTarget.id);
+    const location = viewModel.locations[index];
+    return location ? resolveLocationScreen(location, index, projection, tiledMapResource, projection.tileHeight * 0.62) : undefined;
+  }
+
+  const agent = viewModel.agents.find((candidate) => candidate.id === detailTarget.id);
+  if (!agent) return undefined;
+  const index = viewModel.locations.findIndex((location) => location.id === agent.locationId);
+  const location = viewModel.locations[index];
+  if (!location) return undefined;
+  const base = resolveAgentScreen(location, index, projection, tiledMapResource);
+  return { x: base.x + agent.xOffset * 0.35, y: base.y + agent.yOffset * 0.25 - 28 };
+}
+
+function createDetailCardContent(viewModel: RealmMapViewModel, detailTarget: RealmMapInspectedItem, language: AppLanguage): { kindLabel: string; title: string; lines: string[]; accent: number } | undefined {
+  if (detailTarget.kind === "location") {
+    const locationIndex = viewModel.locations.findIndex((location) => location.id === detailTarget.id);
+    const location = viewModel.locations[locationIndex];
+    if (!location) return undefined;
+    return {
+      kindLabel: language === "zh" ? "地点" : "Location",
+      title: location.displayName,
+      lines: [location.occupancyLabel, location.activityLabel, location.description],
+      accent: location.selected ? COLORS.gold : accentForIndex(locationIndex),
+    };
+  }
+
+  const agent = viewModel.agents.find((candidate) => candidate.id === detailTarget.id);
+  if (!agent) return undefined;
+  return {
+    kindLabel: language === "zh" ? "角色" : "Agent",
+    title: agent.displayName,
+    lines: [
+      `${agent.roleLabel} · ${agent.status}`,
+      agent.currentIntent ?? agent.activityText ?? (language === "zh" ? "暂无当前意图" : "No current intent"),
+      `${language === "zh" ? "关系" : "Relationships"}: ${agent.relationshipCount}`,
+    ],
+    accent: agent.selected ? COLORS.gold : colorForSource(agent.activitySource),
+  };
+}
+
+function clampCardPosition(x: number, y: number, width: number, height: number, size: StageSize): StagePoint {
+  return {
+    x: Math.max(12, Math.min(x, size.width - width - 12)),
+    y: Math.max(12, Math.min(y, size.height - height - 12)),
+  };
 }
 
 function resolveLocationDepth(locationId: string, locationEntries: ReadonlyMap<string, LocationRenderEntry>, tiledMapResource: RealmTiledMapResource | undefined): number {

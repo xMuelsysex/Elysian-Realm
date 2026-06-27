@@ -4,6 +4,7 @@ import type { AppLanguage } from "../shared/i18n.js";
 import { formatSourceLabel } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
 import { RealmIsometricStage } from "./RealmIsometricStage.js";
+import type { RealmMapInspectedItem } from "./RealmIsometricStage.js";
 
 interface RealmMapPanelProps {
   language: AppLanguage;
@@ -14,6 +15,7 @@ interface RealmMapPanelProps {
 
 export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLocation }: RealmMapPanelProps) {
   const [tiledMapError, setTiledMapError] = useState<string | undefined>();
+  const [inspectedItem, setInspectedItem] = useState<RealmMapInspectedItem | undefined>();
 
   return (
     <section className="panel realm-map-panel" aria-labelledby="realm-map-heading">
@@ -27,7 +29,15 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
 
       <p className="realm-map-summary">{viewModel.summary}</p>
 
-      <RealmIsometricStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} onTiledMapErrorChange={setTiledMapError} />
+      <RealmIsometricStage
+        language={language}
+        viewModel={viewModel}
+        inspectedItem={inspectedItem}
+        onInspectItemChange={setInspectedItem}
+        onSelectAgent={onSelectAgent}
+        onSelectLocation={onSelectLocation}
+        onTiledMapErrorChange={setTiledMapError}
+      />
 
       {tiledMapError ? (
         <p className="realm-map-diagnostic" role="status">
@@ -45,6 +55,7 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
             location={location}
             agents={viewModel.agents.filter((agent) => agent.locationId === location.id)}
             pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id && (pulse.source !== "system" || pulse.tone === "error")).slice(0, 3)}
+            onInspectItemChange={setInspectedItem}
             onSelectAgent={onSelectAgent}
             onSelectLocation={onSelectLocation}
           />
@@ -69,11 +80,12 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
   );
 }
 
-function MapLocation({ language, location, agents, pulses, onSelectAgent, onSelectLocation }: {
+function MapLocation({ language, location, agents, pulses, onInspectItemChange, onSelectAgent, onSelectLocation }: {
   language: AppLanguage;
   location: RealmMapLocationNode;
   agents: RealmMapAgentMarker[];
   pulses: RealmMapEventPulse[];
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void;
   onSelectAgent: (agentId: string) => void;
   onSelectLocation: (locationId: string) => void;
 }) {
@@ -84,7 +96,9 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
         className={location.selected ? "realm-map-location realm-map-location--selected" : "realm-map-location"}
         aria-pressed={location.selected}
         aria-label={`${language === "zh" ? "选择地点" : "Select location"}: ${location.displayName}`}
+        onBlur={() => onInspectItemChange(undefined)}
         onClick={() => onSelectLocation(location.id)}
+        onFocus={() => onInspectItemChange({ kind: "location", id: location.id })}
       >
         <span className="realm-map-location-title">{location.displayName}</span>
         <span className="realm-map-location-code">{location.id}</span>
@@ -102,7 +116,9 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
             style={{ transform: `translate(${agent.xOffset}px, ${agent.yOffset}px)` }}
             aria-pressed={agent.selected}
             aria-label={`${language === "zh" ? "选择角色" : "Select agent"}: ${agent.displayName}; ${language === "zh" ? "状态" : "status"}: ${agent.status}`}
+            onBlur={() => onInspectItemChange(undefined)}
             onClick={() => onSelectAgent(agent.id)}
+            onFocus={() => onInspectItemChange({ kind: "agent", id: agent.id })}
             title={agent.currentIntent ?? agent.status}
           >
             <span className="realm-map-agent-face" aria-hidden="true">{createAgentInitials(agent.displayName)}</span>
