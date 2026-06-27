@@ -89,6 +89,35 @@ No styling framework has been selected yet. Regardless of stack:
 - do not encode domain state only in CSS class names;
 - make provenance and error states visually consistent.
 
+### Pixi Map Animation Convention
+
+Pixi map animation must stay UI-only. The renderer may keep local interaction state such as an inspected/hovered item and an animation phase, but simulation facts must continue to come from `RealmMapViewModel`.
+
+When a Pixi stage uses a ticker:
+
+```ts
+const renderCurrentStage = () => renderLatestStage(app, latestRenderRef.current, resourceRef.current, errorRef.current, animationPhaseRef.current);
+const onAnimationTick = () => {
+  animationPhaseRef.current = performance.now() * 0.001 * BREATH_SPEED;
+  renderCurrentStage();
+};
+
+app.ticker.add(onAnimationTick);
+
+// In teardown:
+app.ticker.remove(onAnimationTick);
+app.stage.removeChildren().forEach((child) => child.destroy({ children: true }));
+app.destroy({ removeView: true }, { children: true });
+```
+
+Required checks:
+
+- pass a single animation phase into draw helpers instead of storing phase on map entities;
+- keep hover, selected, pulse, bounce, and card easing visual-only;
+- use the same draw path for Tiled success and procedural fallback, with only coordinate resolution differing;
+- remove ticker callbacks before destroying the Pixi app;
+- surface Tiled load errors through visible diagnostics and logs.
+
 ## Forbidden Patterns
 
 - `event.payload as any` in a component.
