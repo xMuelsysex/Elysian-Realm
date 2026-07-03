@@ -583,3 +583,37 @@ Added deterministic memory records, append-only in-memory storage, retrieval sco
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Simulation agent reflection boundary
+
+**Date**: 2026-07-04
+**Task**: Simulation agent reflection boundary
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added provider-agnostic reflection contracts, validation, injected planner runner, offline tests, specs, and archived the M3 Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c938fca` | (see git log) |
+| `b409205` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
