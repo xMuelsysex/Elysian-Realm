@@ -718,3 +718,37 @@ Added SimulationAgentRuntime.tickSync, migrated the Elysian simulation adapter t
 ### Next Steps
 
 - None - task complete
+
+
+## Session 22: Simulation agent package usage example
+
+**Date**: 2026-07-04
+**Task**: Simulation agent package usage example
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added package-level usage documentation and an executable public-entrypoint example for SimulationAgentRuntime, memory, and explicit reflection composition, then archived the M6 task after validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0dd47ff` | (see git log) |
+| `5943deb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
