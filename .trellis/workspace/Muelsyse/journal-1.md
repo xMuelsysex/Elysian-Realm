@@ -549,3 +549,37 @@ Moved the cognitive loop seed into @elysian/simulation-agent, validated the pack
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Add simulation agent memory primitives
+
+**Date**: 2026-07-04
+**Task**: Add simulation agent memory primitives
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added deterministic memory records, append-only in-memory storage, retrieval scoring, diagnostics, and package-root tests for @elysian/simulation-agent.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95300be` | (see git log) |
+| `ae79b03` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

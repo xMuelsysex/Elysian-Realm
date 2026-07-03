@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-07-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~551 | Active |
+| `journal-1.md` | ~585 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-07-04 | Add simulation agent memory primitives | `95300be`, `ae79b03` | `feature/agent-cognitive-loop-core` |
 | 16 | 2026-07-04 | Package simulation agent core | `843d4a3`, `a2665c8` | `feature/agent-cognitive-loop-core` |
 | 15 | 2026-06-21 | Polish Tiled visual baseline | `bd36c6b` | `feature/tiled-pixi-isometric-map` |
 | 14 | 2026-06-21 | Implement Tiled Pixi isometric map | `7bff97a`, `136ef0a` | `feature/tiled-pixi-isometric-map` |
