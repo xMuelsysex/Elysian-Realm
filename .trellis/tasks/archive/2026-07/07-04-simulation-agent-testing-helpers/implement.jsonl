@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-testing-helpers/prd.md", "reason": "M7 requirements and acceptance criteria"}
+{"file": ".trellis/tasks/07-04-simulation-agent-testing-helpers/design.md", "reason": "Testing helper API design"}
+{"file": ".trellis/tasks/07-04-simulation-agent-testing-helpers/implement.md", "reason": "Implementation order and validation commands"}
+{"file": ".trellis/tasks/archive/2026-07/07-03-agent-framework-scope/design.md", "reason": "Parent package layout reserved src/testing helpers"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Package public API and boundary contract"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic test quality bar"}
