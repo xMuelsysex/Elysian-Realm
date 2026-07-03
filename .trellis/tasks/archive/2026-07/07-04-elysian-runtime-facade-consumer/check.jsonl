@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-elysian-runtime-facade-consumer/prd.md", "reason": "M5 acceptance criteria and out-of-scope constraints"}
+{"file": ".trellis/tasks/07-04-elysian-runtime-facade-consumer/design.md", "reason": "tickSync facade and Elysian adapter target shape"}
+{"file": ".trellis/tasks/07-04-elysian-runtime-facade-consumer/implement.md", "reason": "Implementation order and validation commands"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Runtime facade and authoritative engine boundaries"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible failure expectations"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required tests and boundary checks"}

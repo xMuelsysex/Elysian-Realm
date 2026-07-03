@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-runtime-facade/prd.md", "reason": "M4 runtime facade goal, acceptance criteria, and out-of-scope boundaries"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-runtime-facade/design.md", "reason": "SimulationAgentRuntime contract and explicit no-auto-reflection decision"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Cognitive loop, runtime facade, engine sync contract, and package boundary rules"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory/reflection ownership and no fake memory contracts"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible failures and no fabricated agent behavior"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and review checklist"}
