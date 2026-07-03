@@ -650,3 +650,37 @@ Archived the completed agent framework scope parent after M1 package boundary, M
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: Simulation agent runtime facade
+
+**Date**: 2026-07-04
+**Task**: Simulation agent runtime facade
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added and archived the SimulationAgentRuntime facade, composing cognitive ticks, memory writes, explicit reflection dry-runs, and optional reflection persistence with offline tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1cf1d1e` | (see git log) |
+| `b933600` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
