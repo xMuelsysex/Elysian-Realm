@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/prd.md", "reason": "M6 requirements and acceptance criteria"}
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/design.md", "reason": "Documentation and executable example design"}
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/implement.md", "reason": "Implementation order and validation commands"}
+{"file": ".trellis/tasks/archive/2026-07/07-03-agent-framework-scope/prd.md", "reason": "Parent package/framework scope and documentation expectations"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Package boundary and runtime facade contract"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory and reflection contracts used in the example"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and boundary expectations"}

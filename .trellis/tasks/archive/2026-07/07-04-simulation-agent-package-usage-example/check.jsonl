@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/prd.md", "reason": "Acceptance criteria"}
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/design.md", "reason": "Expected docs and usage-test boundaries"}
+{"file": ".trellis/tasks/07-04-simulation-agent-package-usage-example/implement.md", "reason": "Required validation commands"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Import and facade contract checks"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory/reflection evidence-link checks"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality gate"}
