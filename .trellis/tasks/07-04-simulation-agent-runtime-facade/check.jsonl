@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-runtime-facade/prd.md", "reason": "M4 acceptance criteria and explicit out-of-scope decisions"}
+{"file": ".trellis/tasks/07-04-simulation-agent-runtime-facade/design.md", "reason": "Runtime facade API, behavior, and persistence tradeoff"}
+{"file": ".trellis/tasks/07-04-simulation-agent-runtime-facade/implement.md", "reason": "Implementation order, validation commands, and commit boundary"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory/reflection contracts and evidence-link rules"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Host-owned world state and cognitive-loop boundaries"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible facade failures and no fake success"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required offline tests and package boundary checks"}

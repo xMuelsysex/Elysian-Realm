@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/archive/2026-07/07-03-simulation-agent-package-boundary/prd.md", "reason": "M1 package boundary and public-entrypoint constraints"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-memory-slice/prd.md", "reason": "M2 memory store, retrieval, and diagnostics requirements"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-reflection-boundary/prd.md", "reason": "M3 reflection boundary requirements and out-of-scope constraints"}
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-reflection-boundary/design.md", "reason": "Concrete reflection input/output, planner, validation, and memory-write shape"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Implemented memory and reflection package contracts"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Cognitive loop and host world-state ownership boundaries"}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Injected provider/planner boundary and no live model tests"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible failures and no fabricated agent behavior"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and review checklist"}

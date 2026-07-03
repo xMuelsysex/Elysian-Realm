@@ -442,6 +442,7 @@ export interface ActionSink<ActionProposal> {
 
 export function runCognitiveTick(...): Promise<CognitiveTickResult<ActionProposal>>;
 export function runCognitiveTickSync(...): CognitiveTickResult<ActionProposal>;
+export class SimulationAgentRuntime<...> { ... }
 ```
 
 Engine step remains synchronous and exposes agent diagnostics outside the event log:
@@ -541,6 +542,152 @@ if (tick.proposal) {
 }
 
 import { runCognitiveTickSync } from "@elysian/simulation-agent";
+```
+
+## Implemented Simulation Agent Runtime Facade Contract
+
+### 1. Scope / Trigger
+
+M4 added the first package-owned runtime facade over the M1 cognitive loop, M2 memory store, and M3 reflection boundary. Update this section whenever runtime facade constructor dependencies, `tick`, `reflect`, reflection persistence behavior, or runtime diagnostics change.
+
+Current source paths:
+
+- `packages/simulation-agent/src/runtime/simulationAgentRuntime.ts`
+- `tests/simulationAgentRuntime.test.ts`
+
+### 2. Signatures
+
+The package exports the facade only from `@elysian/simulation-agent`:
+
+```ts
+export interface ReflectionMemoryWriter<ReflectionMetadata = Record<string, unknown>> {
+  remember(
+    agentId: string,
+    write: MemoryWrite<ReflectionMetadata>,
+  ): MemoryRecord<ReflectionMetadata> | void;
+}
+
+export type SimulationAgentRuntimeDeps<P, MQ, MH, MW, A, RM = Record<string, unknown>> =
+  CognitiveLoopDeps<P, MQ, MH, MW, A> & {
+    reflectionMemory?: ReflectionMemoryWriter<RM>;
+  };
+
+export interface SimulationAgentRuntimeOptions {
+  persistReflectionWrites?: boolean;
+}
+
+export interface RuntimeReflectionOptions {
+  request?: LlmRequestOptionsLike;
+  persistWrites?: boolean;
+}
+
+export interface RuntimeReflectionResult<RM = Record<string, unknown>>
+  extends ReflectionResult<RM> {
+  persistedRecords: readonly MemoryRecord<RM>[];
+}
+
+export class SimulationAgentRuntime<P, MQ, MH, MW, A, RM = Record<string, unknown>> {
+  tick(agentId: string, now: string): Promise<CognitiveTickResult<A>>;
+  reflect<EvidenceMetadata>(
+    input: ReflectionInput<EvidenceMetadata>,
+    planner: ReflectionPlanner<EvidenceMetadata, RM>,
+    options?: RuntimeReflectionOptions,
+  ): Promise<RuntimeReflectionResult<RM>>;
+}
+```
+
+### 3. Contracts
+
+- `tick` delegates to `runCognitiveTick`; it must not duplicate loop phase logic or change the reflect phase into an automatic scheduler.
+- `reflect` delegates to `runReflection`; it must preserve M3 validation, diagnostics, and evidence-link rules.
+- Dry-run reflection is the default. It returns candidate `memoryWrites` and `persistedRecords: []`.
+- Reflection persistence is explicit via `persistReflectionWrites` or per-call `persistWrites`.
+- Reflection persistence uses `reflectionMemory`, not the generic loop `memory` port, so host-specific loop memory write types do not get confused with `MemoryWrite<ReflectionMetadata>`.
+- If persistence is requested without a `reflectionMemory` writer, return `status: "failed"`, no `memoryWrites`, and a visible diagnostic.
+- The runtime facade still does not own world state, provider configuration, retry policy, budgets, secrets, embeddings, or multi-agent scheduling.
+
+### 4. Validation & Error Matrix
+
+- perception/retrieval/planning failure during `tick` -> same phase diagnostics as `runCognitiveTick`
+- reflection input/planner/output failure -> same failed result as `runReflection`, `persistedRecords: []`
+- `reflect` dry-run -> no memory persistence
+- `reflect` persistence requested without `reflectionMemory` -> failed output diagnostic
+- `reflectionMemory.remember` throws -> failed output diagnostic; do not report completed persistence
+- malformed reflection output -> failed result and no persisted reflection memory
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const runtime = new SimulationAgentRuntime({
+  perception,
+  memory: store.toPort(),
+  planning,
+  actionSink,
+  buildMemoryQuery,
+  buildMemoryWrite,
+  reflectionMemory: store,
+}, { persistReflectionWrites: true });
+
+await runtime.tick(agentId, now);
+await runtime.reflect(reflectionInput, fakeReflectionPlanner);
+```
+
+Base:
+
+```ts
+const dryRun = await runtime.reflect(reflectionInput, fakeReflectionPlanner);
+dryRun.memoryWrites;      // candidate writes
+dryRun.persistedRecords; // []
+```
+
+Bad:
+
+```ts
+// Do not hide scheduling policy inside the facade's tick.
+await runtime.tick(agentId, now); // must not auto-run reflection every tick
+
+// Do not pass host world state mutation through runtime memory.
+snapshot.agents[0].locationId = "garden";
+```
+
+### 6. Tests Required
+
+Runtime facade tests must assert:
+
+- `tick` runs through the existing cognitive loop and exposes proposal diagnostics;
+- `tick` records memories through the existing memory write hook;
+- dry-run `reflect` returns candidate writes without mutating the memory store;
+- persisting `reflect` writes `kind: "reflection"` records with evidence links;
+- per-call dry-run can override a persisting runtime;
+- malformed planner output and thrown planner errors do not persist fake records;
+- persistence requested without a writer fails visibly;
+- tests import only from `@elysian/simulation-agent`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// A facade that reimplements phases becomes a second cognitive loop.
+class Runtime {
+  async tick(...) {
+    await perceive();
+    await retrieve();
+    await plan();
+  }
+}
+```
+
+#### Correct
+
+```ts
+class SimulationAgentRuntime {
+  tick(agentId: string, now: string) {
+    return runCognitiveTick(agentId, now, this.deps);
+  }
+}
 ```
 
 ## Concurrency Rule
