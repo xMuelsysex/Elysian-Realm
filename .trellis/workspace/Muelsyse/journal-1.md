@@ -752,3 +752,37 @@ Added package-level usage documentation and an executable public-entrypoint exam
 ### Next Steps
 
 - None - task complete
+
+
+## Session 23: Simulation agent testing helpers
+
+**Date**: 2026-07-04
+**Task**: Simulation agent testing helpers
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added public testing helpers for static perception, deterministic planning, memory port stubbing, and action collection; documented the helper surface and archived the M7 task after validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4ff19e8` | (see git log) |
+| `6558973` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
