@@ -1,4 +1,9 @@
-import { runCognitiveTickSync, type CognitiveLoopDeps, type PhaseDiagnostic, type PlanningPort } from "@elysian/simulation-agent";
+import {
+  SimulationAgentRuntime,
+  type CognitiveLoopDeps,
+  type PhaseDiagnostic,
+  type PlanningPort,
+} from "@elysian/simulation-agent";
 import type { AgentRuntimeState, PersonaSpec, PlanAction, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { AgentId, AgentStatus, LocationId, OperationId, PersonaId } from "../../shared/domain/index.js";
 import { pilotPersonas } from "../personas/index.js";
@@ -72,7 +77,8 @@ export function runAgentCognitiveTickForEngine(
     }),
   };
 
-  const result = runCognitiveTickSync(agent.id, snapshot.currentTime, deps);
+  const runtime = new SimulationAgentRuntime(deps);
+  const result = runtime.tickSync(agent.id, snapshot.currentTime);
   const proposal = result.proposal ?? submitted[0];
   return {
     agentId: agent.id,

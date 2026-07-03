@@ -8,6 +8,7 @@ import {
   type MemoryRetrievalQuery,
   type MemoryWrite,
   type PhaseDiagnostic,
+  type PlanningPort,
   type ReflectionInput,
   type ReflectionPlanner,
 } from "@elysian/simulation-agent";
@@ -36,6 +37,7 @@ interface DemoProposal {
 
 type DemoHit = MemoryRetrievalHit<DemoMetadata>;
 type DemoWrite = MemoryWrite<DemoMetadata>;
+type DemoPlanningPort = PlanningPort<DemoPerception, DemoHit, DemoProposal>;
 
 function seedStore(): InMemoryMemoryStore<DemoMetadata> {
   const store = new InMemoryMemoryStore<DemoMetadata>();
@@ -63,7 +65,13 @@ function seedStore(): InMemoryMemoryStore<DemoMetadata> {
   return store;
 }
 
-function createRuntime(options: { persistReflectionWrites?: boolean; includeReflectionMemory?: boolean } = {}): {
+function createRuntime(
+  options: {
+    persistReflectionWrites?: boolean;
+    includeReflectionMemory?: boolean;
+    planning?: DemoPlanningPort;
+  } = {},
+): {
   runtime: SimulationAgentRuntime<
     DemoPerception,
     MemoryRetrievalQuery,
@@ -95,7 +103,7 @@ function createRuntime(options: { persistReflectionWrites?: boolean; includeRefl
         }),
       },
       memory: store.toPort(),
-      planning: {
+      planning: options.planning ?? {
         plan: ({ memories }) => ({
           source: "deterministic",
           reason: `retrieved ${memories.length} relevant memories about Eden`,
@@ -192,6 +200,51 @@ test("runtime tick delegates to the cognitive loop and records memory through th
   const planMemory = records.find((record) => record.kind === "plan");
   assert.ok(planMemory);
   assert.deepEqual(planMemory.relatedMemoryIds, submittedActions[0]?.proposal.evidenceMemoryIds);
+});
+
+test("runtime tickSync delegates to the sync cognitive loop and records memory through the configured store", () => {
+  const { runtime, store, submittedActions } = createRuntime();
+
+  const result = runtime.tickSync(AGENT_ID, NOW);
+
+  assert.equal(result.agentId, AGENT_ID);
+  assert.equal(phaseStatus(result.phases, "perceive").status, "ran");
+  assert.equal(phaseStatus(result.phases, "retrieve").status, "ran");
+  assert.equal(phaseStatus(result.phases, "plan").status, "ran");
+  assert.equal(phaseStatus(result.phases, "act").status, "ran");
+  assert.equal(phaseStatus(result.phases, "remember").status, "ran");
+  assert.equal(phaseStatus(result.phases, "reflect").status, "skipped");
+  assert.deepEqual(result.proposal, submittedActions[0]?.proposal);
+
+  const planMemory = store.list(AGENT_ID).find((record) => record.kind === "plan");
+  assert.ok(planMemory);
+  assert.deepEqual(planMemory.relatedMemoryIds, submittedActions[0]?.proposal.evidenceMemoryIds);
+});
+
+test("runtime tickSync exposes async-planner misuse as a failed diagnostic", () => {
+  const { runtime, submittedActions } = createRuntime({
+    planning: {
+      plan: async () => ({
+        source: "deterministic",
+        reason: "async planner should use runtime.tick",
+        proposal: {
+          kind: "check-in",
+          targetAgentId: "agent_eden",
+          intent: "This async proposal must not be accepted by tickSync.",
+          evidenceMemoryIds: [],
+        },
+      }),
+    },
+  });
+
+  const result = runtime.tickSync(AGENT_ID, NOW);
+
+  assert.equal(result.proposal, undefined);
+  assert.deepEqual(submittedActions, []);
+  const plan = phaseStatus(result.phases, "plan");
+  assert.equal(plan.status, "failed");
+  assert.match(plan.detail, /sync cognitive tick received an async plan result/);
+  assert.equal(phaseStatus(result.phases, "act").status, "skipped");
 });
 
 test("runtime reflection dry-run returns candidate writes without persisting them", async () => {

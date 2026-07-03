@@ -1,4 +1,4 @@
-import { runCognitiveTick } from "../loop/cognitiveLoop.js";
+import { runCognitiveTick, runCognitiveTickSync } from "../loop/cognitiveLoop.js";
 import type {
   CognitiveLoopDeps,
   CognitiveTickResult,
@@ -82,6 +82,10 @@ export class SimulationAgentRuntime<
 
   tick(agentId: string, now: string): Promise<CognitiveTickResult<ActionProposal>> {
     return runCognitiveTick(agentId, now, this.deps);
+  }
+
+  tickSync(agentId: string, now: string): CognitiveTickResult<ActionProposal> {
+    return runCognitiveTickSync(agentId, now, this.deps);
   }
 
   async reflect<EvidenceMetadata = Record<string, unknown>>(

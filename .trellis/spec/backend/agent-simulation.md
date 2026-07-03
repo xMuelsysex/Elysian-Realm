@@ -417,7 +417,7 @@ The first executable agent runtime slice lives in the workspace package `package
 `@elysian/simulation-agent` is port-converged and has no Elysian concrete imports. Host code imports only from the package root:
 
 ```ts
-import { runCognitiveTickSync, type CognitiveLoopDeps } from "@elysian/simulation-agent";
+import { SimulationAgentRuntime, type CognitiveLoopDeps } from "@elysian/simulation-agent";
 ```
 
 Current public API:
@@ -460,7 +460,7 @@ interface SimulationStepResult {
 - `packages/simulation-agent/src/**` must not import `src/shared/**`, `src/server/**`, `src/app/**`, or Elysian domain/contracts concrete types.
 - Elysian app/server/test code must import `@elysian/simulation-agent` only through the package root, never `packages/simulation-agent/src/**` or `@elysian/simulation-agent/src/**`.
 - The root `build:server` path must build the package first so runtime tests resolve the package's built `dist/index.js`.
-- The sync simulation engine uses `runCognitiveTickSync`; future LLM-backed planners use `runCognitiveTick` or an async engine operation boundary.
+- The sync simulation engine uses `SimulationAgentRuntime.tickSync`, which delegates to `runCognitiveTickSync`; future LLM-backed planners use `SimulationAgentRuntime.tick` or an async engine operation boundary.
 - The Elysian adapter passes a copied read-only perception projection into the package. It must not hand mutable `WorldSnapshot` / `AgentRuntimeState` references to the loop.
 - The package only submits a typed proposal to `ActionSink`; `engine.ts` remains the single place that applies proposals to authoritative state and emits `SimulationEvent`s.
 - `agentTickDiagnostics` are visible on `SimulationStepResult` and must not be appended to `events`, because diagnostics must not perturb replay event sequences.
@@ -469,7 +469,7 @@ interface SimulationStepResult {
 
 - Perception/retrieval/planning throws -> that phase is `failed`, later phases are `skipped`, no proposal is submitted.
 - Planner returns malformed structured output -> `plan` phase is `failed`, no proposal is submitted.
-- `runCognitiveTickSync` receives a Promise-returning planner -> `plan` phase is `failed` with an async misuse message; use the async loop or an operation boundary instead.
+- `SimulationAgentRuntime.tickSync` / `runCognitiveTickSync` receives a Promise-returning planner -> `plan` phase is `failed` with an async misuse message; use the async loop or an operation boundary instead.
 - Agent has `inProgressOperationId` -> deterministic adapter planner returns `source: "skipped"`, so no second proposal is started.
 - Plan source is `"skipped"` or has no proposal -> `act` phase is `skipped` and `ActionSink.submit` is not called.
 - Package imports Elysian source modules or host code deep-imports package source -> fail the boundary scan before review.
@@ -541,7 +541,7 @@ if (tick.proposal) {
   // engine.ts applies the proposal and emits replay-visible events.
 }
 
-import { runCognitiveTickSync } from "@elysian/simulation-agent";
+import { SimulationAgentRuntime } from "@elysian/simulation-agent";
 ```
 
 ## Implemented Simulation Agent Runtime Facade Contract
@@ -588,6 +588,7 @@ export interface RuntimeReflectionResult<RM = Record<string, unknown>>
 
 export class SimulationAgentRuntime<P, MQ, MH, MW, A, RM = Record<string, unknown>> {
   tick(agentId: string, now: string): Promise<CognitiveTickResult<A>>;
+  tickSync(agentId: string, now: string): CognitiveTickResult<A>;
   reflect<EvidenceMetadata>(
     input: ReflectionInput<EvidenceMetadata>,
     planner: ReflectionPlanner<EvidenceMetadata, RM>,
@@ -599,6 +600,7 @@ export class SimulationAgentRuntime<P, MQ, MH, MW, A, RM = Record<string, unknow
 ### 3. Contracts
 
 - `tick` delegates to `runCognitiveTick`; it must not duplicate loop phase logic or change the reflect phase into an automatic scheduler.
+- `tickSync` delegates to `runCognitiveTickSync`; it preserves the sync engine contract and visible async-planner misuse diagnostic.
 - `reflect` delegates to `runReflection`; it must preserve M3 validation, diagnostics, and evidence-link rules.
 - Dry-run reflection is the default. It returns candidate `memoryWrites` and `persistedRecords: []`.
 - Reflection persistence is explicit via `persistReflectionWrites` or per-call `persistWrites`.
@@ -609,6 +611,7 @@ export class SimulationAgentRuntime<P, MQ, MH, MW, A, RM = Record<string, unknow
 ### 4. Validation & Error Matrix
 
 - perception/retrieval/planning failure during `tick` -> same phase diagnostics as `runCognitiveTick`
+- Promise-returning planner during `tickSync` -> same failed diagnostic as `runCognitiveTickSync`
 - reflection input/planner/output failure -> same failed result as `runReflection`, `persistedRecords: []`
 - `reflect` dry-run -> no memory persistence
 - `reflect` persistence requested without `reflectionMemory` -> failed output diagnostic
@@ -631,6 +634,7 @@ const runtime = new SimulationAgentRuntime({
 }, { persistReflectionWrites: true });
 
 await runtime.tick(agentId, now);
+runtime.tickSync(agentId, now);
 await runtime.reflect(reflectionInput, fakeReflectionPlanner);
 ```
 
@@ -657,6 +661,7 @@ snapshot.agents[0].locationId = "garden";
 Runtime facade tests must assert:
 
 - `tick` runs through the existing cognitive loop and exposes proposal diagnostics;
+- `tickSync` runs through the existing sync cognitive loop and exposes async-planner misuse visibly;
 - `tick` records memories through the existing memory write hook;
 - dry-run `reflect` returns candidate writes without mutating the memory store;
 - persisting `reflect` writes `kind: "reflection"` records with evidence links;
