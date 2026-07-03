@@ -30,7 +30,7 @@ Before writing backend code:
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Backend module ownership and implemented TypeScript slice layout | Active baseline |
 | [Agent Simulation](./agent-simulation.md) | World engine, input queue, event log, conversations, replay | Planning baseline |
-| [Persona and Memory](./persona-memory.md) | Implemented persona schema/validator plus planned memory/retrieval/reflection rules | Active baseline |
+| [Persona and Memory](./persona-memory.md) | Implemented persona schema/validator plus simulation-agent memory/retrieval/reflection contracts | Active baseline |
 | [LLM Orchestration](./llm-orchestration.md) | Provider abstraction, prompt builders, operations, structured outputs | Planning baseline |
 | [Database Guidelines](./database-guidelines.md) | Persistence boundaries for world, events, messages, memories, embeddings | Planning baseline |
 | [Error Handling](./error-handling.md) | Visible failures, operation errors, API error shape | Planning baseline |

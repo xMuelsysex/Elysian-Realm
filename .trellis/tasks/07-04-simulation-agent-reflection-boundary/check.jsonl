@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-reflection-boundary/prd.md", "reason": "M3 acceptance criteria and out-of-scope constraints"}
+{"file": ".trellis/tasks/07-04-simulation-agent-reflection-boundary/design.md", "reason": "Concrete reflection API, validation, diagnostics, and memory-write contract"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Reflection evidence-link and memory creation expectations"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Package boundary and reflect phase compatibility checks"}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Injected LLM/planner and structured output validation expectations"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible failure and no fake reflection memory requirements"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic reflection tests and no live provider requirement"}

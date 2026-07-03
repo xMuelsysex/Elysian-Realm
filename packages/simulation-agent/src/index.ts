@@ -5,3 +5,6 @@ export * from "./memory/memoryRecords.js";
 export * from "./memory/validation.js";
 export * from "./memory/retrieval.js";
 export * from "./memory/inMemoryMemoryStore.js";
+export * from "./reflection/reflectionRecords.js";
+export * from "./reflection/reflectionValidation.js";
+export * from "./reflection/reflectionPlanner.js";

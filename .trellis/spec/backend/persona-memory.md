@@ -446,6 +446,137 @@ const retrieval = store.retrieve(agentId, query);
 // The host decides how retrieval influences future planning.
 ```
 
+## Implemented Simulation Agent Reflection Package Slice Contract
+
+### 1. Scope / Trigger
+
+M3 added the first executable reflection-boundary primitive slice to `@elysian/simulation-agent`. Update this section whenever reflection trigger fields, planner output fields, diagnostics, memory write conversion, or evidence validation rules change.
+
+Current source paths:
+
+- `packages/simulation-agent/src/reflection/reflectionRecords.ts`
+- `packages/simulation-agent/src/reflection/reflectionValidation.ts`
+- `packages/simulation-agent/src/reflection/reflectionPlanner.ts`
+- `tests/simulationAgentReflection.test.ts`
+
+### 2. Signatures
+
+The package exports reflection primitives only from `@elysian/simulation-agent`:
+
+```ts
+export interface ReflectionTrigger {
+  kind: "importance-threshold" | "scheduled" | "conversation-ended" | "user-requested";
+  reason: string;
+  now: string;
+  sourceIds: readonly string[];
+}
+
+export interface ReflectionInput<EvidenceMetadata = Record<string, unknown>> {
+  agentId: string;
+  trigger: ReflectionTrigger;
+  evidence: readonly MemoryRecord<EvidenceMetadata>[];
+  maxInsights?: number;
+}
+
+export interface ReflectionInsightOutput<ReflectionMetadata = Record<string, unknown>> {
+  content: string;
+  evidenceMemoryIds: readonly string[];
+  importance: number; // 0..9
+  tags?: readonly string[];
+  metadata?: ReflectionMetadata;
+}
+
+export interface ReflectionPlanner<EvidenceMetadata = Record<string, unknown>, ReflectionMetadata = Record<string, unknown>> {
+  reflect(
+    input: ReflectionInput<EvidenceMetadata>,
+    options?: LlmRequestOptionsLike,
+  ): Promise<ReflectionPlannerOutput<ReflectionMetadata>> | ReflectionPlannerOutput<ReflectionMetadata>;
+}
+
+export async function runReflection<EvidenceMetadata, ReflectionMetadata>(
+  input: ReflectionInput<EvidenceMetadata>,
+  planner: ReflectionPlanner<EvidenceMetadata, ReflectionMetadata>,
+  options?: LlmRequestOptionsLike,
+): Promise<ReflectionResult<ReflectionMetadata>>;
+```
+
+### 3. Contracts
+
+- `runReflection` consumes an injected planner only. It does not import provider adapters, read env vars, call the network, or write directly to a memory store.
+- A completed reflection returns `MemoryWrite` candidates. The host decides whether and where to persist them.
+- Each generated write uses `kind: "reflection"`, `createdAt: input.trigger.now`, `sourceIds: input.trigger.sourceIds`, `relatedMemoryIds: insight.evidenceMemoryIds`, `importance: insight.importance`, `visibility: "private"`, and copied tags/metadata.
+- Evidence memory IDs must reference memories supplied in `input.evidence`; every evidence memory must belong to `input.agentId`.
+- Failed reflection returns `status: "failed"`, visible diagnostics, and `memoryWrites: []`.
+
+### 4. Validation & Error Matrix
+
+- blank `input.agentId` -> failed input diagnostic
+- invalid `input.trigger.kind` -> failed input diagnostic
+- blank trigger `reason`, invalid trigger `now`, or empty trigger `sourceIds` -> failed input diagnostic
+- empty `input.evidence` -> failed input diagnostic
+- evidence with another `agentId` -> failed input diagnostic with that evidence ID
+- invalid `maxInsights` -> failed input diagnostic
+- planner throws or rejects -> failed planner diagnostic
+- non-object planner output -> failed output diagnostic
+- invalid output source, blank output reason, or empty output insights -> failed output diagnostic
+- blank insight content, empty `evidenceMemoryIds`, unknown evidence ID, invalid `importance`, or blank tags -> failed output diagnostic
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const result = await runReflection(input, fakePlanner);
+const writes = result.status === "completed" ? result.memoryWrites : [];
+```
+
+Base:
+
+```ts
+const planner: ReflectionPlanner = {
+  reflect: () => ({
+    source: "deterministic",
+    reason: "Two memories share a relationship pattern.",
+    insights: [{ content: "...", evidenceMemoryIds: ["memory_0001"], importance: 6 }],
+  }),
+};
+```
+
+Bad:
+
+```ts
+// Do not fabricate a reflection memory after bad model output.
+const result = await runReflection(input, malformedPlanner);
+store.remember(input.agentId, result.memoryWrites[0]); // only valid after checking status and write presence
+```
+
+### 6. Tests Required
+
+Reflection package tests must assert:
+
+- valid fake planners create evidence-linked `kind: "reflection"` memory writes;
+- malformed planner output returns failed diagnostics and no writes;
+- empty evidence/source IDs, wrong-agent evidence, missing evidence IDs, unknown evidence IDs, and invalid importance fail visibly;
+- planner thrown/rejected errors remain visible failures;
+- write arrays and metadata are defensively copied from planner/input arrays;
+- tests import only from `@elysian/simulation-agent` and require no API keys or network.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Hidden provider dependency inside the package.
+const output = await openAiClient.responses.create(prompt);
+```
+
+#### Correct
+
+```ts
+const result = await runReflection(input, hostProvidedPlanner);
+// The host-owned planner handles provider configuration, retries, and secrets.
+```
+
 ## Importance and Reflection Triggers
 
 Importance may be produced by a model or deterministic rubric, but it must be numeric and bounded.

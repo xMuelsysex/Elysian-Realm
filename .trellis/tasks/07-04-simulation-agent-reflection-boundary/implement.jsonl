@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/07-03-agent-framework-scope/prd.md", "reason": "Parent M3 scope decisions and reflection/provider ownership boundaries"}
+{"file": ".trellis/tasks/07-03-agent-framework-scope/design.md", "reason": "Framework package layering, host ownership, and M3 milestone definition"}
+{"file": ".trellis/tasks/07-03-agent-framework-scope/implement.md", "reason": "Cross-milestone guardrails and required M3 verification commands"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Reflection memory, evidence-link, retrieval, and no-fake-memory contracts"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Simulation-agent package boundary and cognitive loop reflect phase constraints"}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Injected provider/planner boundary and structured output failure rules"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Visible reflection validation/provider failures and no fabricated memory"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and forbidden hidden fallback patterns"}
