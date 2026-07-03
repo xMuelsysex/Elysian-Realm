@@ -515,3 +515,37 @@ Polished the Tiled map into an original soft blue-white dorm/archive visual base
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Package simulation agent core
+
+**Date**: 2026-07-04
+**Task**: Package simulation agent core
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Moved the cognitive loop seed into @elysian/simulation-agent, validated the package boundary, and archived the completed M1 task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `843d4a3` | (see git log) |
+| `a2665c8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
