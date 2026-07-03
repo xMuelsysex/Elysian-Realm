@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-07-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~619 | Active |
+| `journal-1.md` | ~652 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-07-04 | Agent framework scope archived | `e84fe17` | `feature/agent-cognitive-loop-core` |
 | 18 | 2026-07-04 | Simulation agent reflection boundary | `c938fca`, `b409205` | `feature/agent-cognitive-loop-core` |
 | 17 | 2026-07-04 | Add simulation agent memory primitives | `95300be`, `ae79b03` | `feature/agent-cognitive-loop-core` |
 | 16 | 2026-07-04 | Package simulation agent core | `843d4a3`, `a2665c8` | `feature/agent-cognitive-loop-core` |
