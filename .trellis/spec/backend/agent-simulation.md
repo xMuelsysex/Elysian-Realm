@@ -406,6 +406,123 @@ Each active agent follows this sequence when it needs to decide:
 
 The loop may skip expensive LLM work when a deterministic rule is sufficient, but skipped phases must be visible in diagnostics.
 
+## Implemented Agent Core Plan Slice Contract
+
+### 1. Scope / Trigger
+
+The first executable agent runtime slice lives under `src/agent-core/**` and is consumed by `src/server/simulation/agentRuntimeAdapter.ts`. Update this contract whenever the cognitive loop ports, engine adapter, or engine tick diagnostics change.
+
+### 2. Signatures
+
+Agent-core is port-converged and has no Elysian concrete imports:
+
+```ts
+export interface PerceptionPort<Perception> {
+  perceive(agentId: string, now: string): Perception;
+}
+
+export interface MemoryPort<MemoryQuery, MemoryHit, MemoryWrite> {
+  retrieve(agentId: string, query: MemoryQuery): readonly MemoryHit[];
+  remember(agentId: string, write: MemoryWrite): void;
+}
+
+export interface PlanningPort<Perception, MemoryHit, ActionProposal> {
+  plan(input: PlanInput<Perception, MemoryHit>): Promise<PlanResult<ActionProposal>> | PlanResult<ActionProposal>;
+}
+
+export interface ActionSink<ActionProposal> {
+  submit(agentId: string, proposal: ActionProposal): void;
+}
+
+export function runCognitiveTick(...): Promise<CognitiveTickResult<ActionProposal>>;
+export function runCognitiveTickSync(...): CognitiveTickResult<ActionProposal>;
+```
+
+Engine step remains synchronous and exposes agent diagnostics outside the event log:
+
+```ts
+interface SimulationStepResult {
+  state: SimulationEngineState;
+  events: SimulationEvent[];
+  agentTickDiagnostics: EngineAgentTickDiagnostic[];
+}
+```
+
+### 3. Contracts
+
+- `src/agent-core/**` must not import `src/shared/**`, `src/server/**`, or Elysian domain/contracts concrete types.
+- The sync simulation engine uses `runCognitiveTickSync`; future LLM-backed planners use `runCognitiveTick` or an async engine operation boundary.
+- The Elysian adapter passes a copied read-only perception projection into agent-core. It must not hand mutable `WorldSnapshot` / `AgentRuntimeState` references to the loop.
+- Agent-core only submits a typed proposal to `ActionSink`; `engine.ts` remains the single place that applies proposals to authoritative state and emits `SimulationEvent`s.
+- `agentTickDiagnostics` are visible on `SimulationStepResult` and must not be appended to `events`, because diagnostics must not perturb replay event sequences.
+
+### 4. Validation & Error Matrix
+
+- Perception/retrieval/planning throws -> that phase is `failed`, later phases are `skipped`, no proposal is submitted.
+- Planner returns malformed structured output -> `plan` phase is `failed`, no proposal is submitted.
+- `runCognitiveTickSync` receives a Promise-returning planner -> `plan` phase is `failed` with an async misuse message; use the async loop or an operation boundary instead.
+- Agent has `inProgressOperationId` -> deterministic adapter planner returns `source: "skipped"`, so no second proposal is started.
+- Plan source is `"skipped"` or has no proposal -> `act` phase is `skipped` and `ActionSink.submit` is not called.
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const tick = runAgentCognitiveTickForEngine(snapshot, agent);
+// engine.ts applies tick.proposal and emits agent.moved / agent.continuedRoutine
+```
+
+Base:
+
+```ts
+const result = stepSimulationEngine(state);
+result.events;               // replay-visible events only
+result.agentTickDiagnostics; // phase diagnostics, not replay events
+```
+
+Bad:
+
+```ts
+// Agent-core must not own or patch world state.
+snapshot.agents[0].locationId = proposedLocation;
+```
+
+### 6. Tests Required
+
+Agent-core tests must assert:
+
+- six-phase order and skipped Remember/Reflect diagnostics;
+- proposal passthrough to `ActionSink`;
+- thrown or malformed planner output produces `failed` diagnostics and no proposal;
+- sync tick rejects async planner misuse visibly.
+
+Simulation/adapter tests must assert:
+
+- existing `tests/simulationEngine.test.ts` replay/event assertions remain unchanged and green;
+- adapter does not mutate input snapshots;
+- one-in-flight operation skips starting another proposal;
+- `SimulationStepResult.agentTickDiagnostics` exposes phase diagnostics without adding events.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Hidden second source of truth: planner patches active agent state.
+agent.currentAction = proposal;
+agent.locationId = proposal.locationId;
+```
+
+#### Correct
+
+```ts
+const tick = runAgentCognitiveTickForEngine(snapshot, agent);
+if (tick.proposal) {
+  // engine.ts applies the proposal and emits replay-visible events.
+}
+```
+
 ## Concurrency Rule
 
 For the MVP, each agent may have at most one in-flight operation.
