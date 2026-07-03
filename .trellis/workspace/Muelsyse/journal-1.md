@@ -684,3 +684,37 @@ Added and archived the SimulationAgentRuntime facade, composing cognitive ticks,
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: Elysian runtime facade consumer
+
+**Date**: 2026-07-04
+**Task**: Elysian runtime facade consumer
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added SimulationAgentRuntime.tickSync, migrated the Elysian simulation adapter to consume the runtime facade, updated runtime facade tests and backend contract, and archived the M5 task after validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fafe93c` | (see git log) |
+| `726f64a` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
