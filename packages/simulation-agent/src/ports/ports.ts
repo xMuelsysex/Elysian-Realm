@@ -1,10 +1,9 @@
-// agent-core port interfaces and loop types.
+// simulation-agent port interfaces and loop types.
 //
-// Hard constraint: this module is port-converged and MUST stay free of any
-// Elysian-specific imports (no `shared/contracts`, `shared/domain`,
-// `server/simulation`, `server/admin`). Everything is parameterized by generics
-// so the cognitive loop never depends on a concrete domain. Elysian-specific
-// type binding lives in the adapter layer, not here.
+// Hard constraint: this package is port-converged and MUST stay free of any
+// host-application imports. Everything is parameterized by generics so the
+// cognitive loop never depends on a concrete domain. Host-specific type binding
+// lives in adapter layers, not here.
 
 /**
  * Perception: read the visible context for an agent at a given tick.
@@ -61,7 +60,8 @@ export interface PlanResult<ActionProposal> {
 /**
  * Optional planner dependency type, aligned with the existing `LlmProvider`
  * shape. The cognitive loop does not depend on this; it is provided here so an
- * LLM-backed planner can declare the dependency without importing Elysian.
+ * LLM-backed planner can declare the dependency without importing a host
+ * application's provider.
  */
 export interface LlmChatMessageLike {
   role: "system" | "user" | "assistant";

@@ -2,6 +2,9 @@
   "name": "elysian-realm",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
   "scripts": {
     "build": "npm run build:server && npm run build:ui",
@@ -12,7 +15,8 @@
     "admin": "npm run dev",
     "dev:api": "npm run build:server && node dist/src/server/admin/adminServer.js",
     "dev:ui": "vite --host 127.0.0.1 --port 5173",
-    "build:server": "tsc",
+    "build:packages": "npm run build --workspace @elysian/simulation-agent",
+    "build:server": "npm run build:packages && tsc",
     "build:ui": "vite build"
   },
   "devDependencies": {
@@ -24,6 +28,7 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "@elysian/simulation-agent": "workspace:*",
     "pixi-tiledmap": "^2.8.2",
     "pixi.js": "^8.19.0",
     "react": "^19.2.6",

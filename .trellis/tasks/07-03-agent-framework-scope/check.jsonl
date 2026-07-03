@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Verify framework package does not own/mutate authoritative Elysian world state"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Verify memory/reflection records preserve source and evidence links"}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Verify LLM-backed reflection stays provider-injected and fake-provider testable"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify malformed planner/reflection output fails visibly without fake success"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify package boundary does not create duplicate loop/retrieval implementations"}

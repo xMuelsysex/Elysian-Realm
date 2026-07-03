@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Authoritative simulation state, agent runtime, diagnostics, and existing agent-core contract"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory record, retrieval, reflection, and generated-memory ownership rules"}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Injected provider boundary and structured-output failure handling for reflection"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests, fake providers, and forbidden state mutation patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Package/API boundary and public-entrypoint consumption checks"}

@@ -1,4 +1,4 @@
-import { runCognitiveTickSync, type CognitiveLoopDeps, type PhaseDiagnostic, type PlanningPort } from "../../agent-core/index.js";
+import { runCognitiveTickSync, type CognitiveLoopDeps, type PhaseDiagnostic, type PlanningPort } from "@elysian/simulation-agent";
 import type { AgentRuntimeState, PersonaSpec, PlanAction, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { AgentId, AgentStatus, LocationId, OperationId, PersonaId } from "../../shared/domain/index.js";
 import { pilotPersonas } from "../personas/index.js";

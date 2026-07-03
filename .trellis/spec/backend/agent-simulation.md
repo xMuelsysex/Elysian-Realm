@@ -406,15 +406,21 @@ Each active agent follows this sequence when it needs to decide:
 
 The loop may skip expensive LLM work when a deterministic rule is sufficient, but skipped phases must be visible in diagnostics.
 
-## Implemented Agent Core Plan Slice Contract
+## Implemented Simulation Agent Package Contract
 
 ### 1. Scope / Trigger
 
-The first executable agent runtime slice lives under `src/agent-core/**` and is consumed by `src/server/simulation/agentRuntimeAdapter.ts`. Update this contract whenever the cognitive loop ports, engine adapter, or engine tick diagnostics change.
+The first executable agent runtime slice lives in the workspace package `packages/simulation-agent/**` and is consumed by `src/server/simulation/agentRuntimeAdapter.ts` through the public package entrypoint. Update this contract whenever the package exports, cognitive loop ports, engine adapter, or engine tick diagnostics change.
 
 ### 2. Signatures
 
-Agent-core is port-converged and has no Elysian concrete imports:
+`@elysian/simulation-agent` is port-converged and has no Elysian concrete imports. Host code imports only from the package root:
+
+```ts
+import { runCognitiveTickSync, type CognitiveLoopDeps } from "@elysian/simulation-agent";
+```
+
+Current public API:
 
 ```ts
 export interface PerceptionPort<Perception> {
@@ -450,10 +456,12 @@ interface SimulationStepResult {
 
 ### 3. Contracts
 
-- `src/agent-core/**` must not import `src/shared/**`, `src/server/**`, or Elysian domain/contracts concrete types.
+- `packages/simulation-agent/src/**` must not import `src/shared/**`, `src/server/**`, `src/app/**`, or Elysian domain/contracts concrete types.
+- Elysian app/server/test code must import `@elysian/simulation-agent` only through the package root, never `packages/simulation-agent/src/**` or `@elysian/simulation-agent/src/**`.
+- The root `build:server` path must build the package first so runtime tests resolve the package's built `dist/index.js`.
 - The sync simulation engine uses `runCognitiveTickSync`; future LLM-backed planners use `runCognitiveTick` or an async engine operation boundary.
-- The Elysian adapter passes a copied read-only perception projection into agent-core. It must not hand mutable `WorldSnapshot` / `AgentRuntimeState` references to the loop.
-- Agent-core only submits a typed proposal to `ActionSink`; `engine.ts` remains the single place that applies proposals to authoritative state and emits `SimulationEvent`s.
+- The Elysian adapter passes a copied read-only perception projection into the package. It must not hand mutable `WorldSnapshot` / `AgentRuntimeState` references to the loop.
+- The package only submits a typed proposal to `ActionSink`; `engine.ts` remains the single place that applies proposals to authoritative state and emits `SimulationEvent`s.
 - `agentTickDiagnostics` are visible on `SimulationStepResult` and must not be appended to `events`, because diagnostics must not perturb replay event sequences.
 
 ### 4. Validation & Error Matrix
@@ -463,6 +471,7 @@ interface SimulationStepResult {
 - `runCognitiveTickSync` receives a Promise-returning planner -> `plan` phase is `failed` with an async misuse message; use the async loop or an operation boundary instead.
 - Agent has `inProgressOperationId` -> deterministic adapter planner returns `source: "skipped"`, so no second proposal is started.
 - Plan source is `"skipped"` or has no proposal -> `act` phase is `skipped` and `ActionSink.submit` is not called.
+- Package imports Elysian source modules or host code deep-imports package source -> fail the boundary scan before review.
 
 ### 5. Good/Base/Bad Cases
 
@@ -484,13 +493,16 @@ result.agentTickDiagnostics; // phase diagnostics, not replay events
 Bad:
 
 ```ts
-// Agent-core must not own or patch world state.
+// The simulation-agent package must not own or patch world state.
 snapshot.agents[0].locationId = proposedLocation;
+
+// Host code must not deep-import package internals.
+import { runCognitiveTickSync } from "../../packages/simulation-agent/src/loop/cognitiveLoop.js";
 ```
 
 ### 6. Tests Required
 
-Agent-core tests must assert:
+Simulation-agent package tests must assert:
 
 - six-phase order and skipped Remember/Reflect diagnostics;
 - proposal passthrough to `ActionSink`;
@@ -503,6 +515,12 @@ Simulation/adapter tests must assert:
 - adapter does not mutate input snapshots;
 - one-in-flight operation skips starting another proposal;
 - `SimulationStepResult.agentTickDiagnostics` exposes phase diagnostics without adding events.
+
+Package-boundary checks must assert:
+
+- `npm run build:packages` succeeds;
+- no `packages/simulation-agent/src/**` file imports `src/server`, `src/shared`, `src/app`, or `../../src`;
+- no `src/**` or `tests/**` file deep-imports `packages/simulation-agent/src/**`, `@elysian/simulation-agent/src/**`, or old `src/agent-core/**` paths.
 
 ### 7. Wrong vs Correct
 
@@ -521,6 +539,8 @@ const tick = runAgentCognitiveTickForEngine(snapshot, agent);
 if (tick.proposal) {
   // engine.ts applies the proposal and emits replay-visible events.
 }
+
+import { runCognitiveTickSync } from "@elysian/simulation-agent";
 ```
 
 ## Concurrency Rule

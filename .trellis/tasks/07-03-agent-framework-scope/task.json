@@ -1,0 +1,28 @@
+{
+  "id": "agent-framework-scope",
+  "name": "agent-framework-scope",
+  "title": "brainstorm: agent framework scope",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Muelsyse",
+  "assignee": "Muelsyse",
+  "createdAt": "2026-07-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "feature/agent-cognitive-loop-core",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-03-simulation-agent-package-boundary"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

@@ -1,4 +1,4 @@
-import type { CognitivePhase, PhaseDiagnostic, PhaseStatus } from "./ports.js";
+import type { CognitivePhase, PhaseDiagnostic, PhaseStatus } from "../ports/ports.js";
 
 /** Construct a phase diagnostic entry. */
 export function phaseDiagnostic(phase: CognitivePhase, status: PhaseStatus, detail: string): PhaseDiagnostic {

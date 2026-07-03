@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/07-03-agent-framework-scope/design.md", "reason": "Verify M1 satisfies package boundary and public-entrypoint requirements"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Verify framework package does not mutate authoritative Elysian state and diagnostics remain separate from events"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify typecheck/tests and fake-provider/offline deterministic guarantees"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify Elysian consumes package only through public API"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify package move does not create duplicate loop implementations"}

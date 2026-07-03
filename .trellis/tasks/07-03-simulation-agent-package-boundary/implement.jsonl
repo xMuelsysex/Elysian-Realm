@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-03-agent-framework-scope/prd.md", "reason": "Parent framework scope, package boundary, and MVP decisions"}
+{"file": ".trellis/tasks/07-03-agent-framework-scope/design.md", "reason": "Parent package mechanics, milestone split, and host/application ownership"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Existing agent-core contract, authoritative state rule, and diagnostics boundary"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend/package ownership and TypeScript module layout expectations"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and forbidden world-state mutation patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Package/API boundary and public-entrypoint import checks"}

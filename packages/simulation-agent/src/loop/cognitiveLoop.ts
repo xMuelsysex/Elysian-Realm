@@ -12,8 +12,8 @@
 // - A plan with `source: "skipped"` or no proposal leaves the act phase skipped
 //   and does not call the ActionSink.
 
-import { errorMessage, failedPhase, ranPhase, skippedPhase } from "./diagnostics.js";
-import type { CognitiveLoopDeps, CognitiveTickResult, PhaseDiagnostic, PlanResult } from "./ports.js";
+import { errorMessage, failedPhase, ranPhase, skippedPhase } from "../diagnostics/diagnostics.js";
+import type { CognitiveLoopDeps, CognitiveTickResult, PhaseDiagnostic, PlanResult } from "../ports/ports.js";
 
 const ABORTED_AFTER_FAILURE = "aborted: a prior phase failed";
 const SYNC_PLANNER_PROMISE_ERROR = "sync cognitive tick received an async plan result; use runCognitiveTick for async planners";

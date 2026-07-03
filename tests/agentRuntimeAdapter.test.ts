@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { runAgentCognitiveTickForEngine } from "../src/server/simulation/agentRuntimeAdapter.js";
 import { createObservationMvpSnapshot } from "../src/server/simulation/seeds/observationMvpSeed.js";
 import { createSimulationEngine, stepSimulationEngine } from "../src/server/simulation/index.js";
-import type { PhaseDiagnostic } from "../src/agent-core/index.js";
+import type { PhaseDiagnostic } from "@elysian/simulation-agent";
 
 function findPhase(phases: readonly PhaseDiagnostic[], phase: PhaseDiagnostic["phase"]): PhaseDiagnostic {
   const found = phases.find((entry) => entry.phase === phase);

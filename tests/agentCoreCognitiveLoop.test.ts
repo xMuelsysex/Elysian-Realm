@@ -11,7 +11,7 @@ import {
   type PhaseDiagnostic,
   type PlanResult,
   type PlanningPort,
-} from "../src/agent-core/index.js";
+} from "@elysian/simulation-agent";
 
 // Fully fake, Elysian-free port set for deterministic loop testing.
 interface FakePerception {
