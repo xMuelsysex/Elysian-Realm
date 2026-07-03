@@ -1,8 +1,7 @@
 import type { InterventionCommand, SimulationInput, WorldSnapshot, SimulationEvent } from "../../shared/contracts/index.js";
-import { pilotPersonas } from "../personas/index.js";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
 import { validateSimulationInput, type ValidSimulationInput } from "./inputs.js";
-import { createRoutineAction, resolveRoutinePeriod, selectActiveRoutine } from "./routines.js";
+import { runAgentCognitiveTickForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
   OBSERVATION_MVP_SEED_ID,
@@ -19,6 +18,7 @@ export interface SimulationEngineState {
 export interface SimulationStepResult {
   state: SimulationEngineState;
   events: SimulationEvent[];
+  agentTickDiagnostics: EngineAgentTickDiagnostic[];
 }
 
 export function createSimulationEngine(): SimulationEngineState {
@@ -111,8 +111,11 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
     );
   }
 
+  const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   if (state.startupEmitted) {
-    nextSnapshot = progressAgentRoutines(nextSnapshot, context, stepEvents);
+    const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents);
+    nextSnapshot = routineProgress.snapshot;
+    agentTickDiagnostics.push(...routineProgress.agentTickDiagnostics);
   }
 
   const nextState: SimulationEngineState = {
@@ -122,7 +125,7 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
     startupEmitted: true,
   };
 
-  return { state: nextState, events: stepEvents };
+  return { state: nextState, events: stepEvents, agentTickDiagnostics };
 }
 
 function createStartupEvents(
@@ -244,14 +247,20 @@ function applyValidatedInput(snapshot: WorldSnapshot, input: ValidSimulationInpu
   return snapshot;
 }
 
-function progressAgentRoutines(snapshot: WorldSnapshot, context: EventFactoryContext, stepEvents: SimulationEvent[]): WorldSnapshot {
-  const period = resolveRoutinePeriod(snapshot.currentTime);
-  const personasById = new Map(pilotPersonas.map((persona) => [persona.id, persona]));
+function progressAgentRoutines(
+  snapshot: WorldSnapshot,
+  context: EventFactoryContext,
+  stepEvents: SimulationEvent[],
+): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[] } {
   let nextEventOrder = stepEvents.length + 1;
+  const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   const agents = snapshot.agents.map((agent) => {
-    const persona = personasById.get(agent.personaId);
-    const routine = persona ? selectActiveRoutine(agent.personaId, period, persona.routines[period]) : undefined;
-    if (!routine || (agent.currentAction?.id === routine.routineId && agent.locationId === routine.locationId)) {
+    const tick = runAgentCognitiveTickForEngine(snapshot, agent);
+    agentTickDiagnostics.push(toAgentTickDiagnostic(tick));
+
+    const routine = tick.activeRoutine;
+    const proposal = tick.proposal;
+    if (!routine || !proposal) {
       return agent;
     }
 
@@ -298,11 +307,19 @@ function progressAgentRoutines(snapshot: WorldSnapshot, context: EventFactoryCon
       status: "idle" as const,
       locationId: routine.locationId,
       currentPlanId: routine.planId,
-      currentAction: createRoutineAction(routine, context.time),
+      currentAction: proposal,
     };
   });
 
-  return { ...snapshot, agents };
+  return { snapshot: { ...snapshot, agents }, agentTickDiagnostics };
+}
+
+function toAgentTickDiagnostic(tick: EngineAgentTickResult): EngineAgentTickDiagnostic {
+  return {
+    agentId: tick.agentId,
+    phases: tick.phases,
+    ...(tick.proposal ? { proposal: tick.proposal } : {}),
+  };
 }
 
 function createInputValidationContext(snapshot: WorldSnapshot) {
