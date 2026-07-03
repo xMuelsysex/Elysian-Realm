@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Elysian Realm Local 2.5D Dorm Scene</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #061725;
+      --panel: rgba(246, 252, 255, 0.92);
+      --ink: #102a3f;
+      --muted: #668096;
+      --blue: #64caff;
+      --pink: #ff92bc;
+      --gold: #ffd67d;
+      --green: #8cf0bd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(100, 202, 255, 0.22), transparent 34%),
+        radial-gradient(circle at 82% 26%, rgba(255, 146, 188, 0.18), transparent 30%),
+        linear-gradient(145deg, #050b16, #0a2842 56%, #06111f);
+      font-family: Inter, "SF Pro Display", "Segoe UI", "PingFang SC", sans-serif;
+    }
+
+    .shell {
+      width: min(1240px, calc(100vw - 32px));
+      height: min(780px, calc(100vh - 32px));
+      min-height: 660px;
+      position: relative;
+      border-radius: 32px;
+      overflow: hidden;
+      background: rgba(5, 20, 35, 0.82);
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 28px 82px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.16);
+    }
+
+    .shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.042) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.034) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: radial-gradient(circle at 50% 52%, black 0 48%, transparent 82%);
+      pointer-events: none;
+    }
+
+    header {
+      position: absolute;
+      left: 30px;
+      right: 30px;
+      top: 24px;
+      height: 74px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .brand { display: flex; align-items: center; gap: 16px; color: white; }
+    .mark {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      color: #073452;
+      font-weight: 950;
+      background: linear-gradient(135deg, #fff, #9ce9ff 68%, #78c7ff);
+      box-shadow: 0 12px 30px rgba(100,202,255,0.32);
+    }
+    h1 { margin: 0; font-size: 23px; letter-spacing: 0.02em; }
+    .brand p { margin: 4px 0 0; color: rgba(234,248,255,0.72); font-size: 13px; }
+    .chips { display: flex; gap: 10px; }
+    .chip {
+      color: #11314a;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.95);
+      font-size: 12px;
+      font-weight: 850;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.14);
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .panel {
+      position: absolute;
+      right: 26px;
+      bottom: 26px;
+      width: 316px;
+      z-index: 6;
+      padding: 18px;
+      border-radius: 24px;
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid rgba(255,255,255,0.96);
+      box-shadow: 0 22px 46px rgba(0,0,0,0.24);
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 18px; }
+    .panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .legend span { padding: 6px 9px; border-radius: 999px; background: rgba(20,148,231,0.1); color: #126596; font-size: 11px; font-weight: 900; }
+
+    .hint {
+      position: absolute;
+      left: 28px;
+      bottom: 28px;
+      z-index: 6;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(5, 22, 38, 0.56);
+      color: rgba(235,248,255,0.78);
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.13);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <canvas id="scene" aria-label="Local 2.5D isometric dorm prototype"></canvas>
+    <header>
+      <div class="brand">
+        <div class="mark">ER</div>
+        <div>
+          <h1>Local 2.5D Dorm Scene</h1>
+          <p>Canvas prototype of the Pixi/Tiled layering model</p>
+        </div>
+      </div>
+      <div class="chips">
+        <div class="chip">depth sorted</div>
+        <div class="chip">location hotspots</div>
+        <div class="chip">agent markers</div>
+      </div>
+    </header>
+    <aside class="panel">
+      <h2>真实实现预演</h2>
+      <p>这版用等距坐标、层级拆分和 y-depth 排序模拟真实 Pixi 场景。家具和角色会按深度前后遮挡，地点热点来自固定房间坐标。</p>
+      <div class="legend"><span>2.5D iso grid</span><span>foreground objects</span><span>event pulses</span><span>fallback unchanged</span></div>
+    </aside>
+    <div class="hint">Move the mouse over room areas: the nearest hotspot is highlighted.</div>
+  </main>
+
+  <script type="module">
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+    const tileW = 76;
+    const tileH = 38;
+    const roomW = 9;
+    const roomH = 7;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const locations = [
+      { id: 'atrium', label: '中庭', grid: [4, 3], accent: '#64caff', icon: '✦' },
+      { id: 'garden', label: '花园', grid: [2, 2], accent: '#8cf0bd', icon: '❉' },
+      { id: 'lounge', label: '休息室', grid: [6, 3], accent: '#bba4ff', icon: '◈' },
+      { id: 'archives', label: '档案室', grid: [7, 1], accent: '#ff92bc', icon: '▣' },
+      { id: 'training', label: '训练厅', grid: [4, 1], accent: '#ffe08a', icon: '✸' },
+      { id: 'quarters', label: '居所', grid: [2, 5], accent: '#9be7ff', icon: '⌂' },
+      { id: 'overlook', label: '眺望台', grid: [6, 5], accent: '#ffd67d', icon: '✧' },
+    ];
+
+    const agents = [
+      { name: 'Flora', label: '整理花束', grid: [3.25, 2.95], hair: '#ffd5e4', outfit: '#7ecfff' },
+      { name: 'Mira', label: '准备茶会', grid: [5.8, 3.95], hair: '#d7c4ff', outfit: '#c8efff' },
+      { name: 'Noa', label: '记录回忆', grid: [6.85, 1.95], hair: '#b7f7d4', outfit: '#ffe1a8' },
+    ];
+
+    const props = [
+      { kind: 'wallLeft', depth: -20 },
+      { kind: 'wallRight', depth: -19 },
+      { kind: 'desk', grid: [2.4, 2.1], size: [1.8, 1.0], color: '#f8c86f', depthOffset: 0.45, label: 'desk' },
+      { kind: 'plant', grid: [3.85, 1.55], size: [0.8, 0.8], color: '#4ed890', depthOffset: 0.55, label: 'plant' },
+      { kind: 'shelf', grid: [7.3, 1.15], size: [1.3, 1.0], color: '#d79f58', depthOffset: 0.8, label: 'shelf' },
+      { kind: 'sofa', grid: [6.35, 3.1], size: [1.8, 1.05], color: '#9b8cff', depthOffset: 0.65, label: 'sofa' },
+      { kind: 'bed', grid: [2.05, 5.15], size: [2.0, 1.1], color: '#93dcff', depthOffset: 0.72, label: 'bed' },
+      { kind: 'tea', grid: [5.15, 5.1], size: [1.25, 0.8], color: '#eaf9ff', depthOffset: 0.45, label: 'tea' },
+      { kind: 'window', grid: [6.2, 5.75], size: [1.4, 0.45], color: '#a9ecff', depthOffset: 0.3, label: 'window' },
+    ];
+
+    let origin = { x: 0, y: 0 };
+    let hovered = null;
+    let startedAt = performance.now();
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      origin = { x: rect.width * 0.5, y: rect.height * 0.32 };
+    }
+
+    function isoToScreen(gridX, gridY, z = 0) {
+      return {
+        x: origin.x + (gridX - gridY) * tileW * 0.5,
+        y: origin.y + (gridX + gridY) * tileH * 0.5 - z,
+      };
+    }
+
+    function screenToApproxGrid(x, y) {
+      const relX = x - origin.x;
+      const relY = y - origin.y;
+      return [relY / tileH + relX / tileW, relY / tileH - relX / tileW];
+    }
+
+    function withShadow(fn, blur = 18, color = 'rgba(0,0,0,0.24)') {
+      ctx.save();
+      ctx.shadowBlur = blur;
+      ctx.shadowColor = color;
+      ctx.shadowOffsetY = 10;
+      fn();
+      ctx.restore();
+    }
+
+    function diamondPath(x, y, w = tileW, h = tileH) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - h * 0.5);
+      ctx.lineTo(x + w * 0.5, y);
+      ctx.lineTo(x, y + h * 0.5);
+      ctx.lineTo(x - w * 0.5, y);
+      ctx.closePath();
+    }
+
+    function roundRectPath(x, y, w, h, radius) {
+      const r = Math.min(radius, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawBackdrop(width, height) {
+      const bg = ctx.createLinearGradient(0, 0, width, height);
+      bg.addColorStop(0, '#07111f');
+      bg.addColorStop(0.56, '#0c2a43');
+      bg.addColorStop(1, '#07121f');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
+
+      for (let i = 0; i < 70; i++) {
+        const x = (i * 139) % width;
+        const y = (i * 211) % height;
+        ctx.fillStyle = `rgba(235,248,255,${0.05 + (i % 5) * 0.015})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 0.7 + (i % 3) * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const glow = ctx.createRadialGradient(width * 0.5, height * 0.52, 10, width * 0.5, height * 0.52, Math.min(width, height) * 0.52);
+      glow.addColorStop(0, 'rgba(100,202,255,0.25)');
+      glow.addColorStop(0.4, 'rgba(255,214,125,0.09)');
+      glow.addColorStop(1, 'rgba(100,202,255,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    function drawWalls() {
+      const a = isoToScreen(0, 0);
+      const b = isoToScreen(roomW, 0);
+      const c = isoToScreen(0, roomH);
+      ctx.save();
+      ctx.lineJoin = 'round';
+      withShadow(() => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y - 148);
+        ctx.lineTo(b.x, b.y - 148);
+        ctx.lineTo(b.x, b.y + 26);
+        ctx.lineTo(a.x, a.y + 26);
+        ctx.closePath();
+        const rightWall = ctx.createLinearGradient(a.x, a.y - 148, b.x, b.y + 20);
+        rightWall.addColorStop(0, '#f8fdff');
+        rightWall.addColorStop(1, '#c7edff');
+        ctx.fillStyle = rightWall;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.76)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y - 148);
+        ctx.lineTo(c.x, c.y - 148);
+        ctx.lineTo(c.x, c.y + 26);
+        ctx.lineTo(a.x, a.y + 26);
+        ctx.closePath();
+        const leftWall = ctx.createLinearGradient(a.x, a.y - 148, c.x, c.y + 20);
+        leftWall.addColorStop(0, '#ffffff');
+        leftWall.addColorStop(1, '#d8f5ff');
+        ctx.fillStyle = leftWall;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.76)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }, 20, 'rgba(0,0,0,0.20)');
+
+      ctx.strokeStyle = 'rgba(20,148,231,0.18)';
+      ctx.lineWidth = 2;
+      for (let i = 1; i < roomW; i++) {
+        const p = isoToScreen(i, 0);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 142);
+        ctx.lineTo(p.x, p.y + 18);
+        ctx.stroke();
+      }
+      for (let i = 1; i < roomH; i++) {
+        const p = isoToScreen(0, i);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 142);
+        ctx.lineTo(p.x, p.y + 18);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawFloor() {
+      ctx.save();
+      withShadow(() => {
+        for (let y = 0; y < roomH; y++) {
+          for (let x = 0; x < roomW; x++) {
+            const p = isoToScreen(x + 0.5, y + 0.5);
+            diamondPath(p.x, p.y);
+            const t = (x + y) % 2;
+            ctx.fillStyle = t ? '#a7dcfb' : '#bfeaff';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+          }
+        }
+      }, 24, 'rgba(0,0,0,0.28)');
+
+      const center = isoToScreen(4.5, 3.55, -1);
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.scale(1.75, 0.72);
+      ctx.beginPath();
+      ctx.arc(0, 0, 42, 0, Math.PI * 2);
+      const rug = ctx.createRadialGradient(0, 0, 4, 0, 0, 52);
+      rug.addColorStop(0, 'rgba(255,255,255,0.55)');
+      rug.addColorStop(0.35, '#ffe4ee');
+      rug.addColorStop(1, '#ff9fbd');
+      ctx.fillStyle = rug;
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+      ctx.stroke();
+      ctx.restore();
+      ctx.restore();
+    }
+
+    function drawIsoBox(cx, cy, widthTiles, heightTiles, color, height = 52) {
+      const front = isoToScreen(cx, cy);
+      const left = isoToScreen(cx - widthTiles / 2, cy);
+      const right = isoToScreen(cx, cy - heightTiles / 2);
+      const back = isoToScreen(cx - widthTiles / 2, cy - heightTiles / 2);
+      const top = [
+        isoToScreen(cx - widthTiles / 2, cy - heightTiles / 2, height),
+        isoToScreen(cx, cy - heightTiles / 2, height),
+        isoToScreen(cx + widthTiles / 2, cy, height),
+        isoToScreen(cx, cy + heightTiles / 2, height),
+      ];
+      const bottom = [
+        isoToScreen(cx - widthTiles / 2, cy - heightTiles / 2),
+        isoToScreen(cx, cy - heightTiles / 2),
+        isoToScreen(cx + widthTiles / 2, cy),
+        isoToScreen(cx, cy + heightTiles / 2),
+      ];
+
+      ctx.save();
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.58)';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(top[1].x, top[1].y);
+      ctx.lineTo(bottom[1].x, bottom[1].y);
+      ctx.lineTo(bottom[2].x, bottom[2].y);
+      ctx.lineTo(top[2].x, top[2].y);
+      ctx.closePath();
+      ctx.fillStyle = shade(color, -18);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(top[2].x, top[2].y);
+      ctx.lineTo(bottom[2].x, bottom[2].y);
+      ctx.lineTo(bottom[3].x, bottom[3].y);
+      ctx.lineTo(top[3].x, top[3].y);
+      ctx.closePath();
+      ctx.fillStyle = shade(color, -30);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      top.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function shade(hex, amount) {
+      const n = parseInt(hex.slice(1), 16);
+      const r = Math.max(0, Math.min(255, (n >> 16) + amount));
+      const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amount));
+      const b = Math.max(0, Math.min(255, (n & 255) + amount));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function drawProp(prop) {
+      if (prop.kind === 'wallLeft' || prop.kind === 'wallRight') return;
+      if (prop.kind === 'plant') {
+        const p = isoToScreen(prop.grid[0], prop.grid[1]);
+        drawIsoBox(prop.grid[0], prop.grid[1], 0.62, 0.62, '#d8b16b', 24);
+        ctx.save();
+        ctx.fillStyle = '#48cf86';
+        ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 7; i++) {
+          const angle = (Math.PI * 2 * i) / 7;
+          ctx.beginPath();
+          ctx.ellipse(p.x + Math.cos(angle) * 12, p.y - 38 + Math.sin(angle) * 5, 16, 8, angle, 0, Math.PI * 2);
+          ctx.fill(); ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
+      if (prop.kind === 'window') {
+        const p = isoToScreen(prop.grid[0], prop.grid[1], 34);
+        ctx.save();
+        ctx.globalAlpha = 0.86;
+        ctx.fillStyle = '#bff3ff';
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 3;
+        roundRectPath(p.x - 72, p.y - 90, 144, 70, 16);
+        ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = 'rgba(20,148,231,0.28)';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 88); ctx.lineTo(p.x, p.y - 22);
+        ctx.moveTo(p.x - 68, p.y - 55); ctx.lineTo(p.x + 68, p.y - 55);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      drawIsoBox(prop.grid[0], prop.grid[1], prop.size[0], prop.size[1], prop.color, prop.kind === 'shelf' ? 96 : 46);
+    }
+
+    function drawLocation(location, time) {
+      const [gx, gy] = location.grid;
+      const p = isoToScreen(gx + 0.5, gy + 0.5, 14);
+      const isHover = hovered?.id === location.id;
+      const pulse = 1 + Math.sin(time / 500 + gx) * 0.06;
+
+      ctx.save();
+      ctx.globalAlpha = isHover ? 0.34 : 0.2;
+      ctx.fillStyle = location.accent;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + 6, 48 * pulse, 22 * pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+      withShadow(() => {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.strokeStyle = location.accent;
+        ctx.lineWidth = isHover ? 4 : 2.5;
+        roundRectPath(p.x - 23, p.y - 62, 46, 46, 16);
+        ctx.fill(); ctx.stroke();
+      }, 16, `${location.accent}99`);
+
+      ctx.fillStyle = '#12324b';
+      ctx.font = '900 21px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(location.icon, p.x, p.y - 39);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.94)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 1;
+      roundRectPath(p.x - 38, p.y - 10, 76, 25, 13);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#143049';
+      ctx.font = '900 12px Inter, sans-serif';
+      ctx.fillText(location.label, p.x, p.y + 3);
+      ctx.restore();
+    }
+
+    function drawAgent(agent, time) {
+      const bob = Math.sin(time / 420 + agent.grid[0]) * 3;
+      const p = isoToScreen(agent.grid[0], agent.grid[1], 28 + bob);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = 'rgba(0,0,0,0.20)';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + 31, 20, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      withShadow(() => {
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        roundRectPath(p.x - 43, p.y - 70, 86, 24, 12);
+        ctx.fill();
+      }, 10, 'rgba(0,0,0,0.18)');
+      ctx.fillStyle = '#173149';
+      ctx.font = '850 11px Inter, sans-serif';
+      ctx.fillText(agent.label, p.x, p.y - 58);
+
+      ctx.fillStyle = agent.outfit;
+      ctx.strokeStyle = 'rgba(255,255,255,0.86)';
+      ctx.lineWidth = 2.4;
+      roundRectPath(p.x - 15, p.y + 2, 30, 29, 14);
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = agent.hair;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - 8, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#12324b';
+      ctx.beginPath();
+      ctx.arc(p.x - 6, p.y - 8, 2, 0, Math.PI * 2);
+      ctx.arc(p.x + 6, p.y - 8, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawEventPulse(time) {
+      const pulses = [locations[0], locations[2], locations[4]];
+      for (let i = 0; i < pulses.length; i++) {
+        const location = pulses[i];
+        const p = isoToScreen(location.grid[0] + 0.5, location.grid[1] + 0.5, 8);
+        const phase = ((time / 1500) + i * 0.3) % 1;
+        ctx.save();
+        ctx.strokeStyle = `rgba(255,214,125,${0.55 * (1 - phase)})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y + 3, 18 + phase * 52, 8 + phase * 24, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#fff2c7';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawScene(now) {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      ctx.clearRect(0, 0, width, height);
+      drawBackdrop(width, height);
+      drawWalls();
+      drawFloor();
+      drawEventPulse(now - startedAt);
+
+      const drawables = [];
+      for (const prop of props) {
+        if (prop.kind !== 'wallLeft' && prop.kind !== 'wallRight') {
+          drawables.push({ depth: prop.grid[0] + prop.grid[1] + (prop.depthOffset || 0), draw: () => drawProp(prop) });
+        }
+      }
+      for (const location of locations) {
+        drawables.push({ depth: location.grid[0] + location.grid[1] + 0.15, draw: () => drawLocation(location, now - startedAt) });
+      }
+      for (const agent of agents) {
+        drawables.push({ depth: agent.grid[0] + agent.grid[1] + 0.55, draw: () => drawAgent(agent, now - startedAt) });
+      }
+      drawables.sort((a, b) => a.depth - b.depth).forEach((item) => item.draw());
+
+      requestAnimationFrame(drawScene);
+    }
+
+    canvas.addEventListener('mousemove', (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const [gx, gy] = screenToApproxGrid(x, y);
+      let nearest = null;
+      let distance = Infinity;
+      for (const location of locations) {
+        const dx = gx - (location.grid[0] + 0.5);
+        const dy = gy - (location.grid[1] + 0.5);
+        const d = dx * dx + dy * dy;
+        if (d < distance) { distance = d; nearest = location; }
+      }
+      hovered = distance < 0.72 ? nearest : null;
+    });
+
+    canvas.addEventListener('mouseleave', () => { hovered = null; });
+    window.addEventListener('resize', resize);
+    resize();
+    requestAnimationFrame(drawScene);
+  </script>
+</body>
+</html>
