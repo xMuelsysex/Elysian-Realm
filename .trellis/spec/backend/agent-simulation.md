@@ -443,6 +443,10 @@ export interface ActionSink<ActionProposal> {
 export function runCognitiveTick(...): Promise<CognitiveTickResult<ActionProposal>>;
 export function runCognitiveTickSync(...): CognitiveTickResult<ActionProposal>;
 export class SimulationAgentRuntime<...> { ... }
+export function createStaticPerceptionPort(...): PerceptionPort<Perception>;
+export function createStaticPlanningPort(...): PlanningPort<Perception, MemoryHit, ActionProposal>;
+export function createMemoryPortStub(...): MemoryPortStub<MemoryQuery, MemoryHit, MemoryWrite>;
+export function createActionCollector(...): ActionCollector<ActionProposal>;
 ```
 
 Engine step remains synchronous and exposes agent diagnostics outside the event log:
@@ -464,6 +468,7 @@ interface SimulationStepResult {
 - The Elysian adapter passes a copied read-only perception projection into the package. It must not hand mutable `WorldSnapshot` / `AgentRuntimeState` references to the loop.
 - The package only submits a typed proposal to `ActionSink`; `engine.ts` remains the single place that applies proposals to authoritative state and emits `SimulationEvent`s.
 - `agentTickDiagnostics` are visible on `SimulationStepResult` and must not be appended to `events`, because diagnostics must not perturb replay event sequences.
+- Package testing helpers are deterministic test utilities only. They may create fake ports and collect calls, but they must not apply host actions, schedule reflection, call providers, or persist production memory.
 
 ### 4. Validation & Error Matrix
 
@@ -509,6 +514,7 @@ Simulation-agent package tests must assert:
 - proposal passthrough to `ActionSink`;
 - thrown or malformed planner output produces `failed` diagnostics and no proposal;
 - sync tick rejects async planner misuse visibly.
+- testing helpers compose with the public loop/runtime ports, record memory calls, collect actions, and can be reset deterministically.
 
 Simulation/adapter tests must assert:
 

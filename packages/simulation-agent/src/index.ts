@@ -9,3 +9,4 @@ export * from "./reflection/reflectionRecords.js";
 export * from "./reflection/reflectionValidation.js";
 export * from "./reflection/reflectionPlanner.js";
 export * from "./runtime/simulationAgentRuntime.js";
+export * from "./testing/testPorts.js";

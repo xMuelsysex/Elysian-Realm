@@ -188,6 +188,17 @@ Use primitives directly when the host needs tighter control:
 
 The facade must stay thin. If behavior differs between the facade and primitive functions, treat that as a bug.
 
+## Testing Helpers
+
+The package exports small deterministic helpers for host and package tests:
+
+- `createStaticPerceptionPort` for fixed or factory-backed perception;
+- `createStaticPlanningPort` for fixed or factory-backed plan results;
+- `createMemoryPortStub` for recording retrieval and remember calls;
+- `createActionCollector` for capturing submitted proposals.
+
+These helpers are test utilities only. They do not apply proposals, schedule reflection, call providers, or persist production memory.
+
 ## Testing Expectations
 
 Core package tests should be offline and deterministic. Use fake planners/providers and assert failed outputs remain visible diagnostics. Host applications should also keep boundary scans green:
