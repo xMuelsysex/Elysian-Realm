@@ -296,6 +296,156 @@ Rules:
 - Over-fetch by relevance before final ranking when vector search is used.
 - Retrieval code must be deterministic in tests with fake embeddings.
 
+## Implemented Simulation Agent Memory Package Slice Contract
+
+### 1. Scope / Trigger
+
+M2 added the first executable memory primitive slice to `@elysian/simulation-agent`. Update this section whenever package memory record fields, validation rules, retrieval scoring, diagnostics, or `MemoryPort` adapter behavior changes.
+
+Current source paths:
+
+- `packages/simulation-agent/src/memory/memoryRecords.ts`
+- `packages/simulation-agent/src/memory/validation.ts`
+- `packages/simulation-agent/src/memory/retrieval.ts`
+- `packages/simulation-agent/src/memory/inMemoryMemoryStore.ts`
+- `tests/simulationAgentMemory.test.ts`
+
+### 2. Signatures
+
+The package exports memory primitives only from `@elysian/simulation-agent`:
+
+```ts
+export type MemoryKind =
+  | "observation"
+  | "action"
+  | "conversation"
+  | "relationship"
+  | "plan"
+  | "reflection"
+  | "intervention";
+
+export interface MemoryRecord<Metadata = Record<string, unknown>> {
+  id: string;
+  agentId: string;
+  kind: MemoryKind;
+  content: string;
+  createdAt: string;
+  lastAccessedAt: string;
+  importance: number; // 0..9
+  sourceIds: readonly string[];
+  relatedMemoryIds: readonly string[];
+  visibility: "private" | "shared" | "system" | "user-authored";
+  tags: readonly string[];
+  metadata: Metadata;
+}
+
+export interface MemoryRetrievalQuery {
+  text: string;
+  now: string;
+  topK?: number;
+  tags?: readonly string[];
+  sourceIds?: readonly string[];
+  weights?: Partial<MemoryRetrievalWeights>;
+}
+
+export class InMemoryMemoryStore<Metadata = Record<string, unknown>> {
+  remember(agentId: string, write: MemoryWrite<Metadata>): MemoryRecord<Metadata>;
+  retrieve(agentId: string, query: MemoryRetrievalQuery): MemoryRetrievalResult<Metadata>;
+  list(agentId: string): readonly MemoryRecord<Metadata>[];
+  toPort(): MemoryPort<MemoryRetrievalQuery, MemoryRetrievalHit<Metadata>, MemoryWrite<Metadata>>;
+}
+```
+
+### 3. Contracts
+
+- `MemoryRecord` is package-generic and does not include Elysian `worldId` or `sourceEventIds`; host applications can pass event IDs through `sourceIds`.
+- `importance` uses one package-wide scale: `0..9`.
+- `remember` is append-only. It creates a new record and never mutates or overwrites an existing record.
+- Generated IDs are deterministic per store instance: `memory_0001`, `memory_0002`, ...
+- `retrieve` and `list` are agent-scoped. They only return records whose `agentId` matches the request.
+- Selected retrieval hits update `lastAccessedAt` to `query.now`; non-selected records are not touched.
+- Returned records, arrays, diagnostics, and hits are defensive copies.
+- `toPort()` adapts the store to the existing cognitive-loop `MemoryPort`; it returns hits and discards full retrieval diagnostics by design. Call `retrieve` directly when diagnostics are needed.
+- M2 relevance is deterministic text/tag/source matching. No embeddings, provider calls, persistence, or vector stores exist in this slice.
+
+### 4. Validation & Error Matrix
+
+- blank `agentId` -> `MemoryValidationError`
+- blank `write.content` -> `MemoryValidationError`
+- unknown `write.kind` -> `MemoryValidationError`
+- invalid `write.createdAt` or `query.now` -> `MemoryValidationError`
+- `write.importance` outside `0..9` -> `MemoryValidationError`
+- empty or blank `write.sourceIds` -> `MemoryValidationError`
+- duplicate memory ID -> `MemoryValidationError`
+- invalid `query.topK` -> `MemoryValidationError`
+- negative or non-finite retrieval weights -> `MemoryValidationError`
+- retrieval weight sum `<= 0` -> `MemoryValidationError`
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+const store = new InMemoryMemoryStore();
+store.remember("agent_elysia", {
+  kind: "observation",
+  content: "Elysia noticed the garden routine.",
+  createdAt: now,
+  importance: 4,
+  sourceIds: ["evt_garden_1"],
+});
+const result = store.retrieve("agent_elysia", { text: "garden", now, topK: 3 });
+result.diagnostics.candidateScores;
+```
+
+Base:
+
+```ts
+const port = store.toPort();
+const hits = port.retrieve("agent_elysia", { text: "routine", now });
+```
+
+Bad:
+
+```ts
+// Do not fabricate source IDs or silently store source-less memories.
+store.remember("agent_elysia", { ...write, sourceIds: [] });
+
+// Do not deep-import package internals from host code.
+import { InMemoryMemoryStore } from "../../packages/simulation-agent/src/memory/inMemoryMemoryStore.js";
+```
+
+### 6. Tests Required
+
+Memory package tests must assert:
+
+- valid writes append records with defaults and defensive copies;
+- invalid writes throw `MemoryValidationError` and store no fake record;
+- duplicate IDs do not overwrite existing records;
+- retrieval is agent-scoped;
+- same records + query + weights produce the same ranking and component scores;
+- relevance-dominant, recency-dominant, and importance-dominant retrieval each rank the expected record first;
+- diagnostics expose query, candidate IDs, selected IDs, per-component scores, final scores, and excluded records;
+- selected records update `lastAccessedAt`, while non-selected records do not;
+- `toPort()` satisfies the cognitive-loop memory port shape.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+// Hidden second source: memory store patches host world state.
+snapshot.agents[0].currentAction = "remembering";
+```
+
+#### Correct
+
+```ts
+const record = store.remember(agentId, write);
+const retrieval = store.retrieve(agentId, query);
+// The host decides how retrieval influences future planning.
+```
+
 ## Importance and Reflection Triggers
 
 Importance may be produced by a model or deterministic rubric, but it must be numeric and bounded.

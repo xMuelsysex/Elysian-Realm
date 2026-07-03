@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-simulation-agent-memory-slice/prd.md", "reason": "M2 acceptance criteria and out-of-scope constraints"}
+{"file": ".trellis/tasks/07-04-simulation-agent-memory-slice/design.md", "reason": "Concrete memory API, validation, scoring, and diagnostics contract"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory and retrieval validation expectations"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Package boundary and cognitive loop compatibility checks"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Diagnostics requirements for memory retrieval and writes"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required memory tests and offline deterministic quality bar"}

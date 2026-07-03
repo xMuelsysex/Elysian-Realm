@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/07-03-agent-framework-scope/prd.md", "reason": "Parent M2 scope decisions, memory/reflection split, and package ownership boundaries"}
+{"file": ".trellis/tasks/07-03-agent-framework-scope/design.md", "reason": "Framework package API layering, host ownership, and M2 milestone definition"}
+{"file": ".trellis/tasks/07-03-agent-framework-scope/implement.md", "reason": "Cross-milestone guardrails and required M2 verification commands"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory record, retrieval, importance, and reflection separation contracts"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Simulation-agent package boundary, cognitive loop diagnostics, and replay-safe behavior"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Required memory retrieval and write diagnostics"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic memory tests and forbidden hidden fallback patterns"}
