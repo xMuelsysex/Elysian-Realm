@@ -964,3 +964,37 @@ Implemented review-gated LLM action proposals as typed simulation inputs: bounda
 ### Next Steps
 
 - None - task complete
+
+
+## Session 29: Archive agent framework integration queue
+
+**Date**: 2026-07-05
+**Task**: Archive agent framework integration queue
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Recorded final parent task status: M12, M13, and M14 completed and archived; M15 diagnostics history explicitly deferred because the implemented memory stream, reflection diagnostics, and reviewed LLM proposal provenance now cover the required integration/debug chain. Archived the parent Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `de6e83c` | (see git log) |
+| `384ebda` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

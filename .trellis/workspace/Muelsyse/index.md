@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 28
+- **Total Sessions**: 29
 - **Last Active**: 2026-07-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~966 | Active |
+| `journal-1.md` | ~1000 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 29 | 2026-07-05 | Archive agent framework integration queue | `de6e83c`, `384ebda` | `feature/agent-cognitive-loop-core` |
 | 28 | 2026-07-05 | M14 reviewed LLM planner integration | `18c1764`, `b9f53d9` | `feature/agent-cognitive-loop-core` |
 | 27 | 2026-07-05 | Engine reflection trigger policy | `2f3afa8`, `7c0bce6` | `feature/agent-cognitive-loop-core` |
 | 26 | 2026-07-05 | Elysian engine agent memory stream | `0a2f8a6`, `68d7c88` | `feature/agent-cognitive-loop-core` |
