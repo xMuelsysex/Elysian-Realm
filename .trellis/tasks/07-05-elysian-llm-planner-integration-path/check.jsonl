@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Verify reviewed proposals enter through typed inputs and replay remains stable."}
+{"file": ".trellis/spec/backend/llm-orchestration.md", "reason": "Verify provider results do not mutate state directly and failures stay visible."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Verify proposal memories preserve provenance and do not alter persona fixtures."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify offline deterministic tests and no silent fallback."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify draft payload parsing and UI submission remain typed."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data survives provider -> draft -> input -> engine -> Admin UI boundaries."}

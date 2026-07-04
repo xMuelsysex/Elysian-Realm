@@ -216,6 +216,165 @@ test("direct private message with unknown target is rejected", () => {
   });
 });
 
+test("reviewed LLM move proposals update agent state and append provenance memory", () => {
+  const queued = queueSimulationInput(createSimulationEngine(), createReviewedLlmProposalInput("input_user_reviewed_llm_move_001"));
+
+  const result = stepSimulationEngine(queued);
+  const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
+  const accepted = result.events.at(-1);
+  const memory = result.state.agentMemories.find((candidate) => candidate.id === "memory_step_0605_001_agent_elysia_llm_proposal");
+
+  assert.equal(agent?.locationId, "garden");
+  assert.equal(agent?.status, "moving");
+  assert.equal(agent?.currentPlanId, "llm.input_user_reviewed_llm_move_001.agent_elysia");
+  assert.deepEqual(agent?.currentAction, {
+    id: "llm.input_user_reviewed_llm_move_001.agent_elysia.move",
+    kind: "move",
+    startsAt: "2026-05-31T06:05:00.000Z",
+    locationId: "garden",
+    targetAgentId: "agent_eden",
+    intent: "Walk to the garden and check on Eden gently.",
+  });
+  assert.equal(accepted?.kind, "realm.interventionSubmitted");
+  assert.equal(accepted?.causedByInputId, "input_user_reviewed_llm_move_001");
+  assert.deepEqual(accepted?.payload, {
+    inputId: "input_user_reviewed_llm_move_001",
+    commandKind: "realmEvent",
+    accepted: true,
+    summary: "realmEvent:llm.proposal.move",
+    reviewedLlmProposal: {
+      eventKind: "llm.proposal.move",
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: "move",
+      reason: "Eden is lingering near the fountain after rehearsal.",
+      intent: "Walk to the garden and check on Eden gently.",
+      llmOperationId: "llm_action_proposal_step_0600_000_agent_elysia",
+      reviewedBy: "user",
+      targetLocationId: "garden",
+      targetAgentId: "agent_eden",
+    },
+  });
+  assert.ok(memory);
+  assert.equal(memory.kind, "plan");
+  assert.equal(memory.agentId, "agent_elysia");
+  assert.equal(memory.visibility, "user-authored");
+  assert.deepEqual(memory.sourceIds, ["evt_0605_001_010_intervention_submitted", "input_user_reviewed_llm_move_001"]);
+  assert.deepEqual(memory.tags, ["agent_elysia", "move", "llm", "user-reviewed"]);
+  assert.equal(memory.metadata.source, "engine");
+  assert.equal(memory.metadata.stepId, "step_0605_001");
+  assert.equal(memory.metadata.locationId, "garden");
+  assert.equal(memory.metadata.planId, "llm.input_user_reviewed_llm_move_001.agent_elysia");
+  assert.equal(memory.metadata.llmOperationId, "llm_action_proposal_step_0600_000_agent_elysia");
+  assert.equal(memory.metadata.reviewedBy, "user");
+  assert.equal(memory.metadata.proposalAction, "move");
+  for (const event of result.events) {
+    assert.deepEqual(validateSimulationEvent(event), []);
+  }
+});
+
+test("reviewed LLM proposals map every supported action into deterministic agent state", () => {
+  const cases = [
+    {
+      action: "wait",
+      targetIds: ["agent_elysia"],
+      payload: { targetLocationId: undefined, targetAgentId: undefined },
+      expectedStatus: "waiting",
+      expectedKind: "wait",
+      expectedLocationId: "atrium",
+    },
+    {
+      action: "performActivity",
+      targetIds: ["agent_elysia", "lounge"],
+      payload: { eventKind: "llm.proposal.performActivity", proposalAction: "performActivity", targetLocationId: "lounge", targetAgentId: undefined },
+      expectedStatus: "idle",
+      expectedKind: "performActivity",
+      expectedLocationId: "lounge",
+    },
+    {
+      action: "reflect",
+      targetIds: ["agent_elysia"],
+      payload: { targetLocationId: undefined, targetAgentId: undefined },
+      expectedStatus: "reflecting",
+      expectedKind: "reflect",
+      expectedLocationId: "atrium",
+    },
+    {
+      action: "continue",
+      targetIds: ["agent_elysia"],
+      payload: { targetLocationId: undefined, targetAgentId: undefined },
+      expectedStatus: "idle",
+      expectedKind: "performActivity",
+      expectedLocationId: "atrium",
+    },
+  ] as const;
+
+  for (const testCase of cases) {
+    const inputId = `input_user_reviewed_llm_${testCase.action}_001`;
+    const result = stepSimulationEngine(queueSimulationInput(
+      createSimulationEngine(),
+      createReviewedLlmProposalInput(inputId, {
+        targetIds: [...testCase.targetIds],
+        payload: {
+          eventKind: `llm.proposal.${testCase.action}`,
+          proposalAction: testCase.action,
+          ...testCase.payload,
+        },
+      }),
+    ));
+    const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
+
+    assert.equal(agent?.status, testCase.expectedStatus);
+    assert.equal(agent?.locationId, testCase.expectedLocationId);
+    assert.equal(agent?.currentPlanId, `llm.${inputId}.agent_elysia`);
+    assert.equal(agent?.currentAction?.id, `llm.${inputId}.agent_elysia.${testCase.action}`);
+    assert.equal(agent?.currentAction?.kind, testCase.expectedKind);
+    assert.equal(agent?.currentAction?.locationId, testCase.expectedLocationId);
+  }
+});
+
+test("reviewed LLM proposal state remains visible on post-startup steps", () => {
+  const startup = stepSimulationEngine(createSimulationEngine());
+  const result = stepSimulationEngine(queueSimulationInput(
+    startup.state,
+    createReviewedLlmProposalInput("input_user_reviewed_llm_post_startup_001"),
+  ));
+  const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
+  const elysiaReflection = result.reflectionDiagnostics.find((diagnostic) => diagnostic.agentId === "agent_elysia");
+
+  assert.equal(agent?.locationId, "garden");
+  assert.equal(agent?.status, "moving");
+  assert.equal(agent?.currentAction?.id, "llm.input_user_reviewed_llm_post_startup_001.agent_elysia.move");
+  assert.equal(result.events.some((event) => event.kind === "agent.continuedRoutine" && event.actorId === "agent_elysia"), false);
+  assert.equal(elysiaReflection?.status, "skipped");
+  assert.equal(elysiaReflection?.reason, "no current-step plan memory");
+});
+
+test("invalid reviewed LLM proposals are rejected without mutating agent state", () => {
+  const queued = queueSimulationInput(
+    createSimulationEngine(),
+    createReviewedLlmProposalInput("input_user_reviewed_llm_bad_001", {
+      targetIds: ["agent_elysia"],
+      payload: { proposalAction: "move", targetLocationId: undefined },
+    }),
+  );
+
+  const result = stepSimulationEngine(queued);
+  const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
+
+  assert.equal(agent?.locationId, "atrium");
+  assert.equal(agent?.currentAction?.id, "elysia.morning.0");
+  assert.equal(result.state.agentMemories.some((memory) => memory.id.includes("llm_proposal")), false);
+  assert.equal(result.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.deepEqual(result.events.at(-1)?.payload, {
+    inputId: "input_user_reviewed_llm_bad_001",
+    code: "INVALID_SIMULATION_INPUT",
+    message: "reviewed LLM move proposal must include targetLocationId",
+    commandKind: "realmEvent",
+  });
+});
+
 test("same seed and inputs produce the same replay summary", () => {
   const run = () => {
     const queued = queueSimulationInput(createSimulationEngine(), createObserverInput("input_user_scale_001", "setTimeScale", { timeScale: 120 }));
@@ -429,6 +588,26 @@ function findTickPhase(
 
 function createObserverInput(id: string, action: string, extraPayload: Record<string, unknown> = {}, targetIds = [OBSERVATION_MVP_WORLD_ID]): SimulationInput {
   return createInterventionInput(id, "observerCommand", targetIds, { action, ...extraPayload });
+}
+
+function createReviewedLlmProposalInput(
+  id: string,
+  overrides: { targetIds?: string[]; payload?: Record<string, unknown> } = {},
+): SimulationInput {
+  return createInterventionInput(id, "realmEvent", overrides.targetIds ?? ["agent_elysia", "garden", "agent_eden"], {
+    eventKind: "llm.proposal.move",
+    provenance: "user-reviewed-llm-proposal",
+    sandbox: true,
+    agentId: "agent_elysia",
+    proposalAction: "move",
+    reason: "Eden is lingering near the fountain after rehearsal.",
+    intent: "Walk to the garden and check on Eden gently.",
+    llmOperationId: "llm_action_proposal_step_0600_000_agent_elysia",
+    reviewedBy: "user",
+    targetLocationId: "garden",
+    targetAgentId: "agent_eden",
+    ...overrides.payload,
+  });
 }
 
 function createInterventionInput(id: string, kind: "observerCommand" | "realmEvent" | "directPrivateMessage", targetIds: string[], payload: Record<string, unknown>): SimulationInput {

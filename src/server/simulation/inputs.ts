@@ -2,6 +2,7 @@ import type { SimulationInput } from "../../shared/contracts/index.js";
 import type { AgentId, EventSource, InterventionKind, LocationId, WorldId } from "../../shared/domain/index.js";
 
 export type SupportedObserverAction = "step" | "pause" | "resume" | "setTimeScale";
+export type ReviewedLlmProposalAction = "continue" | "move" | "wait" | "performActivity" | "reflect";
 
 export interface SimulationInputValidationContext {
   worldId: WorldId;
@@ -15,12 +16,27 @@ export interface ValidSimulationInput {
   targetIds: string[];
   payload: Record<string, unknown>;
   summary: string;
+  reviewedLlmProposal?: ReviewedLlmProposalPayload;
 }
 
 export interface InvalidSimulationInput {
   input: SimulationInput;
   commandKind?: string;
   message: string;
+}
+
+export interface ReviewedLlmProposalPayload {
+  eventKind: string;
+  provenance: "user-reviewed-llm-proposal";
+  sandbox: true;
+  agentId: AgentId;
+  proposalAction: ReviewedLlmProposalAction;
+  reason: string;
+  intent: string;
+  llmOperationId: string;
+  reviewedBy: string;
+  targetLocationId?: LocationId;
+  targetAgentId?: AgentId;
 }
 
 export type SimulationInputValidationResult =
@@ -30,6 +46,9 @@ export type SimulationInputValidationResult =
 const EVENT_SOURCES = new Set<EventSource>(["system", "user", "agent", "llm", "test"]);
 const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage"]);
 const OBSERVER_ACTIONS = new Set<SupportedObserverAction>(["step", "pause", "resume", "setTimeScale"]);
+const REVIEWED_LLM_PROPOSAL_ACTIONS = new Set<ReviewedLlmProposalAction>(["continue", "move", "wait", "performActivity", "reflect"]);
+const REVIEWED_LLM_PROPOSAL_PROVENANCE = "user-reviewed-llm-proposal";
+const LLM_PROPOSAL_EVENT_KIND_PREFIX = "llm.proposal.";
 
 export function validateSimulationInput(input: SimulationInput, context: SimulationInputValidationContext): SimulationInputValidationResult {
   const baseError = validateInputEnvelope(input, context.worldId);
@@ -136,7 +155,29 @@ function validateRealmEvent(
     };
   }
 
-  return { ok: true, value: { input, commandKind: kind, targetIds: [...targetIds], payload, summary: `realmEvent:${payload.eventKind}` } };
+  let reviewedLlmProposal: ReviewedLlmProposalPayload | undefined;
+  if (isReviewedLlmProposalLike(payload)) {
+    const reviewed = parseReviewedLlmProposalPayload(payload, targetIds, context);
+    if (!reviewed.ok) {
+      return {
+        ok: false,
+        error: { input, commandKind: kind, message: reviewed.message },
+      };
+    }
+    reviewedLlmProposal = reviewed.value;
+  }
+
+  return {
+    ok: true,
+    value: {
+      input,
+      commandKind: kind,
+      targetIds: [...targetIds],
+      payload,
+      summary: `realmEvent:${payload.eventKind}`,
+      ...(reviewedLlmProposal ? { reviewedLlmProposal } : {}),
+    },
+  };
 }
 
 function validateDirectPrivateMessage(
@@ -188,6 +229,109 @@ function isInterventionKind(value: unknown): value is InterventionKind {
 
 function isSupportedObserverAction(value: string): value is SupportedObserverAction {
   return OBSERVER_ACTIONS.has(value as SupportedObserverAction);
+}
+
+export function parseReviewedLlmProposalPayload(
+  payload: Record<string, unknown>,
+  targetIds: readonly string[],
+  context: SimulationInputValidationContext,
+): { ok: true; value: ReviewedLlmProposalPayload } | { ok: false; message: string } {
+  const eventKind = readNonEmptyString(payload.eventKind);
+  if (!eventKind?.startsWith(LLM_PROPOSAL_EVENT_KIND_PREFIX)) {
+    return { ok: false, message: "reviewed LLM proposal eventKind must start with llm.proposal." };
+  }
+
+  if (payload.provenance !== REVIEWED_LLM_PROPOSAL_PROVENANCE) {
+    return { ok: false, message: "reviewed LLM proposal provenance must be user-reviewed-llm-proposal" };
+  }
+  if (payload.sandbox !== true) {
+    return { ok: false, message: "reviewed LLM proposal sandbox must be true" };
+  }
+
+  const agentId = readNonEmptyString(payload.agentId);
+  if (!agentId || !context.agentIds.includes(agentId)) {
+    return { ok: false, message: "reviewed LLM proposal agentId must reference a known agent" };
+  }
+  if (!targetIds.includes(agentId)) {
+    return { ok: false, message: "reviewed LLM proposal targetIds must include agentId" };
+  }
+
+  const proposalAction = readNonEmptyString(payload.proposalAction);
+  if (!proposalAction || !REVIEWED_LLM_PROPOSAL_ACTIONS.has(proposalAction as ReviewedLlmProposalAction)) {
+    return { ok: false, message: "reviewed LLM proposal action must be continue, move, wait, performActivity, or reflect" };
+  }
+  if (eventKind !== `${LLM_PROPOSAL_EVENT_KIND_PREFIX}${proposalAction}`) {
+    return { ok: false, message: "reviewed LLM proposal eventKind must match proposalAction" };
+  }
+
+  const reason = readNonEmptyString(payload.reason);
+  if (!reason) {
+    return { ok: false, message: "reviewed LLM proposal reason must be a non-empty string" };
+  }
+  const llmOperationId = readNonEmptyString(payload.llmOperationId);
+  if (!llmOperationId) {
+    return { ok: false, message: "reviewed LLM proposal llmOperationId must be a non-empty string" };
+  }
+
+  const targetLocationId = readOptionalKnownLocation(payload.targetLocationId, context);
+  if (!targetLocationId.ok) return targetLocationId;
+  const targetAgentId = readOptionalKnownAgent(payload.targetAgentId, context);
+  if (!targetAgentId.ok) return targetAgentId;
+  if (proposalAction === "move" && !targetLocationId.value) {
+    return { ok: false, message: "reviewed LLM move proposal must include targetLocationId" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      eventKind,
+      provenance: REVIEWED_LLM_PROPOSAL_PROVENANCE,
+      sandbox: true,
+      agentId,
+      proposalAction: proposalAction as ReviewedLlmProposalAction,
+      reason,
+      intent: readNonEmptyString(payload.intent) ?? `${proposalAction}: ${reason}`,
+      llmOperationId,
+      reviewedBy: readNonEmptyString(payload.reviewedBy) ?? "user",
+      ...(targetLocationId.value ? { targetLocationId: targetLocationId.value } : {}),
+      ...(targetAgentId.value ? { targetAgentId: targetAgentId.value } : {}),
+    },
+  };
+}
+
+function isReviewedLlmProposalLike(payload: Record<string, unknown>): boolean {
+  return (
+    (typeof payload.eventKind === "string" && payload.eventKind.startsWith(LLM_PROPOSAL_EVENT_KIND_PREFIX)) ||
+    payload.provenance === REVIEWED_LLM_PROPOSAL_PROVENANCE
+  );
+}
+
+function readOptionalKnownLocation(
+  value: unknown,
+  context: SimulationInputValidationContext,
+): { ok: true; value?: LocationId } | { ok: false; message: string } {
+  const locationId = readNonEmptyString(value);
+  if (!locationId) return { ok: true };
+  if (!context.locationIds.includes(locationId)) {
+    return { ok: false, message: "reviewed LLM proposal targetLocationId must reference a known location" };
+  }
+  return { ok: true, value: locationId };
+}
+
+function readOptionalKnownAgent(
+  value: unknown,
+  context: SimulationInputValidationContext,
+): { ok: true; value?: AgentId } | { ok: false; message: string } {
+  const agentId = readNonEmptyString(value);
+  if (!agentId) return { ok: true };
+  if (!context.agentIds.includes(agentId)) {
+    return { ok: false, message: "reviewed LLM proposal targetAgentId must reference a known agent" };
+  }
+  return { ok: true, value: agentId };
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

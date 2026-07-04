@@ -47,6 +47,9 @@ export interface EngineMemoryMetadata {
   locationId?: LocationId;
   proposalKind?: string;
   planId?: string;
+  llmOperationId?: string;
+  reviewedBy?: string;
+  proposalAction?: string;
   triggerKind?: ReflectionTriggerKind;
   reflectionSource?: EngineReflectionSource;
 }

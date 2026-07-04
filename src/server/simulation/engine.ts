@@ -1,7 +1,8 @@
-import type { InterventionCommand, SimulationInput, WorldSnapshot, SimulationEvent } from "../../shared/contracts/index.js";
+import type { InterventionCommand, PlanAction, SimulationInput, WorldSnapshot, SimulationEvent } from "../../shared/contracts/index.js";
+import type { AgentId, AgentStatus, LocationId } from "../../shared/domain/index.js";
 import { InMemoryMemoryStore } from "@elysian/simulation-agent";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
-import { validateSimulationInput, type ValidSimulationInput } from "./inputs.js";
+import { validateSimulationInput, type ReviewedLlmProposalPayload, type ValidSimulationInput } from "./inputs.js";
 import { runAgentCognitiveTickForEngine, runAgentReflectionForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord, type EngineReflectionDiagnostic } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
@@ -80,6 +81,7 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
   }
 
   const validationContext = createInputValidationContext(state.snapshot);
+  const reviewedProposalAgentIds = new Set<AgentId>();
   for (const input of state.snapshot.queuedInputs) {
     const result = validateSimulationInput(input, validationContext);
     if (!result.ok) {
@@ -102,27 +104,33 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
     }
 
     nextSnapshot = applyValidatedInput(nextSnapshot, result.value);
-    stepEvents.push(
-      createSimulationEvent(context, {
-        id: createEventId(stepId, stepEvents.length + 1, "intervention_submitted"),
-        kind: "realm.interventionSubmitted",
-        source: result.value.input.source,
-        targetIds: result.value.targetIds,
-        causedByInputId: result.value.input.id,
-        payload: {
-          inputId: result.value.input.id,
-          commandKind: result.value.commandKind,
-          accepted: true,
-          summary: result.value.summary,
-        },
-      }),
-    );
+    const acceptedEvent = createSimulationEvent(context, {
+      id: createEventId(stepId, stepEvents.length + 1, "intervention_submitted"),
+      kind: "realm.interventionSubmitted",
+      source: result.value.input.source,
+      targetIds: result.value.targetIds,
+      causedByInputId: result.value.input.id,
+      payload: createAcceptedInterventionPayload(result.value),
+    });
+    stepEvents.push(acceptedEvent);
+
+    if (result.value.reviewedLlmProposal) {
+      reviewedProposalAgentIds.add(result.value.reviewedLlmProposal.agentId);
+      nextAgentMemories = appendReviewedLlmProposalMemory(
+        nextAgentMemories,
+        nextSnapshot,
+        result.value,
+        result.value.reviewedLlmProposal,
+        acceptedEvent,
+        context,
+      );
+    }
   }
 
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   const reflectionDiagnostics: EngineReflectionDiagnostic[] = [];
   if (state.startupEmitted) {
-    const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents, nextAgentMemories);
+    const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents, nextAgentMemories, reviewedProposalAgentIds);
     nextSnapshot = routineProgress.snapshot;
     nextAgentMemories = routineProgress.agentMemories;
     agentTickDiagnostics.push(...routineProgress.agentTickDiagnostics);
@@ -242,6 +250,10 @@ function createTimeAdvancedEvent(
 }
 
 function applyValidatedInput(snapshot: WorldSnapshot, input: ValidSimulationInput): WorldSnapshot {
+  if (input.reviewedLlmProposal) {
+    return applyReviewedLlmProposalInput(snapshot, input);
+  }
+
   if (input.commandKind !== "observerCommand") {
     return snapshot;
   }
@@ -259,16 +271,175 @@ function applyValidatedInput(snapshot: WorldSnapshot, input: ValidSimulationInpu
   return snapshot;
 }
 
+function applyReviewedLlmProposalInput(snapshot: WorldSnapshot, input: ValidSimulationInput): WorldSnapshot {
+  const proposal = input.reviewedLlmProposal;
+  if (!proposal) return snapshot;
+
+  return {
+    ...snapshot,
+    agents: snapshot.agents.map((agent) => {
+      if (agent.id !== proposal.agentId) return agent;
+      const currentAction = createReviewedLlmPlanAction(input.input.id, proposal, agent.locationId, snapshot.currentTime);
+      return {
+        ...agent,
+        status: createReviewedLlmAgentStatus(agent.status, proposal.proposalAction),
+        locationId: createReviewedLlmAgentLocation(agent.locationId, proposal),
+        currentPlanId: createReviewedLlmPlanId(input.input.id, proposal.agentId),
+        currentAction,
+      };
+    }),
+  };
+}
+
+function createAcceptedInterventionPayload(input: ValidSimulationInput): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    inputId: input.input.id,
+    commandKind: input.commandKind,
+    accepted: true,
+    summary: input.summary,
+  };
+
+  if (input.reviewedLlmProposal) {
+    payload.reviewedLlmProposal = cloneReviewedLlmProposalPayload(input.reviewedLlmProposal);
+  }
+
+  return payload;
+}
+
+function createReviewedLlmPlanId(inputId: string, agentId: AgentId): string {
+  return `llm.${inputId}.${agentId}`;
+}
+
+function createReviewedLlmActionId(inputId: string, proposal: ReviewedLlmProposalPayload): string {
+  return `${createReviewedLlmPlanId(inputId, proposal.agentId)}.${proposal.proposalAction}`;
+}
+
+function createReviewedLlmPlanAction(
+  inputId: string,
+  proposal: ReviewedLlmProposalPayload,
+  fallbackLocationId: LocationId,
+  startsAt: string,
+): PlanAction {
+  const actionKind = proposal.proposalAction === "continue" ? "performActivity" : proposal.proposalAction;
+  return {
+    id: createReviewedLlmActionId(inputId, proposal),
+    kind: actionKind,
+    startsAt,
+    locationId: createReviewedLlmActionLocation(fallbackLocationId, proposal),
+    ...(proposal.targetAgentId ? { targetAgentId: proposal.targetAgentId } : {}),
+    intent: proposal.intent,
+  };
+}
+
+function createReviewedLlmAgentStatus(currentStatus: AgentStatus, action: ReviewedLlmProposalPayload["proposalAction"]): AgentStatus {
+  switch (action) {
+    case "move":
+      return "moving";
+    case "wait":
+      return "waiting";
+    case "reflect":
+      return "reflecting";
+    case "performActivity":
+      return "idle";
+    case "continue":
+      return currentStatus === "waiting" ? "idle" : currentStatus;
+  }
+}
+
+function createReviewedLlmAgentLocation(
+  currentLocationId: LocationId,
+  proposal: ReviewedLlmProposalPayload,
+): LocationId {
+  if (proposal.proposalAction === "move" && proposal.targetLocationId) {
+    return proposal.targetLocationId;
+  }
+  if (proposal.proposalAction === "performActivity" && proposal.targetLocationId) {
+    return proposal.targetLocationId;
+  }
+  return currentLocationId;
+}
+
+function createReviewedLlmActionLocation(
+  fallbackLocationId: LocationId,
+  proposal: ReviewedLlmProposalPayload,
+): LocationId {
+  return proposal.targetLocationId ?? fallbackLocationId;
+}
+
+function appendReviewedLlmProposalMemory(
+  records: readonly EngineMemoryRecord[],
+  snapshot: WorldSnapshot,
+  input: ValidSimulationInput,
+  proposal: ReviewedLlmProposalPayload,
+  acceptedEvent: SimulationEvent,
+  context: EventFactoryContext,
+): EngineMemoryRecord[] {
+  const agent = snapshot.agents.find((candidate) => candidate.id === proposal.agentId);
+  if (!agent) return cloneEngineMemoryRecords(records);
+
+  return [
+    ...cloneEngineMemoryRecords(records),
+    {
+      id: createReviewedLlmProposalMemoryId(context.stepId, proposal.agentId),
+      agentId: proposal.agentId,
+      kind: "plan",
+      content: `${agent.displayName} accepted a reviewed LLM ${proposal.proposalAction} proposal: ${proposal.intent}`,
+      createdAt: context.time,
+      lastAccessedAt: context.time,
+      importance: 5,
+      sourceIds: [acceptedEvent.id, input.input.id],
+      relatedMemoryIds: [],
+      visibility: "user-authored",
+      tags: [proposal.agentId, proposal.proposalAction, "llm", "user-reviewed"],
+      metadata: {
+        stepId: context.stepId,
+        source: "engine",
+        locationId: agent.locationId,
+        proposalKind: proposal.proposalAction,
+        planId: createReviewedLlmPlanId(input.input.id, proposal.agentId),
+        llmOperationId: proposal.llmOperationId,
+        reviewedBy: proposal.reviewedBy,
+        proposalAction: proposal.proposalAction,
+      },
+    },
+  ];
+}
+
+function createReviewedLlmProposalMemoryId(stepId: string, agentId: AgentId): string {
+  return `memory_${stepId}_${agentId}_llm_proposal`.replace(/[^a-z0-9_]+/gi, "_").toLowerCase();
+}
+
+function cloneReviewedLlmProposalPayload(proposal: ReviewedLlmProposalPayload): Record<string, unknown> {
+  return {
+    eventKind: proposal.eventKind,
+    provenance: proposal.provenance,
+    sandbox: proposal.sandbox,
+    agentId: proposal.agentId,
+    proposalAction: proposal.proposalAction,
+    reason: proposal.reason,
+    intent: proposal.intent,
+    llmOperationId: proposal.llmOperationId,
+    reviewedBy: proposal.reviewedBy,
+    ...(proposal.targetLocationId ? { targetLocationId: proposal.targetLocationId } : {}),
+    ...(proposal.targetAgentId ? { targetAgentId: proposal.targetAgentId } : {}),
+  };
+}
+
 function progressAgentRoutines(
   snapshot: WorldSnapshot,
   context: EventFactoryContext,
   stepEvents: SimulationEvent[],
   agentMemories: readonly EngineMemoryRecord[],
+  skipAgentIds: ReadonlySet<AgentId> = new Set(),
 ): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[]; reflectionDiagnostics: EngineReflectionDiagnostic[]; agentMemories: EngineMemoryRecord[] } {
   let nextEventOrder = stepEvents.length + 1;
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   const memoryStore = new InMemoryMemoryStore<EngineMemoryMetadata>(agentMemories);
   const agents = snapshot.agents.map((agent) => {
+    if (skipAgentIds.has(agent.id)) {
+      return agent;
+    }
+
     const tick = runAgentCognitiveTickForEngine(snapshot, agent, {
       memory: memoryStore.toPort(),
       stepId: context.stepId,
@@ -456,7 +627,7 @@ function compareReflectionEvidence(left: EngineMemoryRecord, right: EngineMemory
 }
 
 function isCurrentStepPlanMemory(memory: EngineMemoryRecord, stepId: string): boolean {
-  return memory.kind === "plan" && memory.metadata.source === "engine" && memory.metadata.stepId === stepId;
+  return memory.kind === "plan" && memory.metadata.source === "engine" && memory.metadata.stepId === stepId && memory.metadata.llmOperationId === undefined;
 }
 
 function isCurrentStepReflectionMemory(memory: EngineMemoryRecord, stepId: string): boolean {

@@ -302,6 +302,38 @@ test("admin controller generates sandbox LLM action proposals without mutating s
   assert.deepEqual(before.events, after.events);
   assert.equal(JSON.stringify(result.body).includes("test-secret-key"), false);
   assert.equal(JSON.stringify(calls[0]?.body).includes("test-secret-key"), false);
+
+  const proposal = result.body.proposal;
+  assert.ok(proposal);
+  const reviewed = controller.submitInput({
+    kind: "realmEvent",
+    source: "user",
+    targetIds: ["agent_elysia", "garden"],
+    payload: {
+      eventKind: `llm.proposal.${proposal.action}`,
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: proposal.action,
+      reason: proposal.reason,
+      intent: proposal.intent,
+      llmOperationId: result.body.operation.id,
+      reviewedBy: "user",
+      targetLocationId: proposal.targetLocationId,
+    },
+  });
+  assert.equal(reviewed.ok, true);
+  if (!reviewed.ok) return;
+  const reviewedAgent = reviewed.body.snapshot.agents.find((agent) => agent.id === "agent_elysia");
+
+  assert.equal(reviewedAgent?.locationId, "garden");
+  assert.equal(reviewedAgent?.status, "moving");
+  assert.equal(reviewedAgent?.currentAction?.id, "llm.admin_input_001.agent_elysia.move");
+  assert.equal(reviewed.body.events.at(-1)?.kind, "realm.interventionSubmitted");
+  assert.equal(reviewed.body.agentMemories.some((memory) => (
+    memory.id === "memory_step_0605_001_agent_elysia_llm_proposal" &&
+    memory.metadata.llmOperationId === "llm_action_proposal_step_0600_000_agent_elysia"
+  )), true);
 });
 
 test("admin controller returns failed operation metadata for invalid LLM proposal targets", async () => {
