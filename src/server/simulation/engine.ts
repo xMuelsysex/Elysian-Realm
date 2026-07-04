@@ -2,13 +2,14 @@ import type { InterventionCommand, SimulationInput, WorldSnapshot, SimulationEve
 import { InMemoryMemoryStore } from "@elysian/simulation-agent";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
 import { validateSimulationInput, type ValidSimulationInput } from "./inputs.js";
-import { runAgentCognitiveTickForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord } from "./agentRuntimeAdapter.js";
+import { runAgentCognitiveTickForEngine, runAgentReflectionForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord, type EngineReflectionDiagnostic } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
   OBSERVATION_MVP_SEED_ID,
 } from "./seeds/observationMvpSeed.js";
 
 const STEP_MINUTES = 5;
+const REFLECTION_EVIDENCE_LIMIT = 3;
 export interface SimulationEngineState {
   snapshot: WorldSnapshot;
   events: SimulationEvent[];
@@ -21,6 +22,7 @@ export interface SimulationStepResult {
   state: SimulationEngineState;
   events: SimulationEvent[];
   agentTickDiagnostics: EngineAgentTickDiagnostic[];
+  reflectionDiagnostics: EngineReflectionDiagnostic[];
 }
 
 export function createSimulationEngine(): SimulationEngineState {
@@ -118,11 +120,13 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
   }
 
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
+  const reflectionDiagnostics: EngineReflectionDiagnostic[] = [];
   if (state.startupEmitted) {
     const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents, nextAgentMemories);
     nextSnapshot = routineProgress.snapshot;
     nextAgentMemories = routineProgress.agentMemories;
     agentTickDiagnostics.push(...routineProgress.agentTickDiagnostics);
+    reflectionDiagnostics.push(...routineProgress.reflectionDiagnostics);
   }
 
   const nextState: SimulationEngineState = {
@@ -133,7 +137,7 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
     agentMemories: nextAgentMemories,
   };
 
-  return { state: nextState, events: stepEvents, agentTickDiagnostics };
+  return { state: nextState, events: stepEvents, agentTickDiagnostics, reflectionDiagnostics };
 }
 
 function createStartupEvents(
@@ -260,7 +264,7 @@ function progressAgentRoutines(
   context: EventFactoryContext,
   stepEvents: SimulationEvent[],
   agentMemories: readonly EngineMemoryRecord[],
-): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[]; agentMemories: EngineMemoryRecord[] } {
+): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[]; reflectionDiagnostics: EngineReflectionDiagnostic[]; agentMemories: EngineMemoryRecord[] } {
   let nextEventOrder = stepEvents.length + 1;
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   const memoryStore = new InMemoryMemoryStore<EngineMemoryMetadata>(agentMemories);
@@ -325,10 +329,14 @@ function progressAgentRoutines(
     };
   });
 
+  const updatedSnapshot = { ...snapshot, agents };
+  const reflectionDiagnostics = runReflectionPolicy(updatedSnapshot, context, memoryStore);
+
   return {
-    snapshot: { ...snapshot, agents },
+    snapshot: updatedSnapshot,
     agentTickDiagnostics,
-    agentMemories: listEngineMemories(memoryStore, snapshot),
+    reflectionDiagnostics,
+    agentMemories: listEngineMemories(memoryStore, updatedSnapshot),
   };
 }
 
@@ -338,6 +346,143 @@ function toAgentTickDiagnostic(tick: EngineAgentTickResult): EngineAgentTickDiag
     phases: tick.phases,
     ...(tick.proposal ? { proposal: tick.proposal } : {}),
   };
+}
+
+function runReflectionPolicy(
+  snapshot: WorldSnapshot,
+  context: EventFactoryContext,
+  memoryStore: InMemoryMemoryStore<EngineMemoryMetadata>,
+): EngineReflectionDiagnostic[] {
+  return snapshot.agents.map((agent) => {
+    const records = memoryStore.list(agent.id).map(cloneEngineMemoryRecord);
+    const currentPlanMemories = records.filter((memory) => isCurrentStepPlanMemory(memory, context.stepId));
+    if (currentPlanMemories.length === 0) {
+      return createSkippedReflectionDiagnostic(agent.id, "no current-step plan memory");
+    }
+
+    if (records.some((memory) => isCurrentStepReflectionMemory(memory, context.stepId))) {
+      return createSkippedReflectionDiagnostic(agent.id, "reflection already recorded for current step");
+    }
+
+    const evidence = selectReflectionEvidence(records, currentPlanMemories);
+    if (evidence.length === 0) {
+      return createSkippedReflectionDiagnostic(agent.id, "no eligible non-reflection evidence");
+    }
+
+    const result = runAgentReflectionForEngine(agent, {
+      stepId: context.stepId,
+      now: context.time,
+      evidence,
+      triggerSourceIds: currentPlanMemories.flatMap((memory) => memory.sourceIds),
+      reason: "current step produced a plan memory that crossed the reflection threshold",
+      period: currentPlanMemories[0]?.metadata.period,
+      locationId: currentPlanMemories[0]?.metadata.locationId ?? agent.locationId,
+    });
+    if (result.status !== "completed") {
+      return toReflectionDiagnostic(result);
+    }
+
+    const persistedMemoryIds: string[] = [];
+    try {
+      result.memoryWrites.forEach((write, index) => {
+        const persisted = memoryStore.remember(agent.id, {
+          ...write,
+          id: createReflectionMemoryId(context.stepId, agent.id, index),
+        });
+        persistedMemoryIds.push(persisted.id);
+      });
+    } catch (error) {
+      return {
+        ...toReflectionDiagnostic(result),
+        status: "failed",
+        persistedMemoryIds,
+        diagnostics: [
+          ...result.diagnostics,
+          {
+            status: "failed",
+            phase: "output",
+            message: `reflection persistence failed: ${errorMessage(error)}`,
+            evidenceMemoryIds: result.evidenceMemoryIds,
+          },
+        ],
+      };
+    }
+
+    return toReflectionDiagnostic(result, persistedMemoryIds);
+  });
+}
+
+function toReflectionDiagnostic(
+  result: ReturnType<typeof runAgentReflectionForEngine>,
+  persistedMemoryIds = result.persistedMemoryIds,
+): EngineReflectionDiagnostic {
+  return {
+    agentId: result.agentId,
+    status: result.status,
+    evidenceMemoryIds: [...result.evidenceMemoryIds],
+    persistedMemoryIds: [...persistedMemoryIds],
+    diagnostics: result.diagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      evidenceMemoryIds: diagnostic.evidenceMemoryIds ? [...diagnostic.evidenceMemoryIds] : undefined,
+    })),
+    reason: result.reason,
+    trigger: result.trigger
+      ? {
+          ...result.trigger,
+          sourceIds: [...result.trigger.sourceIds],
+        }
+      : undefined,
+  };
+}
+
+function selectReflectionEvidence(
+  records: readonly EngineMemoryRecord[],
+  currentPlanMemories: readonly EngineMemoryRecord[],
+): EngineMemoryRecord[] {
+  const selectedIds = new Set(currentPlanMemories.map((memory) => memory.id));
+  const supplemental = records
+    .filter((memory) => memory.kind !== "reflection" && !selectedIds.has(memory.id))
+    .sort(compareReflectionEvidence)
+    .slice(0, Math.max(0, REFLECTION_EVIDENCE_LIMIT - currentPlanMemories.length));
+  return [...currentPlanMemories, ...supplemental].slice(0, REFLECTION_EVIDENCE_LIMIT).map(cloneEngineMemoryRecord);
+}
+
+function compareReflectionEvidence(left: EngineMemoryRecord, right: EngineMemoryRecord): number {
+  const importanceDelta = right.importance - left.importance;
+  if (importanceDelta !== 0) return importanceDelta;
+  const createdDelta = Date.parse(right.createdAt) - Date.parse(left.createdAt);
+  if (createdDelta !== 0) return createdDelta;
+  return left.id.localeCompare(right.id);
+}
+
+function isCurrentStepPlanMemory(memory: EngineMemoryRecord, stepId: string): boolean {
+  return memory.kind === "plan" && memory.metadata.source === "engine" && memory.metadata.stepId === stepId;
+}
+
+function isCurrentStepReflectionMemory(memory: EngineMemoryRecord, stepId: string): boolean {
+  return memory.kind === "reflection" && memory.metadata.source === "engine" && memory.metadata.stepId === stepId;
+}
+
+function createSkippedReflectionDiagnostic(agentId: string, reason: string): EngineReflectionDiagnostic {
+  return {
+    agentId,
+    status: "skipped",
+    reason,
+    evidenceMemoryIds: [],
+    persistedMemoryIds: [],
+    diagnostics: [],
+  };
+}
+
+function createReflectionMemoryId(stepId: string, agentId: string, index: number): string {
+  const suffix = index === 0 ? "reflection" : `reflection_${index + 1}`;
+  return `memory_${stepId}_${agentId}_${suffix}`.replace(/[^a-z0-9_]+/gi, "_").toLowerCase();
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "unknown error";
 }
 
 function createInputValidationContext(snapshot: WorldSnapshot) {

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Verify reflection policy does not mutate authoritative world state or replay events."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Verify reflection memories preserve source/evidence links and stay outside persona fixtures."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify deterministic offline behavior and visible failures."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify Admin response/view model type ownership."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify read-only diagnostics UI and provenance rendering."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify data survives package-engine-admin-ui boundaries without duplicate parsing."}

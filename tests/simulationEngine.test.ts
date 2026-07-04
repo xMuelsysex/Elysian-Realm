@@ -264,10 +264,13 @@ test("post-startup steps progress agents through configured routine periods", ()
   assert.deepEqual(atNoon.agentMemories.map((memory) => memory.id), [
     "memory_seed_agent_elysia",
     "memory_step_1200_072_agent_elysia_plan",
+    "memory_step_1200_072_agent_elysia_reflection",
     "memory_seed_agent_kevin",
     "memory_step_1200_072_agent_kevin_plan",
+    "memory_step_1200_072_agent_kevin_reflection",
     "memory_seed_agent_eden",
     "memory_step_1200_072_agent_eden_plan",
+    "memory_step_1200_072_agent_eden_reflection",
   ]);
   const elysiaPlanMemory = atNoon.agentMemories.find((memory) => memory.id === "memory_step_1200_072_agent_elysia_plan");
   assert.ok(elysiaPlanMemory);
@@ -279,6 +282,17 @@ test("post-startup steps progress agents through configured routine periods", ()
   assert.equal(elysiaPlanMemory.metadata.stepId, "step_1200_072");
   assert.equal(elysiaPlanMemory.metadata.locationId, "lounge");
   assert.equal(elysiaPlanMemory.metadata.planId, "elysia.day.0");
+  const elysiaReflectionMemory = atNoon.agentMemories.find((memory) => memory.id === "memory_step_1200_072_agent_elysia_reflection");
+  assert.ok(elysiaReflectionMemory);
+  assert.equal(elysiaReflectionMemory.kind, "reflection");
+  assert.deepEqual(elysiaReflectionMemory.sourceIds, ["step_1200_072"]);
+  assert.deepEqual(elysiaReflectionMemory.relatedMemoryIds, [
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_seed_agent_elysia",
+  ]);
+  assert.equal(elysiaReflectionMemory.metadata.source, "engine");
+  assert.equal(elysiaReflectionMemory.metadata.triggerKind, "importance-threshold");
+  assert.equal(elysiaReflectionMemory.metadata.reflectionSource, "deterministic");
 });
 
 test("engine memory records stay outside events timeline and replay projections", () => {
@@ -289,11 +303,32 @@ test("engine memory records stay outside events timeline and replay projections"
     replay,
   });
 
-  assert.equal(atNoon.agentMemories.length, 6);
+  assert.equal(atNoon.agentMemories.length, 9);
   assert.equal(replayVisible.includes("agentMemories"), false);
   assert.equal(replayVisible.includes("Elysia planned performActivity"), false);
+  assert.equal(replayVisible.includes("Elysia reflected on agent_elysia planned performActivity"), false);
   assert.equal(replayVisible.includes("\"metadata\":{\"stepId\":\"step_1200_072\""), false);
   assert.equal(replay.timeline.length, atNoon.events.length);
+});
+
+test("reflection policy completes only for current-step plan memories and does not loop", () => {
+  const firstStep = stepSimulationEngine(createSimulationEngine());
+  assert.deepEqual(firstStep.reflectionDiagnostics, []);
+
+  const secondStep = stepSimulationEngine(firstStep.state);
+  assert.equal(secondStep.reflectionDiagnostics.length, expectedAgentIds.length);
+  assert.ok(secondStep.reflectionDiagnostics.every((diagnostic) => diagnostic.status === "skipped" && diagnostic.reason === "no current-step plan memory"));
+
+  const atNoon = stepResultTimes(createSimulationEngine(), 72);
+  assert.equal(atNoon.reflectionDiagnostics.length, expectedAgentIds.length);
+  assert.ok(atNoon.reflectionDiagnostics.every((diagnostic) => diagnostic.status === "completed"));
+  assert.ok(atNoon.reflectionDiagnostics.every((diagnostic) => diagnostic.evidenceMemoryIds.length === 2));
+  assert.ok(atNoon.reflectionDiagnostics.every((diagnostic) => diagnostic.persistedMemoryIds.length === 1));
+  assert.equal(atNoon.reflectionDiagnostics[0]?.trigger?.kind, "importance-threshold");
+
+  const afterNoon = stepSimulationEngine(atNoon.state);
+  assert.equal(afterNoon.state.agentMemories.length, atNoon.state.agentMemories.length);
+  assert.ok(afterNoon.reflectionDiagnostics.every((diagnostic) => diagnostic.status === "skipped" && diagnostic.reason === "no current-step plan memory"));
 });
 
 test("routine progression emits validated movement before routine events", () => {
@@ -367,11 +402,18 @@ test("setTimeScale input affects later time advancement events", () => {
 });
 
 function stepTimes(initial: ReturnType<typeof createSimulationEngine>, count: number): ReturnType<typeof stepSimulationEngine>["state"] {
+  return stepResultTimes(initial, count).state;
+}
+
+function stepResultTimes(initial: ReturnType<typeof createSimulationEngine>, count: number): ReturnType<typeof stepSimulationEngine> {
   let state = initial;
+  let result: ReturnType<typeof stepSimulationEngine> | undefined;
   for (let index = 0; index < count; index += 1) {
-    state = stepSimulationEngine(state).state;
+    result = stepSimulationEngine(state);
+    state = result.state;
   }
-  return state;
+  assert.ok(result, "stepResultTimes requires a positive count");
+  return result;
 }
 
 function findAgent(agents: ReturnType<typeof createSimulationEngine>["snapshot"]["agents"], id: string) {

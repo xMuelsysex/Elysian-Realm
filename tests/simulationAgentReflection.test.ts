@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   InMemoryMemoryStore,
   runReflection,
+  runReflectionSync,
   type MemoryRecord,
   type ReflectionInput,
   type ReflectionPlanner,
@@ -97,6 +98,56 @@ test("valid fake reflection planner creates evidence-linked reflection memory wr
   assert.deepEqual(write?.relatedMemoryIds, ["memory_garden", "memory_promise"]);
   assert.deepEqual(write?.tags, ["eden", "rehearsal"]);
   assert.deepEqual(write?.metadata, { theme: "relationship" });
+});
+
+test("sync reflection planner creates evidence-linked reflection memory writes", () => {
+  const input = reflectionInput();
+  const planner: ReflectionPlanner<EvidenceMetadata, InsightMetadata> = {
+    reflect: () => ({
+      source: "deterministic",
+      reason: "Sync policy over deterministic evidence.",
+      insights: [
+        {
+          content: "Elysia should carry the quiet rehearsal preference forward.",
+          evidenceMemoryIds: ["memory_garden", "memory_promise"],
+          importance: 7,
+          tags: ["eden", "reflection"],
+          metadata: { theme: "sync-policy" },
+        },
+      ],
+    }),
+  };
+
+  const result = runReflectionSync(input, planner);
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.memoryWrites.length, 1);
+  assert.equal(result.memoryWrites[0]?.kind, "reflection");
+  assert.deepEqual(result.memoryWrites[0]?.relatedMemoryIds, ["memory_garden", "memory_promise"]);
+  assert.deepEqual(result.memoryWrites[0]?.metadata, { theme: "sync-policy" });
+});
+
+test("sync reflection fails visibly for async planner misuse", () => {
+  const planner: ReflectionPlanner<EvidenceMetadata, InsightMetadata> = {
+    reflect: async () => ({
+      source: "deterministic",
+      reason: "Async planner must use runReflection.",
+      insights: [
+        {
+          content: "This async output should not be accepted by the sync path.",
+          evidenceMemoryIds: ["memory_garden"],
+          importance: 5,
+          metadata: { theme: "async-misuse" },
+        },
+      ],
+    }),
+  };
+
+  const result = runReflectionSync(reflectionInput(), planner);
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.memoryWrites.length, 0);
+  assert.match(result.diagnostics[0]?.message ?? "", /sync reflection received an async planner result/);
 });
 
 test("malformed planner output fails visibly and creates no memory writes", async () => {

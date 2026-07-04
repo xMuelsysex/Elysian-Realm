@@ -7,6 +7,7 @@ import { formatAgentDisplayName, formatDiagnosticLevelLabel, formatEntityLabel, 
 import type {
   AgentTickInspectorViewModel,
   AgentMemoryStreamViewModel,
+  AgentReflectionPolicyViewModel,
   AgentPlanViewModel,
   DebugExportViewModel,
   DiagnosticsCenterViewModel,
@@ -81,6 +82,11 @@ interface AgentMemoryStreamPanelProps {
   viewModel: AgentMemoryStreamViewModel;
 }
 
+interface AgentReflectionPolicyPanelProps {
+  language: AppLanguage;
+  viewModel: AgentReflectionPolicyViewModel;
+}
+
 export function AgentTickInspectorPanel({ language, viewModel }: AgentTickInspectorPanelProps) {
   return (
     <section className="panel" aria-labelledby="agent-tick-inspector-heading">
@@ -115,6 +121,42 @@ export function AgentTickInspectorPanel({ language, viewModel }: AgentTickInspec
                   ))}
                 </ol>
               ) : <p className="muted">{language === "zh" ? "同一步暂无关联事件。" : "No same-step related events."}</p>}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function AgentReflectionPolicyPanel({ language, viewModel }: AgentReflectionPolicyPanelProps) {
+  return (
+    <section className="panel" aria-labelledby="agent-reflection-policy-heading">
+      <PanelTitle eyebrow={language === "zh" ? "反思策略" : "Reflection policy"} title={language === "zh" ? "角色反思诊断" : "Agent reflection diagnostics"} id="agent-reflection-policy-heading" />
+      <dl className="compact-metrics">
+        <Metric label={language === "zh" ? "步进" : "Step"} value={viewModel.stepId} code />
+        <Metric label={language === "zh" ? "完成" : "Completed"} value={viewModel.completedCount} />
+        <Metric label={language === "zh" ? "跳过" : "Skipped"} value={viewModel.skippedCount} />
+        <Metric label={language === "zh" ? "失败" : "Failed"} value={viewModel.failedCount} />
+      </dl>
+      {viewModel.rows.length === 0 ? <p className="empty-state">{language === "zh" ? "最近一步没有反思策略诊断。" : "No reflection policy diagnostics for the latest step."}</p> : (
+        <div className="card-grid">
+          {viewModel.rows.map((row) => (
+            <article className="detail-card" key={row.agentId}>
+              <h3>{row.displayName}</h3>
+              <p className="muted"><code>{row.agentId}</code></p>
+              <div className="timeline-row">
+                <Badge tone={row.status === "failed" ? "error" : row.status === "completed" ? "success" : "neutral"}>{row.status}</Badge>
+                <strong>{row.reason ?? (language === "zh" ? "无额外原因" : "No additional reason")}</strong>
+              </div>
+              <dl className="event-meta">
+                <Metric label={language === "zh" ? "证据" : "Evidence"} value={row.evidenceMemoryIds.length} />
+                <Metric label={language === "zh" ? "持久化" : "Persisted"} value={row.persistedMemoryIds.length} />
+              </dl>
+              {row.trigger ? <JsonDetails title={language === "zh" ? "触发器" : "Trigger"} value={row.trigger} /> : null}
+              {row.evidenceMemoryIds.length > 0 ? <p className="muted">{language === "zh" ? "证据记忆" : "Evidence memories"}: <code>{row.evidenceMemoryIds.join(", ")}</code></p> : null}
+              {row.persistedMemoryIds.length > 0 ? <p className="muted">{language === "zh" ? "写入记忆" : "Persisted memories"}: <code>{row.persistedMemoryIds.join(", ")}</code></p> : null}
+              {row.diagnostics.length > 0 ? <JsonDetails title={language === "zh" ? "反思诊断" : "Reflection diagnostics"} value={row.diagnostics} /> : null}
             </article>
           ))}
         </div>

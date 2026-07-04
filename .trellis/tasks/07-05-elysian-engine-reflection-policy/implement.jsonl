@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-development checklist for simulation and memory work."}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Authoritative engine, event, replay, and diagnostics boundaries."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory and reflection records must remain generated runtime state."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and visible failure requirements."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist for admin diagnostics UI."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Debug and provenance UI requirements for generated memory/reflection output."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Frontend must render backend projections without owning simulation state."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Shared contract/view-model ownership for Admin response fields."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Read-only diagnostic component conventions."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Task crosses package, engine, Admin API, and UI layers."}

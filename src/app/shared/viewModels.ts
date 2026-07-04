@@ -1,5 +1,5 @@
 import type { AdminDiagnostic, AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
-import type { EngineAgentTickDiagnostic, EngineMemoryRecord, ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
+import type { EngineAgentTickDiagnostic, EngineMemoryRecord, EngineReflectionDiagnostic, ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
 import type {
   AgentRuntimeState,
   ConversationRecord,
@@ -244,6 +244,25 @@ export interface AgentMemoryStreamGroup {
 export interface AgentMemoryStreamViewModel {
   total: number;
   groups: AgentMemoryStreamGroup[];
+}
+
+export interface AgentReflectionPolicyRow {
+  agentId: string;
+  displayName: string;
+  status: EngineReflectionDiagnostic["status"];
+  reason?: string;
+  trigger?: EngineReflectionDiagnostic["trigger"];
+  evidenceMemoryIds: string[];
+  persistedMemoryIds: string[];
+  diagnostics: EngineReflectionDiagnostic["diagnostics"];
+}
+
+export interface AgentReflectionPolicyViewModel {
+  stepId: string;
+  rows: AgentReflectionPolicyRow[];
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
 }
 
 export interface TopologyLocationNode {
@@ -795,6 +814,42 @@ export function createAgentMemoryStreamViewModel(
   return {
     total: state.agentMemories.length,
     groups,
+  };
+}
+
+export function createAgentReflectionPolicyViewModel(
+  state: AdminStateResponse,
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): AgentReflectionPolicyViewModel {
+  const agentsById = new Map(state.snapshot.agents.map((agent) => [agent.id, agent]));
+  const rows = state.reflectionDiagnostics.map((diagnostic) => {
+    const agent = agentsById.get(diagnostic.agentId);
+    return {
+      agentId: diagnostic.agentId,
+      displayName: formatAgentDisplayName(language, diagnostic.agentId, agent?.displayName ?? diagnostic.agentId),
+      status: diagnostic.status,
+      reason: diagnostic.reason,
+      trigger: diagnostic.trigger
+        ? {
+            ...diagnostic.trigger,
+            sourceIds: [...diagnostic.trigger.sourceIds],
+          }
+        : undefined,
+      evidenceMemoryIds: [...diagnostic.evidenceMemoryIds],
+      persistedMemoryIds: [...diagnostic.persistedMemoryIds],
+      diagnostics: diagnostic.diagnostics.map((entry) => ({
+        ...entry,
+        evidenceMemoryIds: entry.evidenceMemoryIds ? [...entry.evidenceMemoryIds] : undefined,
+      })),
+    } satisfies AgentReflectionPolicyRow;
+  });
+
+  return {
+    stepId: state.snapshot.lastStepId,
+    rows,
+    completedCount: rows.filter((row) => row.status === "completed").length,
+    skippedCount: rows.filter((row) => row.status === "skipped").length,
+    failedCount: rows.filter((row) => row.status === "failed").length,
   };
 }
 

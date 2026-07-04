@@ -3,6 +3,7 @@ import type { MemoryWrite } from "../memory/memoryRecords.js";
 import {
   type ReflectionInput,
   type ReflectionPlanner,
+  type ReflectionPlannerOutput,
   type ReflectionResult,
 } from "./reflectionRecords.js";
 import {
@@ -11,6 +12,8 @@ import {
   validateReflectionInput,
   validateReflectionPlannerOutput,
 } from "./reflectionValidation.js";
+
+const SYNC_REFLECTION_PROMISE_ERROR = "sync reflection received an async planner result; use runReflection for async planners";
 
 export async function runReflection<
   EvidenceMetadata = Record<string, unknown>,
@@ -40,6 +43,55 @@ export async function runReflection<
     };
   }
 
+  return buildReflectionResult(input, plannerOutput);
+}
+
+export function runReflectionSync<
+  EvidenceMetadata = Record<string, unknown>,
+  ReflectionMetadata = Record<string, unknown>,
+>(
+  input: ReflectionInput<EvidenceMetadata>,
+  planner: ReflectionPlanner<EvidenceMetadata, ReflectionMetadata>,
+  options?: LlmRequestOptionsLike,
+): ReflectionResult<ReflectionMetadata> {
+  const inputDiagnostics = validateReflectionInput(input);
+  if (inputDiagnostics.length > 0) {
+    return {
+      status: "failed",
+      memoryWrites: [],
+      diagnostics: inputDiagnostics,
+    };
+  }
+
+  let plannerOutput: ReflectionPlannerOutput<ReflectionMetadata> | Promise<ReflectionPlannerOutput<ReflectionMetadata>>;
+  try {
+    plannerOutput = planner.reflect(input, options);
+    if (isPromiseLike(plannerOutput)) {
+      void Promise.resolve(plannerOutput).catch(() => undefined);
+      return {
+        status: "failed",
+        memoryWrites: [],
+        diagnostics: [failedDiagnostic("planner", SYNC_REFLECTION_PROMISE_ERROR)],
+      };
+    }
+  } catch (error) {
+    return {
+      status: "failed",
+      memoryWrites: [],
+      diagnostics: [failedDiagnostic("planner", `reflection planner failed: ${errorMessage(error)}`)],
+    };
+  }
+
+  return buildReflectionResult(input, plannerOutput);
+}
+
+function buildReflectionResult<
+  EvidenceMetadata,
+  ReflectionMetadata = Record<string, unknown>,
+>(
+  input: ReflectionInput<EvidenceMetadata>,
+  plannerOutput: unknown,
+): ReflectionResult<ReflectionMetadata> {
   const validation = validateReflectionPlannerOutput<EvidenceMetadata, ReflectionMetadata>(input, plannerOutput);
   if (!validation.output) {
     return {
@@ -69,6 +121,10 @@ export async function runReflection<
       completedReflectionDiagnostic(memoryWrites.length, evidenceMemoryIds, validation.output.source),
     ],
   };
+}
+
+function isPromiseLike<T>(value: T | Promise<T>): value is Promise<T> {
+  return typeof value === "object" && value !== null && "then" in value && typeof value.then === "function";
 }
 
 function errorMessage(error: unknown): string {

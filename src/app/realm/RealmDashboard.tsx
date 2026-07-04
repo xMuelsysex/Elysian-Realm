@@ -3,6 +3,7 @@ import type { AdminStateResponse, SubmitAdminInputRequest } from "../../server/a
 import {
   createAgentDetailViewModel,
   createAgentMemoryStreamViewModel,
+  createAgentReflectionPolicyViewModel,
   createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
@@ -35,6 +36,7 @@ import { LocationBoard } from "./LocationBoard.js";
 import { RealmMapPanel } from "./RealmMapPanel.js";
 import {
   AgentMemoryStreamPanel,
+  AgentReflectionPolicyPanel,
   AgentTickInspectorPanel,
   AgentPlanPanel,
   DebugExportPanel,
@@ -118,6 +120,7 @@ export function RealmDashboard({
   const plans = createAgentPlanViewModels(state.snapshot, language);
   const agentTickInspector = createAgentTickInspectorViewModel(state, timelineItems, language);
   const agentMemoryStream = createAgentMemoryStreamViewModel(state, language);
+  const agentReflectionPolicy = createAgentReflectionPolicyViewModel(state, language);
   const topology = createTopologyViewModel(state.snapshot, timelineItems);
   const exportViewModel = createDebugExportViewModel(state, timelineItems, diagnostics, diffs);
   const kindOptions = [...new Set(state.events.map((event) => event.kind))].sort();
@@ -269,6 +272,7 @@ export function RealmDashboard({
           <div className="dashboard-page-grid dashboard-page-grid--balanced">
             <WorldInspector language={language} viewModel={worldInspector} />
             <AgentTickInspectorPanel language={language} viewModel={agentTickInspector} />
+            <AgentReflectionPolicyPanel language={language} viewModel={agentReflectionPolicy} />
             <AgentMemoryStreamPanel language={language} viewModel={agentMemoryStream} />
             <ReceiptPanel language={language} receipt={receipt} />
             <DiagnosticsCenter language={language} viewModel={diagnostics} />
@@ -351,6 +355,7 @@ export function RealmDashboard({
           <div className="dashboard-page-stack">
             <DebugExportPanel language={language} viewModel={exportViewModel} onExport={exportDebugState} exportedAt={exportedAt} />
             <AgentTickInspectorPanel language={language} viewModel={agentTickInspector} />
+            <AgentReflectionPolicyPanel language={language} viewModel={agentReflectionPolicy} />
             <AgentMemoryStreamPanel language={language} viewModel={agentMemoryStream} />
             <DebugPanel language={language} state={state} />
           </div>

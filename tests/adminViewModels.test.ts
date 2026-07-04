@@ -6,6 +6,7 @@ import type { AdminDiagnostic } from "../src/server/admin/index.js";
 import {
   createAgentDetailViewModel,
   createAgentMemoryStreamViewModel,
+  createAgentReflectionPolicyViewModel,
   createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
@@ -290,12 +291,13 @@ test("creates grouped agent memory stream view model from real memory records", 
   const stream = createAgentMemoryStreamViewModel(state, "en");
   const elysia = stream.groups.find((group) => group.agentId === "agent_elysia");
 
-  assert.equal(stream.total, 6);
+  assert.equal(stream.total, 9);
   assert.equal(stream.groups.length, state.snapshot.agents.length);
   assert.ok(elysia);
   assert.equal(elysia.displayName, "Elysia");
   assert.deepEqual(elysia.rows.map((row) => row.id), [
     "memory_step_1200_072_agent_elysia_plan",
+    "memory_step_1200_072_agent_elysia_reflection",
     "memory_seed_agent_elysia",
   ]);
   assert.equal(elysia.rows[0]?.source, "engine");
@@ -304,7 +306,42 @@ test("creates grouped agent memory stream view model from real memory records", 
   assert.deepEqual(elysia.rows[0]?.sourceIds, ["step_1200_072"]);
   assert.ok(elysia.rows[0]?.tags.includes("performActivity"));
   assert.equal(elysia.rows[0]?.metadata.locationId, "lounge");
-  assert.equal(elysia.rows[1]?.source, "seed");
+  assert.equal(elysia.rows[1]?.kind, "reflection");
+  assert.equal(elysia.rows[1]?.metadata.triggerKind, "importance-threshold");
+  assert.equal(elysia.rows[2]?.source, "seed");
+});
+
+test("creates reflection policy diagnostics view model", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const empty = createAgentReflectionPolicyViewModel(initial, "en");
+
+  assert.equal(empty.stepId, initial.snapshot.lastStepId);
+  assert.deepEqual(empty.rows, []);
+  assert.equal(empty.completedCount, 0);
+
+  const unchanged = controller.step();
+  const skipped = createAgentReflectionPolicyViewModel(controller.step(), "en");
+  assert.equal(unchanged.snapshot.lastStepId, "step_0605_001");
+  assert.equal(skipped.rows.length, skipped.skippedCount);
+  assert.ok(skipped.rows.every((row) => row.reason === "no current-step plan memory"));
+
+  const state = stepControllerTimes(controller, 70);
+  const viewModel = createAgentReflectionPolicyViewModel(state, "en");
+  const elysia = viewModel.rows.find((row) => row.agentId === "agent_elysia");
+
+  assert.equal(viewModel.stepId, "step_1200_072");
+  assert.equal(viewModel.completedCount, state.snapshot.agents.length);
+  assert.equal(viewModel.failedCount, 0);
+  assert.equal(viewModel.skippedCount, 0);
+  assert.ok(elysia);
+  assert.equal(elysia.status, "completed");
+  assert.equal(elysia.trigger?.kind, "importance-threshold");
+  assert.deepEqual(elysia.persistedMemoryIds, ["memory_step_1200_072_agent_elysia_reflection"]);
+  assert.deepEqual(elysia.evidenceMemoryIds, [
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_seed_agent_elysia",
+  ]);
 });
 
 test("creates enhanced selected agent detail with configured persona facts and runtime memory index", () => {

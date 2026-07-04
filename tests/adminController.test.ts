@@ -17,6 +17,7 @@ test("admin controller exposes deterministic initial state", () => {
   assert.deepEqual(state.timeline, []);
   assert.deepEqual(state.diagnostics, []);
   assert.deepEqual(state.agentTickDiagnostics, []);
+  assert.deepEqual(state.reflectionDiagnostics, []);
   assert.deepEqual(state.agentMemories.map((memory) => memory.id), [
     "memory_seed_agent_elysia",
     "memory_seed_agent_kevin",
@@ -57,6 +58,28 @@ test("admin state response exposes cloned read-only agent memory records", () =>
   assert.equal(second.agentMemories[0]?.metadata.source, "seed");
 });
 
+test("admin state response exposes cloned reflection diagnostics", () => {
+  const controller = createAdminController();
+  const reflected = stepControllerTimes(controller, 72);
+  const mutableDiagnostic = reflected.reflectionDiagnostics[0] as typeof reflected.reflectionDiagnostics[number] & {
+    evidenceMemoryIds: string[];
+    persistedMemoryIds: string[];
+    diagnostics: Array<{ evidenceMemoryIds?: string[] }>;
+    trigger?: { sourceIds: string[] };
+  };
+
+  mutableDiagnostic.evidenceMemoryIds.push("mutated_evidence");
+  mutableDiagnostic.persistedMemoryIds.push("mutated_persisted");
+  mutableDiagnostic.diagnostics[0]?.evidenceMemoryIds?.push("mutated_nested");
+  mutableDiagnostic.trigger?.sourceIds.push("mutated_source");
+
+  const second = controller.getState();
+  assert.equal(second.reflectionDiagnostics[0]?.evidenceMemoryIds.includes("mutated_evidence"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.persistedMemoryIds.includes("mutated_persisted"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.diagnostics[0]?.evidenceMemoryIds?.includes("mutated_nested"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.trigger?.sourceIds.includes("mutated_source"), false);
+});
+
 test("admin controller steps through the simulation engine", () => {
   const controller = createAdminController();
   const stepped = controller.step();
@@ -77,6 +100,8 @@ test("admin controller exposes latest agent tick diagnostics outside replay even
   assert.ok(stepped.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.length === 6));
   assert.ok(stepped.agentTickDiagnostics.some((diagnostic) => diagnostic.agentId === "agent_elysia"));
   assert.equal(stepped.agentMemories.length, 3);
+  assert.equal(stepped.reflectionDiagnostics.length, stepped.snapshot.agents.length);
+  assert.ok(stepped.reflectionDiagnostics.every((diagnostic) => diagnostic.status === "skipped"));
 
   const replayVisible = JSON.stringify({
     events: stepped.events,
@@ -84,6 +109,7 @@ test("admin controller exposes latest agent tick diagnostics outside replay even
     replay: stepped.replay,
   });
   assert.equal(replayVisible.includes("agentTickDiagnostics"), false);
+  assert.equal(replayVisible.includes("reflectionDiagnostics"), false);
   assert.equal(replayVisible.includes("\"phases\""), false);
   assert.equal(replayVisible.includes("agentMemories"), false);
   assert.equal(replayVisible.includes("starts in atrium with the configured morning routine"), false);
@@ -476,6 +502,14 @@ function closeServer(server: Server): Promise<void> {
       resolve();
     });
   });
+}
+
+function stepControllerTimes(controller: ReturnType<typeof createAdminController>, count: number): AdminStateResponse {
+  let state = controller.getState();
+  for (let index = 0; index < count; index += 1) {
+    state = controller.step();
+  }
+  return state;
 }
 
 async function requestJson<T>(url: string, init: RequestInit): Promise<T> {

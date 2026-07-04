@@ -6,7 +6,7 @@ import type {
 } from "../ports/ports.js";
 import type { MemoryRecord, MemoryWrite } from "../memory/memoryRecords.js";
 import { cloneMemoryRecord } from "../memory/retrieval.js";
-import { runReflection } from "../reflection/reflectionPlanner.js";
+import { runReflection, runReflectionSync } from "../reflection/reflectionPlanner.js";
 import type {
   ReflectionInput,
   ReflectionPlanner,
@@ -94,6 +94,23 @@ export class SimulationAgentRuntime<
     options: RuntimeReflectionOptions = {},
   ): Promise<RuntimeReflectionResult<ReflectionMetadata>> {
     const reflection = await runReflection(input, planner, options.request);
+    return this.finalizeReflection(input.agentId, reflection, options);
+  }
+
+  reflectSync<EvidenceMetadata = Record<string, unknown>>(
+    input: ReflectionInput<EvidenceMetadata>,
+    planner: ReflectionPlanner<EvidenceMetadata, ReflectionMetadata>,
+    options: RuntimeReflectionOptions = {},
+  ): RuntimeReflectionResult<ReflectionMetadata> {
+    const reflection = runReflectionSync(input, planner, options.request);
+    return this.finalizeReflection(input.agentId, reflection, options);
+  }
+
+  private finalizeReflection(
+    agentId: string,
+    reflection: ReflectionResult<ReflectionMetadata>,
+    options: RuntimeReflectionOptions,
+  ): RuntimeReflectionResult<ReflectionMetadata> {
     if (reflection.status !== "completed") {
       return {
         ...reflection,
@@ -124,7 +141,7 @@ export class SimulationAgentRuntime<
     const persistedRecords: Array<MemoryRecord<ReflectionMetadata>> = [];
     try {
       for (const write of reflection.memoryWrites) {
-        const record = this.deps.reflectionMemory.remember(input.agentId, write);
+        const record = this.deps.reflectionMemory.remember(agentId, write);
         if (record) {
           persistedRecords.push(cloneMemoryRecord(record));
         }

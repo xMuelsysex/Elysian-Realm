@@ -1,9 +1,9 @@
 {
-  "id": "07-05-agent-framework-remaining-integration",
-  "name": "07-05-agent-framework-remaining-integration",
-  "title": "Complete remaining simulation-agent integration tasks",
+  "id": "elysian-engine-reflection-policy",
+  "name": "elysian-engine-reflection-policy",
+  "title": "Engine reflection trigger policy",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,11 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "07-05-07-05-elysian-agent-memory-stream",
-    "07-05-elysian-engine-reflection-policy"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "07-05-07-05-agent-framework-remaining-integration",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

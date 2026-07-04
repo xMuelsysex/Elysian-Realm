@@ -8,6 +8,11 @@ import {
   type MemoryWrite,
   type PhaseDiagnostic,
   type PlanningPort,
+  type ReflectionDiagnostic,
+  type ReflectionPlanner,
+  type ReflectionStatus,
+  type ReflectionTrigger,
+  type ReflectionTriggerKind,
 } from "@elysian/simulation-agent";
 import type { AgentRuntimeState, PersonaSpec, PlanAction, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { AgentId, AgentStatus, LocationId, OperationId, PersonaId } from "../../shared/domain/index.js";
@@ -33,6 +38,7 @@ export interface AgentMemoryQuery {
 }
 
 export type EngineMemorySource = "engine" | "seed";
+export type EngineReflectionSource = "deterministic";
 
 export interface EngineMemoryMetadata {
   stepId: string;
@@ -41,6 +47,8 @@ export interface EngineMemoryMetadata {
   locationId?: LocationId;
   proposalKind?: string;
   planId?: string;
+  triggerKind?: ReflectionTriggerKind;
+  reflectionSource?: EngineReflectionSource;
 }
 
 export type EngineMemoryRecord = MemoryRecord<EngineMemoryMetadata>;
@@ -58,12 +66,37 @@ export interface EngineAgentTickResult extends EngineAgentTickDiagnostic {
   activeRoutine?: ActiveRoutineSelection;
 }
 
+export interface EngineReflectionDiagnostic {
+  agentId: AgentId;
+  status: ReflectionStatus;
+  evidenceMemoryIds: string[];
+  persistedMemoryIds: string[];
+  diagnostics: ReflectionDiagnostic[];
+  reason?: string;
+  trigger?: ReflectionTrigger;
+}
+
+export interface EngineReflectionResult extends EngineReflectionDiagnostic {
+  memoryWrites: readonly AgentMemoryWrite[];
+}
+
 export interface RunAgentCognitiveTickForEngineOptions {
   personas?: readonly PersonaSpec[];
   memory?: MemoryPort<AgentMemoryRetrievalQuery, AgentMemoryHit, AgentMemoryWrite>;
   stepId?: string;
   sourceIds?: readonly string[];
   planning?: PlanningPort<AgentRoutinePerception, AgentMemoryHit, PlanAction>;
+}
+
+export interface RunAgentReflectionForEngineOptions {
+  stepId: string;
+  now: string;
+  evidence: readonly EngineMemoryRecord[];
+  triggerSourceIds: readonly string[];
+  reason: string;
+  period?: RoutinePeriod;
+  locationId?: LocationId;
+  planner?: ReflectionPlanner<EngineMemoryMetadata, EngineMemoryMetadata>;
 }
 
 export function runAgentCognitiveTickForEngine(
@@ -113,6 +146,45 @@ export function runAgentCognitiveTickForEngine(
   };
 }
 
+export function runAgentReflectionForEngine(
+  agent: AgentRuntimeState,
+  options: RunAgentReflectionForEngineOptions,
+): EngineReflectionResult {
+  const evidenceMemoryIds = options.evidence.map((memory) => memory.id);
+  const trigger: ReflectionTrigger = {
+    kind: "importance-threshold",
+    reason: options.reason,
+    now: options.now,
+    sourceIds: [...new Set([options.stepId, ...options.triggerSourceIds])],
+  };
+  const runtime = createReflectionRuntime();
+  const result = runtime.reflectSync(
+    {
+      agentId: agent.id,
+      trigger,
+      evidence: options.evidence,
+      maxInsights: 1,
+    },
+    options.planner ?? createDeterministicReflectionPlanner(agent, {
+      stepId: options.stepId,
+      period: options.period,
+      locationId: options.locationId ?? agent.locationId,
+    }),
+    { persistWrites: false },
+  );
+
+  return {
+    agentId: agent.id,
+    status: result.status,
+    evidenceMemoryIds,
+    persistedMemoryIds: [],
+    memoryWrites: result.memoryWrites,
+    diagnostics: cloneReflectionDiagnostics(result.diagnostics),
+    reason: result.diagnostics[0]?.message ?? options.reason,
+    trigger,
+  };
+}
+
 function buildEnginePlanMemoryWrite(
   perception: AgentRoutinePerception,
   plan: { source: string; proposal?: PlanAction },
@@ -141,6 +213,82 @@ function buildEnginePlanMemoryWrite(
       planId: proposal.id,
     },
   };
+}
+
+function createDeterministicReflectionPlanner(
+  agent: AgentRuntimeState,
+  context: { stepId: string; period?: RoutinePeriod; locationId?: LocationId },
+): ReflectionPlanner<EngineMemoryMetadata, EngineMemoryMetadata> {
+  return {
+    reflect: (input) => {
+      const evidenceIds = input.evidence.map((memory) => memory.id);
+      const plan = input.evidence.find((memory) => memory.kind === "plan");
+      const importance = Math.min(9, Math.max(6, ...input.evidence.map((memory) => memory.importance + 1)));
+      return {
+        source: "deterministic",
+        reason: `bounded engine reflection over ${evidenceIds.length} memory record(s)`,
+        insights: [
+          {
+            content: `${agent.displayName} reflected on ${plan?.content ?? "recent memory evidence"} and kept the pattern available for future planning.`,
+            evidenceMemoryIds: evidenceIds,
+            importance,
+            tags: [agent.id, agent.personaId, "reflection", context.period, context.locationId].filter(isString),
+            metadata: {
+              stepId: context.stepId,
+              source: "engine",
+              period: context.period,
+              locationId: context.locationId,
+              triggerKind: input.trigger.kind,
+              reflectionSource: "deterministic",
+            },
+          },
+        ],
+      };
+    },
+  };
+}
+
+function createReflectionRuntime(): SimulationAgentRuntime<
+  AgentRoutinePerception,
+  AgentMemoryRetrievalQuery,
+  AgentMemoryHit,
+  AgentMemoryWrite,
+  PlanAction,
+  EngineMemoryMetadata
+> {
+  return new SimulationAgentRuntime<
+    AgentRoutinePerception,
+    AgentMemoryRetrievalQuery,
+    AgentMemoryHit,
+    AgentMemoryWrite,
+    PlanAction,
+    EngineMemoryMetadata
+  >({
+    perception: {
+      perceive: () => {
+        throw new Error("reflection-only runtime should not perceive");
+      },
+    },
+    memory: createMemoryStub(),
+    planning: {
+      plan: () => ({ source: "skipped", reason: "reflection-only runtime does not plan" }),
+    },
+    actionSink: {
+      submit: () => undefined,
+    },
+    buildMemoryQuery: () => ({
+      text: "",
+      now: new Date(0).toISOString(),
+      topK: 1,
+    }),
+  });
+}
+
+function cloneReflectionDiagnostics(diagnostics: readonly ReflectionDiagnostic[]): ReflectionDiagnostic[] {
+  return diagnostics.map((diagnostic) => ({
+    ...diagnostic,
+    evidenceMemoryIds: diagnostic.evidenceMemoryIds ? [...diagnostic.evidenceMemoryIds] : undefined,
+  }));
 }
 
 export function createAgentRoutinePerception(

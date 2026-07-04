@@ -282,6 +282,56 @@ test("runtime reflection persists completed writes when configured", async () =>
   assert.equal(store.list(AGENT_ID).filter((record) => record.kind === "reflection").length, 1);
 });
 
+test("runtime reflectSync persists completed writes when configured", () => {
+  const { runtime, store } = createRuntime({ persistReflectionWrites: true });
+  const evidence = store.retrieve(AGENT_ID, {
+    text: "Eden garden quiet rehearsal",
+    now: NOW,
+    topK: 2,
+  }).hits;
+
+  const result = runtime.reflectSync(reflectionInput(evidence), reflectionPlanner());
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.memoryWrites.length, 1);
+  assert.equal(result.persistedRecords.length, 1);
+  assert.equal(result.persistedRecords[0]?.kind, "reflection");
+  assert.deepEqual(result.persistedRecords[0]?.relatedMemoryIds, evidence.map((hit) => hit.record.id));
+  assert.equal(store.list(AGENT_ID).filter((record) => record.kind === "reflection").length, 1);
+});
+
+test("runtime reflectSync fails visibly for async planner misuse", () => {
+  const { runtime, store } = createRuntime({ persistReflectionWrites: true });
+  const evidence = store.retrieve(AGENT_ID, {
+    text: "Eden garden quiet rehearsal",
+    now: NOW,
+    topK: 2,
+  }).hits;
+  const beforeCount = store.list(AGENT_ID).length;
+  const asyncPlanner: ReflectionPlanner<DemoMetadata, DemoMetadata> = {
+    reflect: async () => ({
+      source: "deterministic",
+      reason: "Async planner should use runtime.reflect.",
+      insights: [
+        {
+          content: "This async output must not be persisted by reflectSync.",
+          evidenceMemoryIds: evidence.map((hit) => hit.record.id),
+          importance: 5,
+          metadata: { theme: "async-misuse" },
+        },
+      ],
+    }),
+  };
+
+  const result = runtime.reflectSync(reflectionInput(evidence), asyncPlanner);
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.memoryWrites.length, 0);
+  assert.deepEqual(result.persistedRecords, []);
+  assert.match(result.diagnostics[0]?.message ?? "", /sync reflection received an async planner result/);
+  assert.equal(store.list(AGENT_ID).length, beforeCount);
+});
+
 test("runtime reflection supports per-call dry-run over a persisting runtime", async () => {
   const { runtime, store } = createRuntime({ persistReflectionWrites: true });
   const evidence = store.retrieve(AGENT_ID, {
