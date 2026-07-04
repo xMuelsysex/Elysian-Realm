@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/prd.md", "reason": "Acceptance criteria"}
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/design.md", "reason": "Expected output and boundary design"}
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/implement.md", "reason": "Required validation commands"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Runtime facade and boundary checks"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory/reflection checks"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality gate"}

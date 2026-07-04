@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/prd.md", "reason": "M8 requirements and acceptance criteria"}
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/design.md", "reason": "Demo design and output shape"}
+{"file": ".trellis/tasks/07-04-observable-simulation-agent-demo/implement.md", "reason": "Implementation order and validation commands"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Runtime facade, diagnostics, package boundary, and observability contract"}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory and reflection evidence-link contracts"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic tests and no hidden fallback"}
