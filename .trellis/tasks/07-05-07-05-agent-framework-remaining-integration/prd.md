@@ -34,9 +34,16 @@ Finish the remaining practical integration slices after M1-M8 and the Agent Tick
 
 - [x] M12 completed, committed, archived, journaled, and pushed.
 - [x] M13 completed, committed, archived, journaled, and pushed.
-- [ ] M14 completed, committed, archived, journaled, and pushed.
-- [ ] M15 either completed or explicitly deferred with rationale in this PRD.
-- [ ] Final quality gate passes after the last child task.
+- [x] M14 completed, committed, archived, journaled, and pushed.
+- [x] M15 either completed or explicitly deferred with rationale in this PRD.
+- [x] Final quality gate passes after the last child task.
+
+## Final Child Status
+
+- M12 completed and archived: engine-owned per-agent memory stream is persisted and exposed through Admin/API/UI projections.
+- M13 completed and archived: host-owned reflection policy selects bounded evidence and persists reflection memories without hidden loops.
+- M14 completed and archived: Admin LLM action proposals remain sandboxed until reviewed, then apply through typed simulation inputs with provenance memory.
+- M15 deferred: after M12-M14, the current debug surface already exposes latest agent tick diagnostics, reflection diagnostics, memory stream provenance, and reviewed LLM proposal event/memory links. A bounded diagnostics history would be a useful future debugging/DX enhancement, but it is no longer required to complete the agent framework integration chain.
 
 ## Definition of Done
 
