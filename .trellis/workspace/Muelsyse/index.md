@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 23
+- **Total Sessions**: 24
 - **Last Active**: 2026-07-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~788 | Active |
+| `journal-1.md` | ~822 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 24 | 2026-07-04 | Observable simulation agent demo | `4a5a740`, `c86baba` | `feature/agent-cognitive-loop-core` |
 | 23 | 2026-07-04 | Simulation agent testing helpers | `4ff19e8`, `6558973` | `feature/agent-cognitive-loop-core` |
 | 22 | 2026-07-04 | Simulation agent package usage example | `0dd47ff`, `5943deb` | `feature/agent-cognitive-loop-core` |
 | 21 | 2026-07-04 | Elysian runtime facade consumer | `fafe93c`, `726f64a` | `feature/agent-cognitive-loop-core` |

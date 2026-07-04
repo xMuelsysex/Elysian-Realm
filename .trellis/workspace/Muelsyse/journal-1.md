@@ -786,3 +786,37 @@ Added public testing helpers for static perception, deterministic planning, memo
 ### Next Steps
 
 - None - task complete
+
+
+## Session 24: Observable simulation agent demo
+
+**Date**: 2026-07-04
+**Task**: Observable simulation agent demo
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added a deterministic CLI demo for SimulationAgentRuntime showing perception, retrieved memories, tick phases, proposal, plan memory, and explicit reflection persistence; archived the M8 task after validation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4a5a740` | (see git log) |
+| `c86baba` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
