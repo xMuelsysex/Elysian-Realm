@@ -7,11 +7,17 @@ import {
   type MemoryWrite,
 } from "./memoryRecords.js";
 import { cloneMemoryRecord, retrieveMemoryRecords } from "./retrieval.js";
-import { assertUniqueMemoryId, validateMemoryWrite } from "./validation.js";
+import { assertUniqueMemoryId, MemoryValidationError, validateMemoryWrite } from "./validation.js";
 
 export class InMemoryMemoryStore<Metadata = Record<string, unknown>> {
   private readonly records: Array<MemoryRecord<Metadata>> = [];
   private nextGeneratedId = 1;
+
+  constructor(initialRecords: readonly MemoryRecord<Metadata>[] = []) {
+    for (const record of initialRecords) {
+      this.importRecord(record);
+    }
+  }
 
   remember(agentId: string, write: MemoryWrite<Metadata>): MemoryRecord<Metadata> {
     const normalized = validateMemoryWrite(agentId, write);
@@ -99,6 +105,40 @@ export class InMemoryMemoryStore<Metadata = Record<string, unknown>> {
         tags: [...record.tags],
       };
     }
+  }
+
+  private importRecord(record: MemoryRecord<Metadata>): void {
+    const normalized = validateMemoryWrite(record.agentId, {
+      id: record.id,
+      kind: record.kind,
+      content: record.content,
+      createdAt: record.createdAt,
+      importance: record.importance,
+      sourceIds: record.sourceIds,
+      relatedMemoryIds: record.relatedMemoryIds,
+      visibility: record.visibility,
+      tags: record.tags,
+      metadata: record.metadata,
+    });
+    if (typeof record.lastAccessedAt !== "string" || Number.isNaN(Date.parse(record.lastAccessedAt))) {
+      throw new MemoryValidationError(["record.lastAccessedAt must be a valid ISO date string"]);
+    }
+    assertUniqueMemoryId(new Set(this.records.map((existingRecord) => existingRecord.id)), record.id);
+
+    this.records.push({
+      id: record.id,
+      agentId: record.agentId,
+      kind: normalized.kind,
+      content: normalized.content,
+      createdAt: normalized.createdAt,
+      lastAccessedAt: record.lastAccessedAt,
+      importance: normalized.importance,
+      sourceIds: [...normalized.sourceIds],
+      relatedMemoryIds: [...normalized.relatedMemoryIds],
+      visibility: normalized.visibility,
+      tags: [...normalized.tags],
+      metadata: normalized.metadata,
+    });
   }
 
   private generateId(): string {

@@ -249,3 +249,51 @@ test("memory store exposes a cognitive loop MemoryPort adapter", () => {
   assert.equal(hits[0]?.record.id, "memory_port");
   assert.ok(hits[0]?.score.finalScore);
 });
+
+test("in-memory memory store can rehydrate existing records defensively", () => {
+  const original = new InMemoryMemoryStore<{ source: string }>();
+  const imported = original.remember(AGENT_ID, {
+    id: "memory_rehydrate",
+    kind: "plan",
+    content: "A stored plan memory should survive rehydration.",
+    createdAt: NOW,
+    importance: 5,
+    sourceIds: ["step_001"],
+    tags: ["plan"],
+    metadata: { source: "test" },
+  });
+
+  const rehydrated = new InMemoryMemoryStore([imported]);
+  (imported.sourceIds as string[]).push("mutated");
+
+  assert.deepEqual(rehydrated.list(AGENT_ID)[0]?.sourceIds, ["step_001"]);
+  assert.equal(rehydrated.retrieve(AGENT_ID, { text: "stored plan", now: NOW, topK: 1 }).hits[0]?.record.id, "memory_rehydrate");
+  const generated = rehydrated.remember(AGENT_ID, {
+    kind: "observation",
+    content: "A new generated id skips imported duplicates.",
+    createdAt: NOW,
+    importance: 2,
+    sourceIds: ["step_002"],
+  });
+  assert.equal(generated.id, "memory_0001");
+});
+
+test("memory store rehydration rejects duplicate or invalid records visibly", () => {
+  const record = {
+    id: "memory_duplicate_rehydrate",
+    agentId: AGENT_ID,
+    kind: "observation" as const,
+    content: "Duplicate import.",
+    createdAt: NOW,
+    lastAccessedAt: NOW,
+    importance: 2,
+    sourceIds: ["event_1"],
+    relatedMemoryIds: [],
+    visibility: "private" as const,
+    tags: [],
+    metadata: {},
+  };
+
+  assert.throws(() => new InMemoryMemoryStore([record, record]), /memory id already exists/);
+  assert.throws(() => new InMemoryMemoryStore([{ ...record, id: "memory_bad_access", lastAccessedAt: "not-a-date" }]), /lastAccessedAt/);
+});

@@ -1,6 +1,6 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
 import type { LlmOperationMetadata, PersonaSpec, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
-import type { EngineAgentTickDiagnostic, ReplaySummary, TimelineEntry } from "../simulation/index.js";
+import type { EngineAgentTickDiagnostic, EngineMemoryRecord, ReplaySummary, TimelineEntry } from "../simulation/index.js";
 
 export interface AdminDiagnostic {
   id: string;
@@ -18,6 +18,7 @@ export interface AdminStateResponse {
   replay: ReplaySummary;
   diagnostics: AdminDiagnostic[];
   agentTickDiagnostics: EngineAgentTickDiagnostic[];
+  agentMemories: EngineMemoryRecord[];
   personas: PersonaSpec[];
 }
 

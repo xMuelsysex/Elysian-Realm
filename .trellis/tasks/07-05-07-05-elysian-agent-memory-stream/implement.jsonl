@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Simulation engine ownership, event/replay boundaries, and agent tick contracts."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "MemoryRecord, source IDs, generated-vs-configured, and reflection separation rules."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Deterministic tests, no hidden fallback, and package boundary rules."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Read-only debug/admin memory stream UI requirements."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Frontend must render backend projections without owning memory truth."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Shared contract/view-model typing for Admin memory projection."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Read-only component/provenance rendering conventions."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Admin response to view-model to UI cross-layer field addition."}
+{"file": ".trellis/tasks/archive/2026-07/07-04-simulation-agent-memory-slice/prd.md", "reason": "Completed package memory primitive contract and non-goals."}
+{"file": ".trellis/tasks/archive/2026-07/07-04-elysian-runtime-facade-consumer/prd.md", "reason": "Completed Elysian runtime facade consumer constraints."}
+{"file": ".trellis/tasks/archive/2026-07/07-04-agent-tick-inspector/prd.md", "reason": "Current Admin diagnostics surface and remaining memory-stream non-goal."}

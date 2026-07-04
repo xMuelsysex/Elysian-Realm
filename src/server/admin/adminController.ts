@@ -10,6 +10,7 @@ import {
   stepSimulationEngine,
   validateSimulationEvent,
   type EngineAgentTickDiagnostic,
+  type EngineMemoryRecord,
   type SimulationEngineState,
 } from "../simulation/index.js";
 import type {
@@ -235,6 +236,7 @@ export function createAdminStateResponse(state: SimulationEngineState, agentTick
     replay: createReplaySummary(state.snapshot, state.events),
     diagnostics: createDiagnostics(events),
     agentTickDiagnostics: cloneAgentTickDiagnostics(agentTickDiagnostics),
+    agentMemories: cloneAgentMemories(state.agentMemories),
     personas: clonePersonas(pilotPersonas),
   };
 }
@@ -614,6 +616,16 @@ function cloneAgentTickDiagnostics(diagnostics: readonly EngineAgentTickDiagnost
     agentId: diagnostic.agentId,
     phases: diagnostic.phases.map((phase) => ({ ...phase })),
     ...(diagnostic.proposal ? { proposal: { ...diagnostic.proposal } } : {}),
+  }));
+}
+
+function cloneAgentMemories(memories: readonly EngineMemoryRecord[]): EngineMemoryRecord[] {
+  return memories.map((memory) => ({
+    ...memory,
+    sourceIds: [...memory.sourceIds],
+    relatedMemoryIds: [...memory.relatedMemoryIds],
+    tags: [...memory.tags],
+    metadata: { ...memory.metadata },
   }));
 }
 

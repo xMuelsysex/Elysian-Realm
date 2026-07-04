@@ -1,7 +1,8 @@
 import type { InterventionCommand, SimulationInput, WorldSnapshot, SimulationEvent } from "../../shared/contracts/index.js";
+import { InMemoryMemoryStore } from "@elysian/simulation-agent";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
 import { validateSimulationInput, type ValidSimulationInput } from "./inputs.js";
-import { runAgentCognitiveTickForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult } from "./agentRuntimeAdapter.js";
+import { runAgentCognitiveTickForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
   OBSERVATION_MVP_SEED_ID,
@@ -13,6 +14,7 @@ export interface SimulationEngineState {
   events: SimulationEvent[];
   stepCount: number;
   startupEmitted: boolean;
+  agentMemories: EngineMemoryRecord[];
 }
 
 export interface SimulationStepResult {
@@ -22,17 +24,20 @@ export interface SimulationStepResult {
 }
 
 export function createSimulationEngine(): SimulationEngineState {
+  const snapshot = createObservationMvpSnapshot();
   return {
-    snapshot: createObservationMvpSnapshot(),
+    snapshot,
     events: [],
     stepCount: 0,
     startupEmitted: false,
+    agentMemories: createInitialAgentMemories(snapshot),
   };
 }
 
 export function queueSimulationInput(state: SimulationEngineState, input: SimulationInput): SimulationEngineState {
   return {
     ...state,
+    agentMemories: cloneEngineMemoryRecords(state.agentMemories),
     snapshot: {
       ...state.snapshot,
       queuedInputs: [...state.snapshot.queuedInputs, cloneInput(input)],
@@ -52,6 +57,7 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
   };
 
   const stepEvents: SimulationEvent[] = [];
+  let nextAgentMemories = cloneEngineMemoryRecords(state.agentMemories);
   let nextSnapshot: WorldSnapshot = {
     ...state.snapshot,
     currentTime: toTime,
@@ -113,8 +119,9 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
 
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   if (state.startupEmitted) {
-    const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents);
+    const routineProgress = progressAgentRoutines(nextSnapshot, context, stepEvents, nextAgentMemories);
     nextSnapshot = routineProgress.snapshot;
+    nextAgentMemories = routineProgress.agentMemories;
     agentTickDiagnostics.push(...routineProgress.agentTickDiagnostics);
   }
 
@@ -123,6 +130,7 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
     events: [...state.events, ...stepEvents],
     stepCount: nextStepCount,
     startupEmitted: true,
+    agentMemories: nextAgentMemories,
   };
 
   return { state: nextState, events: stepEvents, agentTickDiagnostics };
@@ -197,9 +205,9 @@ function createStartupEvents(
       targetIds: snapshot.agents.map((agent) => agent.id),
       payload: {
         seedBatchId: `${OBSERVATION_MVP_SEED_ID}:memory-events-only`,
-        memoryIds: [],
+        memoryIds: snapshot.agents.map((agent) => `memory_seed_${agent.id}`),
         provenance: "system",
-        note: "Memory seeding is recorded as an event only; MemoryRecord storage is deferred.",
+        note: "Memory seeding records are stored in the engine memory stream; this event records the seed batch only.",
       },
     }),
   );
@@ -251,11 +259,17 @@ function progressAgentRoutines(
   snapshot: WorldSnapshot,
   context: EventFactoryContext,
   stepEvents: SimulationEvent[],
-): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[] } {
+  agentMemories: readonly EngineMemoryRecord[],
+): { snapshot: WorldSnapshot; agentTickDiagnostics: EngineAgentTickDiagnostic[]; agentMemories: EngineMemoryRecord[] } {
   let nextEventOrder = stepEvents.length + 1;
   const agentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
+  const memoryStore = new InMemoryMemoryStore<EngineMemoryMetadata>(agentMemories);
   const agents = snapshot.agents.map((agent) => {
-    const tick = runAgentCognitiveTickForEngine(snapshot, agent);
+    const tick = runAgentCognitiveTickForEngine(snapshot, agent, {
+      memory: memoryStore.toPort(),
+      stepId: context.stepId,
+      sourceIds: [context.stepId],
+    });
     agentTickDiagnostics.push(toAgentTickDiagnostic(tick));
 
     const routine = tick.activeRoutine;
@@ -311,7 +325,11 @@ function progressAgentRoutines(
     };
   });
 
-  return { snapshot: { ...snapshot, agents }, agentTickDiagnostics };
+  return {
+    snapshot: { ...snapshot, agents },
+    agentTickDiagnostics,
+    agentMemories: listEngineMemories(memoryStore, snapshot),
+  };
 }
 
 function toAgentTickDiagnostic(tick: EngineAgentTickResult): EngineAgentTickDiagnostic {
@@ -353,6 +371,51 @@ function cloneInput(input: SimulationInput): SimulationInput {
   return {
     ...input,
     command: cloneCommand(input.command),
+  };
+}
+
+function createInitialAgentMemories(snapshot: WorldSnapshot): EngineMemoryRecord[] {
+  return snapshot.agents.map((agent) => ({
+    id: `memory_seed_${agent.id}`,
+    agentId: agent.id,
+    kind: "observation",
+    content: `${agent.displayName} starts in ${agent.locationId} with the configured morning routine.`,
+    createdAt: snapshot.currentTime,
+    lastAccessedAt: snapshot.currentTime,
+    importance: 5,
+    sourceIds: [`${OBSERVATION_MVP_SEED_ID}:${agent.id}:initial-memory`],
+    relatedMemoryIds: [],
+    visibility: "system",
+    tags: [agent.id, agent.personaId, agent.locationId, "morning", "seed"],
+    metadata: {
+      stepId: snapshot.lastStepId,
+      source: "seed",
+      period: "morning",
+      locationId: agent.locationId,
+      proposalKind: agent.currentAction?.kind,
+      planId: agent.currentAction?.id,
+    },
+  }));
+}
+
+function listEngineMemories(
+  memoryStore: InMemoryMemoryStore<EngineMemoryMetadata>,
+  snapshot: WorldSnapshot,
+): EngineMemoryRecord[] {
+  return snapshot.agents.flatMap((agent) => memoryStore.list(agent.id).map(cloneEngineMemoryRecord));
+}
+
+function cloneEngineMemoryRecords(records: readonly EngineMemoryRecord[]): EngineMemoryRecord[] {
+  return records.map(cloneEngineMemoryRecord);
+}
+
+function cloneEngineMemoryRecord(record: EngineMemoryRecord): EngineMemoryRecord {
+  return {
+    ...record,
+    sourceIds: [...record.sourceIds],
+    relatedMemoryIds: [...record.relatedMemoryIds],
+    tags: [...record.tags],
+    metadata: { ...record.metadata },
   };
 }
 

@@ -6,6 +6,7 @@ import type { AppLanguage } from "../shared/i18n.js";
 import { formatAgentDisplayName, formatDiagnosticLevelLabel, formatEntityLabel, formatLocationName, formatPersonaText, formatProvenanceLabel, formatRelationshipGroup, formatSourceLabel, getCopy } from "../shared/i18n.js";
 import type {
   AgentTickInspectorViewModel,
+  AgentMemoryStreamViewModel,
   AgentPlanViewModel,
   DebugExportViewModel,
   DiagnosticsCenterViewModel,
@@ -75,6 +76,11 @@ interface AgentTickInspectorPanelProps {
   viewModel: AgentTickInspectorViewModel;
 }
 
+interface AgentMemoryStreamPanelProps {
+  language: AppLanguage;
+  viewModel: AgentMemoryStreamViewModel;
+}
+
 export function AgentTickInspectorPanel({ language, viewModel }: AgentTickInspectorPanelProps) {
   return (
     <section className="panel" aria-labelledby="agent-tick-inspector-heading">
@@ -109,6 +115,55 @@ export function AgentTickInspectorPanel({ language, viewModel }: AgentTickInspec
                   ))}
                 </ol>
               ) : <p className="muted">{language === "zh" ? "同一步暂无关联事件。" : "No same-step related events."}</p>}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function AgentMemoryStreamPanel({ language, viewModel }: AgentMemoryStreamPanelProps) {
+  return (
+    <section className="panel" aria-labelledby="agent-memory-stream-heading">
+      <PanelTitle eyebrow={language === "zh" ? "运行时记忆" : "Runtime memory"} title={language === "zh" ? "角色记忆流" : "Agent memory stream"} id="agent-memory-stream-heading" />
+      <dl className="compact-metrics">
+        <Metric label={language === "zh" ? "记录" : "Records"} value={viewModel.total} />
+        <Metric label={language === "zh" ? "角色" : "Agents"} value={viewModel.groups.length} />
+      </dl>
+      {viewModel.groups.length === 0 ? <p className="empty-state">{language === "zh" ? "暂无运行时 MemoryRecord。" : "No runtime MemoryRecord entries yet."}</p> : (
+        <div className="card-grid">
+          {viewModel.groups.map((group) => (
+            <article className="detail-card" key={group.agentId}>
+              <h3>{group.displayName}</h3>
+              <p className="muted"><code>{group.agentId}</code></p>
+              <ol className="diagnostic-list">
+                {group.rows.map((memory) => (
+                  <li key={memory.id}>
+                    <div className="timeline-row">
+                      <Badge tone="system">{memory.kind}</Badge>
+                      <Badge tone="neutral">{memory.source}</Badge>
+                      <strong>{memory.content}</strong>
+                    </div>
+                    <dl className="event-meta">
+                      <Metric label={language === "zh" ? "重要度" : "Importance"} value={memory.importance} />
+                      <Metric label={language === "zh" ? "可见性" : "Visibility"} value={memory.visibility} />
+                      <Metric label={language === "zh" ? "创建" : "Created"} value={memory.createdAt} code />
+                      <Metric label={language === "zh" ? "访问" : "Accessed"} value={memory.lastAccessedAt} code />
+                    </dl>
+                    <p className="muted">
+                      {language === "zh" ? "来源" : "Sources"}: <code>{memory.sourceIds.join(", ") || "—"}</code>
+                    </p>
+                    <p className="muted">
+                      {language === "zh" ? "标签" : "Tags"}: <code>{memory.tags.join(", ") || "—"}</code>
+                    </p>
+                    {memory.relatedMemoryIds.length > 0 ? (
+                      <p className="muted">{language === "zh" ? "关联记忆" : "Related memories"}: <code>{memory.relatedMemoryIds.join(", ")}</code></p>
+                    ) : null}
+                    <JsonDetails title={language === "zh" ? "记忆元数据" : "Memory metadata"} value={memory.metadata} />
+                  </li>
+                ))}
+              </ol>
             </article>
           ))}
         </div>

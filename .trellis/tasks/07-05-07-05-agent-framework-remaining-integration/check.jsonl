@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Check child tasks preserve engine/replay authority."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Check memory/reflection provenance and evidence contracts."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check deterministic tests and visible failure handling."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check API/frontend projection boundary changes."}

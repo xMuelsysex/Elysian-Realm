@@ -678,6 +678,7 @@ export function formatSimulationText(language: AppLanguage, text: string | undef
   const texts: Record<string, string> = {
     "start the configured morning routine": "开始执行已配置的晨间日程",
     "Memory seeding is recorded as an event only; MemoryRecord storage is deferred.": "记忆种子仅记录为事件；记忆记录存储仍然延后。",
+    "Memory seeding records are stored in the engine memory stream; this event records the seed batch only.": "记忆种子记录保存在引擎记忆流中；此事件只记录种子批次。",
     "idle / no operation": "空闲 / 无操作",
     "in progress": "进行中",
   };

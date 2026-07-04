@@ -17,6 +17,11 @@ test("admin controller exposes deterministic initial state", () => {
   assert.deepEqual(state.timeline, []);
   assert.deepEqual(state.diagnostics, []);
   assert.deepEqual(state.agentTickDiagnostics, []);
+  assert.deepEqual(state.agentMemories.map((memory) => memory.id), [
+    "memory_seed_agent_elysia",
+    "memory_seed_agent_kevin",
+    "memory_seed_agent_eden",
+  ]);
   assert.equal(state.personas.length, 3);
   assert.ok(state.personas.some((persona) => persona.id === "elysia"));
 });
@@ -31,6 +36,25 @@ test("admin state response exposes cloned read-only persona fixtures", () => {
   const second = controller.getState();
   assert.equal(second.personas[0]?.profile.longTermGoals.includes("mutated by test response"), false);
   assert.equal(second.personas[0]?.relationships.some((relationship) => relationship.targetPersonaId === "mutated"), false);
+});
+
+test("admin state response exposes cloned read-only agent memory records", () => {
+  const controller = createAdminController();
+  const first = controller.getState();
+  const mutableMemory = first.agentMemories[0] as typeof first.agentMemories[number] & {
+    sourceIds: string[];
+    tags: string[];
+    metadata: { source: "engine" | "seed" };
+  };
+
+  mutableMemory.sourceIds.push("mutated_source");
+  mutableMemory.tags.push("mutated_tag");
+  mutableMemory.metadata.source = "engine";
+
+  const second = controller.getState();
+  assert.deepEqual(second.agentMemories[0]?.sourceIds, ["mvp-current-roster-v1:agent_elysia:initial-memory"]);
+  assert.equal(second.agentMemories[0]?.tags.includes("mutated_tag"), false);
+  assert.equal(second.agentMemories[0]?.metadata.source, "seed");
 });
 
 test("admin controller steps through the simulation engine", () => {
@@ -52,6 +76,7 @@ test("admin controller exposes latest agent tick diagnostics outside replay even
   assert.equal(stepped.agentTickDiagnostics.length, stepped.snapshot.agents.length);
   assert.ok(stepped.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.length === 6));
   assert.ok(stepped.agentTickDiagnostics.some((diagnostic) => diagnostic.agentId === "agent_elysia"));
+  assert.equal(stepped.agentMemories.length, 3);
 
   const replayVisible = JSON.stringify({
     events: stepped.events,
@@ -60,6 +85,8 @@ test("admin controller exposes latest agent tick diagnostics outside replay even
   });
   assert.equal(replayVisible.includes("agentTickDiagnostics"), false);
   assert.equal(replayVisible.includes("\"phases\""), false);
+  assert.equal(replayVisible.includes("agentMemories"), false);
+  assert.equal(replayVisible.includes("starts in atrium with the configured morning routine"), false);
   assert.equal(stepped.timeline.length, stepped.events.length);
   assert.equal(stepped.replay.timeline.length, stepped.events.length);
 });

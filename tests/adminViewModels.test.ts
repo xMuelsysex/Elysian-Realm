@@ -5,6 +5,7 @@ import type { SimulationEvent } from "../src/shared/contracts/index.js";
 import type { AdminDiagnostic } from "../src/server/admin/index.js";
 import {
   createAgentDetailViewModel,
+  createAgentMemoryStreamViewModel,
   createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
@@ -76,7 +77,7 @@ test("creates timeline items with localized user-mode natural event details", ()
   assertEventDetail(zhItems, "agent.spawned", /一位角色已经出现在世界中/);
   assertEventDetail(zhItems, "world.timeAdvanced", /世界时间向前推进/);
   assertEventDetail(zhItems, "agent.startedRoutine", /角色开始执行预设日程/);
-  assertEventDetail(zhItems, "memory.seeded", /记忆种子已记录为事件/);
+  assertEventDetail(zhItems, "memory.seeded", /记忆种子已记录为批次事件/);
 
   assert.ok(zhItems.some((item) => item.title.includes("时间推进")));
   assert.ok(enItems.some((item) => item.title.includes("world.timeAdvanced")));
@@ -273,6 +274,37 @@ test("creates agent tick inspector rows with same-step related events", () => {
   assert.ok(items.some((item) => item.event.stepId !== state.snapshot.lastStepId && item.event.actorId === rowWithEvents.agentId));
   assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.stepId === state.snapshot.lastStepId));
   assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.actorId === rowWithEvents.agentId || item.event.targetIds.includes(rowWithEvents.agentId)));
+});
+
+test("creates grouped agent memory stream view model from real memory records", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const initialStream = createAgentMemoryStreamViewModel(initial, "en");
+
+  assert.equal(initialStream.total, 3);
+  assert.equal(initialStream.groups.length, initial.snapshot.agents.length);
+  assert.ok(initialStream.groups.every((group) => group.rows.length === 1));
+  assert.ok(initialStream.groups.every((group) => group.rows[0]?.kind === "observation"));
+
+  const state = stepControllerTimes(controller, 72);
+  const stream = createAgentMemoryStreamViewModel(state, "en");
+  const elysia = stream.groups.find((group) => group.agentId === "agent_elysia");
+
+  assert.equal(stream.total, 6);
+  assert.equal(stream.groups.length, state.snapshot.agents.length);
+  assert.ok(elysia);
+  assert.equal(elysia.displayName, "Elysia");
+  assert.deepEqual(elysia.rows.map((row) => row.id), [
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_seed_agent_elysia",
+  ]);
+  assert.equal(elysia.rows[0]?.source, "engine");
+  assert.equal(elysia.rows[0]?.kind, "plan");
+  assert.equal(elysia.rows[0]?.importance, 4);
+  assert.deepEqual(elysia.rows[0]?.sourceIds, ["step_1200_072"]);
+  assert.ok(elysia.rows[0]?.tags.includes("performActivity"));
+  assert.equal(elysia.rows[0]?.metadata.locationId, "lounge");
+  assert.equal(elysia.rows[1]?.source, "seed");
 });
 
 test("creates enhanced selected agent detail with configured persona facts and runtime memory index", () => {

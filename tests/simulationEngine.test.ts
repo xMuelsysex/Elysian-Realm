@@ -32,6 +32,12 @@ test("creates a deterministic observation MVP seed snapshot", () => {
   assert.deepEqual(state.snapshot.agents.map((agent) => agent.status), ["idle", "idle", "idle"]);
   assert.deepEqual(state.snapshot.agents.map((agent) => agent.currentAction?.id), ["elysia.morning.0", "kevin.morning.0", "eden.morning.0"]);
   assert.deepEqual(state.snapshot.agents.map((agent) => agent.currentPlanId), ["elysia.morning", "kevin.morning", "eden.morning"]);
+  assert.deepEqual(state.agentMemories.map((memory) => memory.id), [
+    "memory_seed_agent_elysia",
+    "memory_seed_agent_kevin",
+    "memory_seed_agent_eden",
+  ]);
+  assert.ok(state.agentMemories.every((memory) => memory.kind === "observation" && memory.metadata.source === "seed"));
 });
 
 test("first step emits stable startup and routine events", () => {
@@ -72,9 +78,9 @@ test("first step emits stable startup and routine events", () => {
   });
   assert.deepEqual(result.events.at(-1)?.payload, {
     seedBatchId: "mvp-current-roster-v1:memory-events-only",
-    memoryIds: [],
+    memoryIds: ["memory_seed_agent_elysia", "memory_seed_agent_kevin", "memory_seed_agent_eden"],
     provenance: "system",
-    note: "Memory seeding is recorded as an event only; MemoryRecord storage is deferred.",
+    note: "Memory seeding records are stored in the engine memory stream; this event records the seed batch only.",
   });
 });
 
@@ -233,6 +239,8 @@ test("post-startup steps do not duplicate unchanged routine events", () => {
 
   assert.deepEqual(createEventKindTimeline(secondStep.events), ["world.timeAdvanced"]);
   assert.deepEqual(secondStep.state.snapshot.agents.map((agent) => agent.currentAction?.id), ["elysia.morning.0", "kevin.morning.0", "eden.morning.0"]);
+  assert.equal(secondStep.state.agentMemories.length, 3);
+  assert.ok(secondStep.agentTickDiagnostics.every((diagnostic) => findTickPhase(diagnostic, "retrieve")?.detail === "retrieved 1 memory hit(s)"));
 });
 
 test("post-startup steps progress agents through configured routine periods", () => {
@@ -253,6 +261,39 @@ test("post-startup steps progress agents through configured routine periods", ()
   assert.equal(eden?.currentAction?.id, "eden.day.0");
   assert.ok(atNoon.events.some((event) => event.kind === "agent.moved" && event.actorId === "agent_elysia"));
   assert.ok(atNoon.events.some((event) => event.kind === "agent.continuedRoutine" && event.actorId === "agent_eden"));
+  assert.deepEqual(atNoon.agentMemories.map((memory) => memory.id), [
+    "memory_seed_agent_elysia",
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_seed_agent_kevin",
+    "memory_step_1200_072_agent_kevin_plan",
+    "memory_seed_agent_eden",
+    "memory_step_1200_072_agent_eden_plan",
+  ]);
+  const elysiaPlanMemory = atNoon.agentMemories.find((memory) => memory.id === "memory_step_1200_072_agent_elysia_plan");
+  assert.ok(elysiaPlanMemory);
+  assert.equal(elysiaPlanMemory.kind, "plan");
+  assert.equal(elysiaPlanMemory.agentId, "agent_elysia");
+  assert.equal(elysiaPlanMemory.importance, 4);
+  assert.deepEqual(elysiaPlanMemory.sourceIds, ["step_1200_072"]);
+  assert.equal(elysiaPlanMemory.metadata.source, "engine");
+  assert.equal(elysiaPlanMemory.metadata.stepId, "step_1200_072");
+  assert.equal(elysiaPlanMemory.metadata.locationId, "lounge");
+  assert.equal(elysiaPlanMemory.metadata.planId, "elysia.day.0");
+});
+
+test("engine memory records stay outside events timeline and replay projections", () => {
+  const atNoon = stepTimes(createSimulationEngine(), 72);
+  const replay = createReplaySummary(atNoon.snapshot, atNoon.events);
+  const replayVisible = JSON.stringify({
+    events: atNoon.events,
+    replay,
+  });
+
+  assert.equal(atNoon.agentMemories.length, 6);
+  assert.equal(replayVisible.includes("agentMemories"), false);
+  assert.equal(replayVisible.includes("Elysia planned performActivity"), false);
+  assert.equal(replayVisible.includes("\"metadata\":{\"stepId\":\"step_1200_072\""), false);
+  assert.equal(replay.timeline.length, atNoon.events.length);
 });
 
 test("routine progression emits validated movement before routine events", () => {
@@ -335,6 +376,13 @@ function stepTimes(initial: ReturnType<typeof createSimulationEngine>, count: nu
 
 function findAgent(agents: ReturnType<typeof createSimulationEngine>["snapshot"]["agents"], id: string) {
   return agents.find((agent) => agent.id === id);
+}
+
+function findTickPhase(
+  diagnostic: ReturnType<typeof stepSimulationEngine>["agentTickDiagnostics"][number],
+  phase: string,
+) {
+  return diagnostic.phases.find((entry) => entry.phase === phase);
 }
 
 function createObserverInput(id: string, action: string, extraPayload: Record<string, unknown> = {}, targetIds = [OBSERVATION_MVP_WORLD_ID]): SimulationInput {

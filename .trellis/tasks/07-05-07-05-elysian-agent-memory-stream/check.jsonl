@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Verify engine/replay boundaries remain intact."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Verify memory records include source IDs and stay outside persona config."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify deterministic/offline tests and package boundary quality bar."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Verify memory stream UI is read-only and provenance-aware."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Verify frontend consumes typed projections rather than raw payload casts."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify Admin response and UI projections stay consistent."}

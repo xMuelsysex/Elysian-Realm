@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Authoritative engine, replay, and agent runtime boundary rules for remaining integration tasks."}
+{"file": ".trellis/spec/backend/persona-memory.md", "reason": "Memory and reflection contracts that later child tasks must preserve."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Offline deterministic test and visible failure requirements."}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Admin/debug UI observability and provenance requirements for child UI tasks."}
+{"file": ".trellis/tasks/archive/2026-07/07-04-agent-tick-inspector/prd.md", "reason": "Completed latest diagnostics surface and explicit non-goals that define remaining work."}
