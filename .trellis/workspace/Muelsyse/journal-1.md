@@ -930,3 +930,37 @@ Added a bounded deterministic engine reflection policy over agent memory streams
 ### Next Steps
 
 - None - task complete
+
+
+## Session 28: M14 reviewed LLM planner integration
+
+**Date**: 2026-07-05
+**Task**: M14 reviewed LLM planner integration
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Implemented review-gated LLM action proposals as typed simulation inputs: boundary validation, deterministic agent state application, provenance memory writes, UI copy update, and engine/admin/draft regression coverage. Archived the M14 task after passing build, typecheck, test, UI build, boundary scans, diff check, and Trellis validate.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `18c1764` | (see git log) |
+| `b9f53d9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
