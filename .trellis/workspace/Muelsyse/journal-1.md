@@ -854,3 +854,41 @@ Reviewed M10-lite with CodeG Claude, exposed latest real engine agent tick diagn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 26: Elysian engine agent memory stream
+
+**Date**: 2026-07-05
+**Task**: Elysian engine agent memory stream
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Persisted deterministic per-agent MemoryRecord streams in the Elysian engine, exposed cloned Admin/API/UI projections, verified memory retrieval/write behavior, and archived the M12 child task.
+
+### Main Changes
+
+- Added package memory-store rehydration for existing MemoryRecord values with duplicate and invalid-record checks.
+- Added engine-owned agentMemories, deterministic seed records, real memory retrieval during ticks, and deterministic plan-memory writes for proposal-producing ticks.
+- Exposed cloned memory records in AdminStateResponse and rendered a read-only per-agent memory stream in the Admin UI.
+- Verified records remain outside events/timeline/replay and kept package boundary scans clean.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0a2f8a6` | (see git log) |
+| `68d7c88` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
