@@ -1,5 +1,5 @@
 import type { AdminDiagnostic, AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
-import type { ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
+import type { EngineAgentTickDiagnostic, ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
 import type {
   AgentRuntimeState,
   ConversationRecord,
@@ -202,6 +202,20 @@ export interface AgentPlanViewModel {
     window?: string;
   };
   operationStatus: string;
+}
+
+export interface AgentTickInspectorRow {
+  agentId: string;
+  displayName: string;
+  phases: EngineAgentTickDiagnostic["phases"];
+  proposal?: EngineAgentTickDiagnostic["proposal"];
+  relatedEvents: TimelineItem[];
+}
+
+export interface AgentTickInspectorViewModel {
+  stepId: string;
+  rows: AgentTickInspectorRow[];
+  relatedEventCount: number;
 }
 
 export interface TopologyLocationNode {
@@ -698,6 +712,33 @@ export function createAgentPlanViewModels(snapshot: WorldSnapshot, language: App
       : undefined,
     operationStatus: agent.inProgressOperationId ? `${formatSimulationText(language, "in progress")}: ${agent.inProgressOperationId}` : (formatSimulationText(language, "idle / no operation") ?? "idle / no operation"),
   }));
+}
+
+export function createAgentTickInspectorViewModel(
+  state: AdminStateResponse,
+  timelineItems: readonly TimelineItem[],
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): AgentTickInspectorViewModel {
+  const stepId = state.snapshot.lastStepId;
+  const latestStepItems = timelineItems.filter((item) => item.event.stepId === stepId);
+  const agentsById = new Map(state.snapshot.agents.map((agent) => [agent.id, agent]));
+  const rows = state.agentTickDiagnostics.map((diagnostic) => {
+    const agent = agentsById.get(diagnostic.agentId);
+    const relatedEvents = latestStepItems.filter((item) => item.event.actorId === diagnostic.agentId || item.event.targetIds.includes(diagnostic.agentId));
+    return {
+      agentId: diagnostic.agentId,
+      displayName: formatAgentDisplayName(language, diagnostic.agentId, agent?.displayName ?? diagnostic.agentId),
+      phases: diagnostic.phases.map((phase) => ({ ...phase })),
+      ...(diagnostic.proposal ? { proposal: { ...diagnostic.proposal } } : {}),
+      relatedEvents,
+    } satisfies AgentTickInspectorRow;
+  });
+
+  return {
+    stepId,
+    rows,
+    relatedEventCount: rows.reduce((total, row) => total + row.relatedEvents.length, 0),
+  };
 }
 
 export function createTopologyViewModel(snapshot: WorldSnapshot, timelineItems: readonly TimelineItem[]): TopologyViewModel {

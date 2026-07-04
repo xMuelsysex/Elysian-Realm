@@ -5,6 +5,7 @@ import { JsonDetails } from "../shared/JsonDetails.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { formatAgentDisplayName, formatDiagnosticLevelLabel, formatEntityLabel, formatLocationName, formatPersonaText, formatProvenanceLabel, formatRelationshipGroup, formatSourceLabel, getCopy } from "../shared/i18n.js";
 import type {
+  AgentTickInspectorViewModel,
   AgentPlanViewModel,
   DebugExportViewModel,
   DiagnosticsCenterViewModel,
@@ -67,6 +68,53 @@ export function RelationshipNetwork({ language, rows }: RelationshipNetworkProps
 interface WorldInspectorProps {
   language: AppLanguage;
   viewModel: WorldInspectorViewModel;
+}
+
+interface AgentTickInspectorPanelProps {
+  language: AppLanguage;
+  viewModel: AgentTickInspectorViewModel;
+}
+
+export function AgentTickInspectorPanel({ language, viewModel }: AgentTickInspectorPanelProps) {
+  return (
+    <section className="panel" aria-labelledby="agent-tick-inspector-heading">
+      <PanelTitle eyebrow={language === "zh" ? "认知循环" : "Cognitive loop"} title={language === "zh" ? "角色 Tick 检查器" : "Agent tick inspector"} id="agent-tick-inspector-heading" />
+      <dl className="compact-metrics">
+        <Metric label={language === "zh" ? "步进" : "Step"} value={viewModel.stepId} code />
+        <Metric label={language === "zh" ? "角色" : "Agents"} value={viewModel.rows.length} />
+        <Metric label={language === "zh" ? "关联事件" : "Related events"} value={viewModel.relatedEventCount} />
+      </dl>
+      {viewModel.rows.length === 0 ? <p className="empty-state">{language === "zh" ? "最近一步没有角色 tick 诊断。" : "No agent tick diagnostics for the latest step."}</p> : (
+        <div className="card-grid">
+          {viewModel.rows.map((row) => (
+            <article className="detail-card" key={row.agentId}>
+              <h3>{row.displayName}</h3>
+              <p className="muted"><code>{row.agentId}</code></p>
+              <ol className="diagnostic-list">
+                {row.phases.map((phase) => (
+                  <li key={`${row.agentId}:${phase.phase}`}>
+                    <Badge tone={phase.status === "failed" ? "error" : phase.status === "ran" ? "success" : "neutral"}>{phase.status}</Badge> <strong>{phase.phase}</strong>
+                    <p className="muted">{phase.detail}</p>
+                  </li>
+                ))}
+              </ol>
+              {row.proposal ? <JsonDetails title={language === "zh" ? "Proposal JSON" : "Proposal JSON"} value={row.proposal} /> : <p className="muted">{language === "zh" ? "本次 tick 没有 action proposal。" : "No action proposal for this tick."}</p>}
+              {row.relatedEvents.length > 0 ? (
+                <ol className="related-event-list">
+                  {row.relatedEvents.map((item) => (
+                    <li key={item.event.id}>
+                      <Badge tone={item.entry.source}>{formatSourceLabel(language, item.entry.source)}</Badge> {item.detail}
+                      <p className="muted"><code>{item.event.id}</code></p>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="muted">{language === "zh" ? "同一步暂无关联事件。" : "No same-step related events."}</p>}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function WorldInspector({ language, viewModel }: WorldInspectorProps) {

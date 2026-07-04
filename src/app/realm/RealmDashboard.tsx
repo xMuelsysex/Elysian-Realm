@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
 import {
   createAgentDetailViewModel,
+  createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
   createDiagnosticsCenterViewModel,
@@ -32,6 +33,7 @@ import { EventTimeline } from "./EventTimeline.js";
 import { LocationBoard } from "./LocationBoard.js";
 import { RealmMapPanel } from "./RealmMapPanel.js";
 import {
+  AgentTickInspectorPanel,
   AgentPlanPanel,
   DebugExportPanel,
   DiagnosticsCenter,
@@ -112,6 +114,7 @@ export function RealmDashboard({
   const diagnostics = createDiagnosticsCenterViewModel(state.diagnostics);
   const diffs = createStateDiffViewModel(previousState, state);
   const plans = createAgentPlanViewModels(state.snapshot, language);
+  const agentTickInspector = createAgentTickInspectorViewModel(state, timelineItems, language);
   const topology = createTopologyViewModel(state.snapshot, timelineItems);
   const exportViewModel = createDebugExportViewModel(state, timelineItems, diagnostics, diffs);
   const kindOptions = [...new Set(state.events.map((event) => event.kind))].sort();
@@ -262,6 +265,7 @@ export function RealmDashboard({
         {activeTab === "overview" ? (
           <div className="dashboard-page-grid dashboard-page-grid--balanced">
             <WorldInspector language={language} viewModel={worldInspector} />
+            <AgentTickInspectorPanel language={language} viewModel={agentTickInspector} />
             <ReceiptPanel language={language} receipt={receipt} />
             <DiagnosticsCenter language={language} viewModel={diagnostics} />
             <StateDiffPanel language={language} diffs={diffs} />
@@ -341,6 +345,7 @@ export function RealmDashboard({
         {activeTab === "debug" ? (
           <div className="dashboard-page-stack">
             <DebugExportPanel language={language} viewModel={exportViewModel} onExport={exportDebugState} exportedAt={exportedAt} />
+            <AgentTickInspectorPanel language={language} viewModel={agentTickInspector} />
             <DebugPanel language={language} state={state} />
           </div>
         ) : null}

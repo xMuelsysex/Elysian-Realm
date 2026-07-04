@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/07-04-agent-tick-inspector/prd.md", "reason": "Acceptance criteria"}
+{"file": ".trellis/tasks/07-04-agent-tick-inspector/design.md", "reason": "Expected backend/frontend shape"}
+{"file": ".trellis/tasks/07-04-agent-tick-inspector/implement.md", "reason": "Required validation commands"}
+{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Diagnostics must not enter replay events"}
+{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Observability panel and view-model rules"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "No client-owned simulation state"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed projection checks"}

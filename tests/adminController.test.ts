@@ -16,6 +16,7 @@ test("admin controller exposes deterministic initial state", () => {
   assert.deepEqual(state.events, []);
   assert.deepEqual(state.timeline, []);
   assert.deepEqual(state.diagnostics, []);
+  assert.deepEqual(state.agentTickDiagnostics, []);
   assert.equal(state.personas.length, 3);
   assert.ok(state.personas.some((persona) => persona.id === "elysia"));
 });
@@ -42,8 +43,30 @@ test("admin controller steps through the simulation engine", () => {
   assert.equal(stepped.timeline.length, stepped.events.length);
 });
 
+test("admin controller exposes latest agent tick diagnostics outside replay events", () => {
+  const controller = createAdminController();
+  const startup = controller.step();
+  const stepped = controller.step();
+
+  assert.deepEqual(startup.agentTickDiagnostics, []);
+  assert.equal(stepped.agentTickDiagnostics.length, stepped.snapshot.agents.length);
+  assert.ok(stepped.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.length === 6));
+  assert.ok(stepped.agentTickDiagnostics.some((diagnostic) => diagnostic.agentId === "agent_elysia"));
+
+  const replayVisible = JSON.stringify({
+    events: stepped.events,
+    timeline: stepped.timeline,
+    replay: stepped.replay,
+  });
+  assert.equal(replayVisible.includes("agentTickDiagnostics"), false);
+  assert.equal(replayVisible.includes("\"phases\""), false);
+  assert.equal(stepped.timeline.length, stepped.events.length);
+  assert.equal(stepped.replay.timeline.length, stepped.events.length);
+});
+
 test("admin controller reset returns the deterministic seed", () => {
   const controller = createAdminController();
+  controller.step();
   controller.step();
   const reset = controller.reset();
 
@@ -51,6 +74,7 @@ test("admin controller reset returns the deterministic seed", () => {
   assert.equal(reset.snapshot.status, "paused");
   assert.equal(reset.snapshot.currentTime, "2026-05-31T06:00:00.000Z");
   assert.deepEqual(reset.events, []);
+  assert.deepEqual(reset.agentTickDiagnostics, []);
 });
 
 test("admin controller submits typed observer inputs through the engine", () => {
@@ -67,6 +91,23 @@ test("admin controller submits typed observer inputs through the engine", () => 
   assert.equal(result.body.snapshot.status, "running");
   assert.equal(result.body.events.at(-1)?.kind, "realm.interventionSubmitted");
   assert.equal(result.body.events.at(-1)?.source, "user");
+});
+
+test("admin controller submitInput returns latest diagnostics when agent ticks run", () => {
+  const controller = createAdminController();
+  controller.step();
+
+  const result = controller.submitInput({
+    kind: "observerCommand",
+    targetIds: [OBSERVATION_MVP_WORLD_ID],
+    payload: { action: "resume" },
+    source: "user",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.body.snapshot.status, "running");
+  assert.equal(result.body.agentTickDiagnostics.length, result.body.snapshot.agents.length);
+  assert.ok(result.body.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.some((phase) => phase.phase === "plan")));
 });
 
 test("admin controller rejects malformed admin requests with structured errors", () => {

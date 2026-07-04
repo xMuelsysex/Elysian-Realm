@@ -5,6 +5,7 @@ import type { SimulationEvent } from "../src/shared/contracts/index.js";
 import type { AdminDiagnostic } from "../src/server/admin/index.js";
 import {
   createAgentDetailViewModel,
+  createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
   createDiagnosticsCenterViewModel,
@@ -247,6 +248,31 @@ test("latest diagnostics returns newest rejected input diagnostics first", () =>
   assert.equal(diagnostics.length, 2);
   assert.equal(diagnostics[0]?.inputId, "admin_input_002");
   assert.equal(diagnostics[1]?.inputId, "admin_input_001");
+});
+
+test("creates agent tick inspector rows with same-step related events", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const empty = createAgentTickInspectorViewModel(initial, createTimelineItems(initial.events, initial.timeline, "en", "debug"), "en");
+
+  assert.equal(empty.stepId, initial.snapshot.lastStepId);
+  assert.deepEqual(empty.rows, []);
+  assert.equal(empty.relatedEventCount, 0);
+
+  const state = stepControllerTimes(controller, 72);
+  const items = createTimelineItems(state.events, state.timeline, "en", "debug");
+  const viewModel = createAgentTickInspectorViewModel(state, items, "en");
+
+  assert.equal(viewModel.stepId, state.snapshot.lastStepId);
+  assert.equal(viewModel.rows.length, state.agentTickDiagnostics.length);
+  assert.ok(viewModel.rows.every((row) => row.phases.map((phase) => phase.phase).includes("plan")));
+  assert.ok(viewModel.rows.some((row) => row.proposal?.intent));
+
+  const rowWithEvents = viewModel.rows.find((row) => row.relatedEvents.length > 0);
+  assert.ok(rowWithEvents);
+  assert.ok(items.some((item) => item.event.stepId !== state.snapshot.lastStepId && item.event.actorId === rowWithEvents.agentId));
+  assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.stepId === state.snapshot.lastStepId));
+  assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.actorId === rowWithEvents.agentId || item.event.targetIds.includes(rowWithEvents.agentId)));
 });
 
 test("creates enhanced selected agent detail with configured persona facts and runtime memory index", () => {
