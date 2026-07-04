@@ -820,3 +820,37 @@ Added a deterministic CLI demo for SimulationAgentRuntime showing perception, re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 25: Expose agent tick inspector
+
+**Date**: 2026-07-05
+**Task**: Expose agent tick inspector
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Reviewed M10-lite with CodeG Claude, exposed latest real engine agent tick diagnostics through AdminStateResponse, added read-only Agent Tick Inspector view model/UI, verified diagnostics stay separate from events/timeline/replay, and archived 07-04-agent-tick-inspector.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `390c1cd` | (see git log) |
+| `5882128` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
