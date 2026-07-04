@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 26
+- **Total Sessions**: 27
 - **Last Active**: 2026-07-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~894 | Active |
+| `journal-1.md` | ~932 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 27 | 2026-07-05 | Engine reflection trigger policy | `2f3afa8`, `7c0bce6` | `feature/agent-cognitive-loop-core` |
 | 26 | 2026-07-05 | Elysian engine agent memory stream | `0a2f8a6`, `68d7c88` | `feature/agent-cognitive-loop-core` |
 | 25 | 2026-07-05 | Expose agent tick inspector | `390c1cd`, `5882128` | `feature/agent-cognitive-loop-core` |
 | 24 | 2026-07-04 | Observable simulation agent demo | `4a5a740`, `c86baba` | `feature/agent-cognitive-loop-core` |

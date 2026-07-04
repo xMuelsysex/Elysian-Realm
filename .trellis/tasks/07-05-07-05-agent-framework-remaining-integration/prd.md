@@ -33,7 +33,7 @@ Finish the remaining practical integration slices after M1-M8 and the Agent Tick
 ## Acceptance Criteria
 
 - [x] M12 completed, committed, archived, journaled, and pushed.
-- [ ] M13 completed, committed, archived, journaled, and pushed.
+- [x] M13 completed, committed, archived, journaled, and pushed.
 - [ ] M14 completed, committed, archived, journaled, and pushed.
 - [ ] M15 either completed or explicitly deferred with rationale in this PRD.
 - [ ] Final quality gate passes after the last child task.

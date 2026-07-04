@@ -892,3 +892,41 @@ Persisted deterministic per-agent MemoryRecord streams in the Elysian engine, ex
 ### Next Steps
 
 - None - task complete
+
+
+## Session 27: Engine reflection trigger policy
+
+**Date**: 2026-07-05
+**Task**: Engine reflection trigger policy
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Added a bounded deterministic engine reflection policy over agent memory streams, package sync reflection APIs, Admin/UI diagnostics, tests, and archived the M13 child task.
+
+### Main Changes
+
+- Added `runReflectionSync(...)` and `SimulationAgentRuntime.reflectSync(...)` for deterministic sync engine reflection while failing visibly on async planner misuse.
+- Added host-owned reflection evidence selection after plan-memory writes, deterministic reflection memory IDs, and no-loop skip behavior for steps without current plan evidence.
+- Exposed cloned latest reflection diagnostics through AdminStateResponse and rendered a read-only reflection policy panel in Admin UI.
+- Verified reflection records remain in `agentMemories` and outside events/timeline/replay.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2f3afa8` | (see git log) |
+| `7c0bce6` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
