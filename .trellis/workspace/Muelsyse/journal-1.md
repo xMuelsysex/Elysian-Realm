@@ -998,3 +998,37 @@ Recorded final parent task status: M12, M13, and M14 completed and archived; M15
 ### Next Steps
 
 - None - task complete
+
+
+## Session 30: Fix reviewed LLM proposal gate regressions
+
+**Date**: 2026-07-05
+**Task**: Fix reviewed LLM proposal gate regressions
+**Branch**: `feature/agent-cognitive-loop-core`
+
+### Summary
+
+Fixed codeg-reviewed M14 regressions: reviewed LLM proposal inputs now require user source, duplicate same-step proposal memory IDs include input IDs, and regression tests cover Admin/source rejection plus same-agent multi-proposal rehydration. Updated backend simulation spec with the reviewed proposal input contract and archived the fix task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0e9c8b3` | (see git log) |
+| `388aa18` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

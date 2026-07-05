@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 29
+- **Total Sessions**: 30
 - **Last Active**: 2026-07-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~1000 | Active |
+| `journal-1.md` | ~1034 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 30 | 2026-07-05 | Fix reviewed LLM proposal gate regressions | `0e9c8b3`, `388aa18` | `feature/agent-cognitive-loop-core` |
 | 29 | 2026-07-05 | Archive agent framework integration queue | `de6e83c`, `384ebda` | `feature/agent-cognitive-loop-core` |
 | 28 | 2026-07-05 | M14 reviewed LLM planner integration | `18c1764`, `b9f53d9` | `feature/agent-cognitive-loop-core` |
 | 27 | 2026-07-05 | Engine reflection trigger policy | `2f3afa8`, `7c0bce6` | `feature/agent-cognitive-loop-core` |
