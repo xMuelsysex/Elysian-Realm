@@ -193,6 +193,35 @@ test("admin controller surfaces simulation validation diagnostics", () => {
   assert.match(result.body.diagnostics[0]?.message ?? "", /directPrivateMessage targetIds/);
 });
 
+test("admin controller rejects non-user reviewed LLM proposal submissions", () => {
+  const controller = createAdminController();
+  const result = controller.submitInput({
+    kind: "realmEvent",
+    targetIds: ["agent_elysia", "garden"],
+    source: "llm",
+    payload: {
+      eventKind: "llm.proposal.move",
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: "move",
+      reason: "Generated proposal must still be user-reviewed.",
+      intent: "Move to the garden.",
+      llmOperationId: "llm_action_proposal_step_0600_000_agent_elysia",
+      reviewedBy: "user",
+      targetLocationId: "garden",
+    },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const agent = result.body.snapshot.agents.find((candidate) => candidate.id === "agent_elysia");
+
+  assert.equal(agent?.locationId, "atrium");
+  assert.equal(agent?.currentAction?.id, "elysia.morning.0");
+  assert.equal(result.body.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.match(result.body.diagnostics[0]?.message ?? "", /source must be user/);
+});
+
 test("admin controller tests runtime LLM config without returning API keys", async () => {
   const calls: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
   const controller = createAdminController(createSimulationEngine(), {
@@ -331,7 +360,7 @@ test("admin controller generates sandbox LLM action proposals without mutating s
   assert.equal(reviewedAgent?.currentAction?.id, "llm.admin_input_001.agent_elysia.move");
   assert.equal(reviewed.body.events.at(-1)?.kind, "realm.interventionSubmitted");
   assert.equal(reviewed.body.agentMemories.some((memory) => (
-    memory.id === "memory_step_0605_001_agent_elysia_llm_proposal" &&
+    memory.id === "memory_step_0605_001_agent_elysia_admin_input_001_llm_proposal" &&
     memory.metadata.llmOperationId === "llm_action_proposal_step_0600_000_agent_elysia"
   )), true);
 });

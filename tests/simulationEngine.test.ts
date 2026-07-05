@@ -222,7 +222,7 @@ test("reviewed LLM move proposals update agent state and append provenance memor
   const result = stepSimulationEngine(queued);
   const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
   const accepted = result.events.at(-1);
-  const memory = result.state.agentMemories.find((candidate) => candidate.id === "memory_step_0605_001_agent_elysia_llm_proposal");
+  const memory = result.state.agentMemories.find((candidate) => candidate.id === "memory_step_0605_001_agent_elysia_input_user_reviewed_llm_move_001_llm_proposal");
 
   assert.equal(agent?.locationId, "garden");
   assert.equal(agent?.status, "moving");
@@ -272,6 +272,27 @@ test("reviewed LLM move proposals update agent state and append provenance memor
   for (const event of result.events) {
     assert.deepEqual(validateSimulationEvent(event), []);
   }
+});
+
+test("non-user reviewed LLM proposal inputs are rejected without applying generated output", () => {
+  const queued = queueSimulationInput(
+    createSimulationEngine(),
+    createReviewedLlmProposalInput("input_llm_reviewed_llm_source_001", { source: "llm" }),
+  );
+
+  const result = stepSimulationEngine(queued);
+  const agent = findAgent(result.state.snapshot.agents, "agent_elysia");
+
+  assert.equal(agent?.locationId, "atrium");
+  assert.equal(agent?.currentAction?.id, "elysia.morning.0");
+  assert.equal(result.state.agentMemories.some((memory) => memory.id.includes("llm_proposal")), false);
+  assert.equal(result.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.deepEqual(result.events.at(-1)?.payload, {
+    inputId: "input_llm_reviewed_llm_source_001",
+    code: "INVALID_SIMULATION_INPUT",
+    message: "reviewed LLM proposal input source must be user",
+    commandKind: "realmEvent",
+  });
 });
 
 test("reviewed LLM proposals map every supported action into deterministic agent state", () => {
@@ -332,6 +353,35 @@ test("reviewed LLM proposals map every supported action into deterministic agent
     assert.equal(agent?.currentAction?.kind, testCase.expectedKind);
     assert.equal(agent?.currentAction?.locationId, testCase.expectedLocationId);
   }
+});
+
+test("same-step reviewed LLM proposals for one agent keep unique memory ids and do not corrupt later steps", () => {
+  const queued = [
+    createReviewedLlmProposalInput("input_user_reviewed_llm_multi_001"),
+    createReviewedLlmProposalInput("input_user_reviewed_llm_multi_002", {
+      targetIds: ["agent_elysia"],
+      payload: {
+        eventKind: "llm.proposal.wait",
+        proposalAction: "wait",
+        intent: "Wait near the garden path after checking in.",
+        targetLocationId: undefined,
+        targetAgentId: undefined,
+      },
+    }),
+  ].reduce((state, input) => queueSimulationInput(state, input), createSimulationEngine());
+
+  const result = stepSimulationEngine(queued);
+  const proposalMemoryIds = result.state.agentMemories
+    .filter((memory) => memory.id.includes("llm_proposal"))
+    .map((memory) => memory.id);
+  const next = stepSimulationEngine(result.state);
+
+  assert.deepEqual(proposalMemoryIds, [
+    "memory_step_0605_001_agent_elysia_input_user_reviewed_llm_multi_001_llm_proposal",
+    "memory_step_0605_001_agent_elysia_input_user_reviewed_llm_multi_002_llm_proposal",
+  ]);
+  assert.equal(new Set(proposalMemoryIds).size, proposalMemoryIds.length);
+  assert.equal(next.state.agentMemories.filter((memory) => memory.id.includes("llm_proposal")).length, 2);
 });
 
 test("reviewed LLM proposal state remains visible on post-startup steps", () => {
@@ -592,9 +642,9 @@ function createObserverInput(id: string, action: string, extraPayload: Record<st
 
 function createReviewedLlmProposalInput(
   id: string,
-  overrides: { targetIds?: string[]; payload?: Record<string, unknown> } = {},
+  overrides: { source?: SimulationInput["source"]; targetIds?: string[]; payload?: Record<string, unknown> } = {},
 ): SimulationInput {
-  return createInterventionInput(id, "realmEvent", overrides.targetIds ?? ["agent_elysia", "garden", "agent_eden"], {
+  const input = createInterventionInput(id, "realmEvent", overrides.targetIds ?? ["agent_elysia", "garden", "agent_eden"], {
     eventKind: "llm.proposal.move",
     provenance: "user-reviewed-llm-proposal",
     sandbox: true,
@@ -608,6 +658,7 @@ function createReviewedLlmProposalInput(
     targetAgentId: "agent_eden",
     ...overrides.payload,
   });
+  return overrides.source ? { ...input, source: overrides.source } : input;
 }
 
 function createInterventionInput(id: string, kind: "observerCommand" | "realmEvent" | "directPrivateMessage", targetIds: string[], payload: Record<string, unknown>): SimulationInput {

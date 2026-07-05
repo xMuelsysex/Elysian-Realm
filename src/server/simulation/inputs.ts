@@ -157,6 +157,13 @@ function validateRealmEvent(
 
   let reviewedLlmProposal: ReviewedLlmProposalPayload | undefined;
   if (isReviewedLlmProposalLike(payload)) {
+    if (input.source !== "user") {
+      return {
+        ok: false,
+        error: { input, commandKind: kind, message: "reviewed LLM proposal input source must be user" },
+      };
+    }
+
     const reviewed = parseReviewedLlmProposalPayload(payload, targetIds, context);
     if (!reviewed.ok) {
       return {

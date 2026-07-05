@@ -393,6 +393,116 @@ const input = buildSimulationInput(body, state.snapshot);
 state = stepSimulationEngine(queueSimulationInput(state, input)).state;
 ```
 
+## Implemented Reviewed LLM Proposal Input Contract
+
+### 1. Scope / Trigger
+
+M14 added a review-gated path from Admin LLM action-proposal sandbox output back into the simulation engine. Update this contract whenever `llm.proposal.*` payload validation, reviewed proposal state application, or reviewed proposal memory persistence changes.
+
+### 2. Signatures
+
+Reviewed proposals are `SimulationInput` values with:
+
+```ts
+{
+  source: "user",
+  command: {
+    kind: "realmEvent",
+    targetIds: string[],
+    payload: {
+      eventKind: `llm.proposal.${"continue" | "move" | "wait" | "performActivity" | "reflect"}`,
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: AgentId,
+      proposalAction: "continue" | "move" | "wait" | "performActivity" | "reflect",
+      reason: string,
+      intent?: string,
+      llmOperationId: string,
+      reviewedBy?: string,
+      targetLocationId?: LocationId,
+      targetAgentId?: AgentId,
+    }
+  }
+}
+```
+
+### 3. Contracts
+
+- The LLM sandbox may return generated proposals, but generated/LLM-sourced inputs must not apply them to world state.
+- A reviewed LLM proposal can affect engine state only when `SimulationInput.source === "user"` and the payload passes `parseReviewedLlmProposalPayload`.
+- Accepted reviewed proposal details stay replay-visible through the existing `realm.interventionSubmitted` event; do not add a second event kind unless the central event taxonomy is updated.
+- The engine writes a user-authored plan memory linked to the accepted event and input ID.
+- Reviewed proposal memory IDs must be deterministic and unique per accepted input. Include the `input.id` in the ID, not only `stepId + agentId`, because a single step can queue multiple reviewed inputs for the same agent.
+
+### 4. Validation & Error Matrix
+
+- `source !== "user"` for a reviewed proposal-shaped payload -> `simulation.inputRejected`, message `reviewed LLM proposal input source must be user`
+- unknown `agentId`, `targetAgentId`, or `targetLocationId` -> `simulation.inputRejected`
+- `proposalAction: "move"` without `targetLocationId` -> `simulation.inputRejected`
+- `eventKind` not matching `proposalAction` -> `simulation.inputRejected`
+- two same-step reviewed proposals for one agent -> both may be accepted, but memory IDs must remain unique and later steps must not throw during memory-store rehydration
+
+### 5. Good/Base/Bad Cases
+
+Good:
+
+```ts
+queueSimulationInput(state, {
+  source: "user",
+  command: {
+    kind: "realmEvent",
+    targetIds: ["agent_elysia", "garden"],
+    payload: {
+      eventKind: "llm.proposal.move",
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: "move",
+      reason: "User reviewed the generated proposal.",
+      llmOperationId: "llm_action_proposal_step_0600_000_agent_elysia",
+      targetLocationId: "garden",
+    },
+  },
+});
+```
+
+Bad:
+
+```ts
+// Generated output cannot self-author a reviewed state-changing input.
+queueSimulationInput(state, { source: "llm", command: reviewedProposalCommand });
+
+// Collides when multiple same-step proposals target one agent.
+`memory_${stepId}_${agentId}_llm_proposal`;
+```
+
+### 6. Tests Required
+
+Simulation/admin tests must assert:
+
+- generated `source: "llm"` reviewed proposal-shaped inputs are rejected and do not mutate state;
+- accepted user-reviewed proposals still update state and append provenance memory;
+- two same-step reviewed proposals for the same agent create unique memory IDs and a subsequent step does not throw;
+- invalid reviewed proposal payloads continue to emit `simulation.inputRejected`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```ts
+if (payload.provenance === "user-reviewed-llm-proposal") {
+  applyReviewedProposal(input); // no source gate
+}
+```
+
+#### Correct
+
+```ts
+if (payload.provenance === "user-reviewed-llm-proposal" && input.source !== "user") {
+  rejectInput("reviewed LLM proposal input source must be user");
+}
+```
+
 ## Agent Cognitive Loop
 
 Each active agent follows this sequence when it needs to decide:

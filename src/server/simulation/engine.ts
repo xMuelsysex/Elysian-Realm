@@ -380,7 +380,7 @@ function appendReviewedLlmProposalMemory(
   return [
     ...cloneEngineMemoryRecords(records),
     {
-      id: createReviewedLlmProposalMemoryId(context.stepId, proposal.agentId),
+      id: createReviewedLlmProposalMemoryId(context.stepId, proposal.agentId, input.input.id),
       agentId: proposal.agentId,
       kind: "plan",
       content: `${agent.displayName} accepted a reviewed LLM ${proposal.proposalAction} proposal: ${proposal.intent}`,
@@ -405,8 +405,8 @@ function appendReviewedLlmProposalMemory(
   ];
 }
 
-function createReviewedLlmProposalMemoryId(stepId: string, agentId: AgentId): string {
-  return `memory_${stepId}_${agentId}_llm_proposal`.replace(/[^a-z0-9_]+/gi, "_").toLowerCase();
+function createReviewedLlmProposalMemoryId(stepId: string, agentId: AgentId, inputId: string): string {
+  return `memory_${stepId}_${agentId}_${inputId}_llm_proposal`.replace(/[^a-z0-9_]+/gi, "_").toLowerCase();
 }
 
 function cloneReviewedLlmProposalPayload(proposal: ReviewedLlmProposalPayload): Record<string, unknown> {
