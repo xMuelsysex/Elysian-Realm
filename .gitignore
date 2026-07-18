@@ -2,6 +2,8 @@ node_modules/
 dist/
 outputs/
 .playwright-mcp/
+playwright-report/
+test-results/
 
 # Unity local/generated project data
 unity/

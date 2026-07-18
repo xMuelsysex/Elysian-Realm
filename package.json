@@ -10,6 +10,7 @@
     "build": "npm run build:server && npm run build:ui",
     "typecheck": "tsc --noEmit",
     "test": "npm run build:server && node --test dist/tests/*.test.js",
+    "test:e2e": "playwright test",
     "demo:simulation-agent": "npm run build:server && node dist/src/server/demo/simulationAgentDemo.js",
     "validate:tiled-map": "node scripts/validate-realm-tiled-map.mjs",
     "dev": "node scripts/dev-admin.mjs",
@@ -21,6 +22,7 @@
     "build:ui": "vite build"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.11.30",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
