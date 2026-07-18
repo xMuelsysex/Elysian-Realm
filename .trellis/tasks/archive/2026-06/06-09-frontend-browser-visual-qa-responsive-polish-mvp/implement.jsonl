@@ -1,8 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend checklist and quality gate"}
-{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Realm UI boundary, replay, provenance, and diagnostics rules"}
-{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component accessibility and provenance display rules"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "Ensure QA fixes do not introduce frontend-owned simulation state"}
-{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed projection and command boundary rules"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend validation and anti-pattern checklist"}
-{"file": ".trellis/tasks/06-09-frontend-browser-visual-qa-responsive-polish-mvp/research/browser-visual-qa.md", "reason": "Browser visual QA findings and viewport checklist"}

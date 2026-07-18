@@ -1,5 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Frontend realm/debug UI contract"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "Frontend state ownership rules"}
-{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Typed projection and payload boundary rules"}
-{"file": ".trellis/spec/backend/agent-simulation.md", "reason": "Admin/simulation projection contract"}

@@ -1,8 +1,0 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend quality checklist"}
-{"file": ".trellis/spec/frontend/realm-interface.md", "reason": "Verify provenance, replay, diagnostics, and UI boundary preservation"}
-{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Verify accessibility and component presentation rules"}
-{"file": ".trellis/spec/frontend/state-management.md", "reason": "Verify no frontend-owned simulation state"}
-{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend validation and anti-pattern checklist"}
-{"file": ".trellis/tasks/06-09-frontend-reference-inspired-visual-polish-mvp/research/reference-visual-polish.md", "reason": "Verify implementation matches selected reference-inspired polish direction"}
-{"file": ".trellis/tasks/06-09-frontend-reference-inspired-visual-polish-mvp/research/visual-concept.md", "reason": "Verify visual polish follows the selected moodboard without pixel-perfect cloning"}
