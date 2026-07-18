@@ -52,6 +52,10 @@ export interface EngineMemoryMetadata {
   proposalAction?: string;
   triggerKind?: ReflectionTriggerKind;
   reflectionSource?: EngineReflectionSource;
+  conversationId?: string;
+  messageId?: string;
+  inputId?: string;
+  messageRole?: "incoming" | "response";
 }
 
 export type EngineMemoryRecord = MemoryRecord<EngineMemoryMetadata>;

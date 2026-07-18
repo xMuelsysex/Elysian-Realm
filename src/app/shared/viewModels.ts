@@ -13,6 +13,7 @@ import {
   DEFAULT_LANGUAGE,
   formatAgentDisplayName,
   formatCommandKindLabel,
+  formatEntityLabel,
   formatCommandSummary,
   formatDiagnosticMessage,
   formatEventKindLabel,
@@ -166,11 +167,24 @@ export interface MemoryViewModel {
   runtimeMemories: RuntimeMemoryIndexItem[];
 }
 
+export interface MessageItemViewModel {
+  id: string;
+  eventId: string;
+  body: string;
+  senderId: string;
+  recipientId: string;
+  direction: "incoming" | "response";
+  messageIndex: number;
+  time: string;
+  source: EventSource;
+  inReplyToMessageId?: string;
+}
+
 export interface MessageThreadViewModel {
   id: string;
   title: string;
   participantIds: string[];
-  events: TimelineItem[];
+  messages: MessageItemViewModel[];
 }
 
 export interface DiagnosticsCenterViewModel {
@@ -684,19 +698,51 @@ export function createMemoryViewModel(personas: readonly PersonaSpec[], timeline
 }
 
 export function createMessageStreamViewModel(timelineItems: readonly TimelineItem[], language: AppLanguage = DEFAULT_LANGUAGE): MessageThreadViewModel[] {
-  const messageItems = timelineItems.filter((item) => isMessageLikeEvent(item.event));
-  const threads = new Map<string, TimelineItem[]>();
-  for (const item of messageItems) {
-    const participants = item.event.targetIds.filter((targetId) => targetId.startsWith("agent_"));
-    const key = participants.length > 0 ? participants.sort().join("+") : "realm-public";
-    threads.set(key, [...(threads.get(key) ?? []), item]);
+  const threads = new Map<string, { participantIds: Set<string>; messages: MessageItemViewModel[] }>();
+  for (const item of timelineItems) {
+    if (item.event.kind !== "conversation.messageSent") continue;
+    const conversationId = readString(item.event.payload, "conversationId");
+    const messageId = readString(item.event.payload, "messageId");
+    const body = readString(item.event.payload, "content");
+    const senderId = readString(item.event.payload, "senderId");
+    const recipientId = readString(item.event.payload, "recipientId");
+    const direction = item.event.payload.direction;
+    const messageIndex = readNumber(item.event.payload, "messageIndex");
+    if (!conversationId || !messageId || !body || !senderId || !recipientId || (direction !== "incoming" && direction !== "response") || messageIndex === undefined) continue;
+
+    const thread = threads.get(conversationId) ?? { participantIds: new Set<string>(), messages: [] };
+    [senderId, recipientId].filter((id) => id.startsWith("agent_")).forEach((id) => thread.participantIds.add(id));
+    thread.messages.push({
+      id: messageId,
+      eventId: item.event.id,
+      body,
+      senderId,
+      recipientId,
+      direction,
+      messageIndex,
+      time: item.event.time,
+      source: item.event.source,
+      inReplyToMessageId: readString(item.event.payload, "inReplyToMessageId"),
+    });
+    threads.set(conversationId, thread);
   }
-  return [...threads.entries()].map(([id, events]) => ({
-    id,
-    title: id === "realm-public" ? (language === "zh" ? "公开领域消息" : "Public realm messages") : (language === "zh" ? `会话 ${id}` : `Conversation ${id}`),
-    participantIds: id === "realm-public" ? [] : id.split("+"),
-    events,
-  }));
+
+  return [...threads.entries()]
+    .map(([id, thread]) => ({
+      id,
+      title: language === "zh"
+        ? `私信会话 ${[...thread.participantIds].map((id) => formatEntityLabel(language, id)).join(", ")}`
+        : `Private conversation ${[...thread.participantIds].map((id) => formatEntityLabel(language, id)).join(", ")}`,
+      participantIds: [...thread.participantIds].sort(),
+      messages: thread.messages.sort((left, right) => left.messageIndex - right.messageIndex || left.eventId.localeCompare(right.eventId)),
+    }))
+    .sort((left, right) => {
+      const leftLatest = left.messages.at(-1);
+      const rightLatest = right.messages.at(-1);
+      return (rightLatest?.time ?? "").localeCompare(leftLatest?.time ?? "")
+        || (rightLatest?.eventId ?? "").localeCompare(leftLatest?.eventId ?? "")
+        || left.id.localeCompare(right.id);
+    });
 }
 
 export function createDiagnosticsCenterViewModel(diagnostics: readonly AdminDiagnostic[]): DiagnosticsCenterViewModel {
@@ -1174,6 +1220,10 @@ function projectKnownEvent(
       return projectAgentContinuedRoutine(event.payload, language, detailMode);
     case "realm.interventionSubmitted":
       return projectRealmInterventionSubmitted(event.payload, language, detailMode);
+    case "conversation.started":
+      return projectConversationStarted(event.payload, language, detailMode);
+    case "conversation.messageSent":
+      return projectConversationMessageSent(event.payload, language, detailMode);
     case "simulation.inputRejected":
       return projectSimulationInputRejected(event.payload, language, detailMode);
     case "memory.seeded":
@@ -1249,6 +1299,27 @@ function projectRealmInterventionSubmitted(payload: Record<string, unknown>, lan
   const summary = formatCommandSummary(language, readString(payload, "summary"));
   const sentence = language === "zh" ? "用户干预已被系统接受。" : "The user intervention was accepted.";
   return withProjection(sentence, detailMode, language === "zh" ? [["命令", commandKind], ["输入", inputId], ["已接受", accepted], ["摘要", summary]] : [["command", commandKind], ["input", inputId], ["accepted", accepted], ["summary", summary]]);
+}
+
+function projectConversationStarted(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {
+  const conversationId = readString(payload, "conversationId");
+  const participantIds = readStringArray(payload, "participantIds");
+  const locationId = readString(payload, "locationId");
+  const state = readString(payload, "state");
+  const sentence = language === "zh" ? "私信会话已开始。" : "A private conversation started.";
+  return withProjection(sentence, detailMode, language === "zh" ? [["会话", conversationId], ["参与者", participantIds], ["位置", locationId], ["状态", state]] : [["conversation", conversationId], ["participants", participantIds], ["location", locationId], ["state", state]]);
+}
+
+function projectConversationMessageSent(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {
+  const conversationId = readString(payload, "conversationId");
+  const messageId = readString(payload, "messageId");
+  const senderId = readString(payload, "senderId");
+  const recipientId = readString(payload, "recipientId");
+  const content = readString(payload, "content");
+  const direction = readString(payload, "direction");
+  const messageIndex = readNumber(payload, "messageIndex");
+  const sentence = `${fallback(senderId, language)}: ${fallback(content, language)}`;
+  return withProjection(sentence, detailMode, language === "zh" ? [["会话", conversationId], ["消息", messageId], ["发送者", senderId], ["接收者", recipientId], ["方向", direction], ["序号", messageIndex]] : [["conversation", conversationId], ["message", messageId], ["sender", senderId], ["recipient", recipientId], ["direction", direction], ["index", messageIndex]]);
 }
 
 function projectSimulationInputRejected(payload: Record<string, unknown>, language: AppLanguage, detailMode: TimelineDetailMode) {
@@ -1336,15 +1407,6 @@ function isBetweenAgents(event: SimulationEvent, sourceAgentId: string | undefin
     (event.actorId === sourceAgentId && targetIds.has(targetAgentId)) ||
     (event.actorId === targetAgentId && targetIds.has(sourceAgentId))
   );
-}
-
-function isMessageLikeEvent(event: SimulationEvent): boolean {
-  if (event.kind === "realm.interventionSubmitted") {
-    const commandKind = readString(event.payload, "commandKind");
-    const summary = readString(event.payload, "summary");
-    return commandKind === "directPrivateMessage" || summary === "directPrivateMessage";
-  }
-  return event.kind.includes("message") || event.kind.includes("conversation");
 }
 
 function latestInputId(events: readonly SimulationEvent[]): string | undefined {

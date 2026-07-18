@@ -3,6 +3,7 @@ import type { AgentId, AgentStatus, LocationId } from "../../shared/domain/index
 import { InMemoryMemoryStore } from "@elysian/simulation-agent";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
 import { validateSimulationInput, type ReviewedLlmProposalPayload, type ValidSimulationInput } from "./inputs.js";
+import { createDeterministicPrivateMessageResponse } from "./privateMessages.js";
 import { runAgentCognitiveTickForEngine, runAgentReflectionForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord, type EngineReflectionDiagnostic } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
@@ -113,6 +114,20 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
       payload: createAcceptedInterventionPayload(result.value),
     });
     stepEvents.push(acceptedEvent);
+
+    if (result.value.commandKind === "directPrivateMessage") {
+      const directMessage = applyDirectPrivateMessage(
+        nextSnapshot,
+        nextAgentMemories,
+        result.value,
+        acceptedEvent,
+        context,
+        stepEvents.length + 1,
+      );
+      nextSnapshot = directMessage.snapshot;
+      nextAgentMemories = directMessage.agentMemories;
+      stepEvents.push(...directMessage.events);
+    }
 
     if (result.value.reviewedLlmProposal) {
       reviewedProposalAgentIds.add(result.value.reviewedLlmProposal.agentId);
@@ -304,6 +319,185 @@ function createAcceptedInterventionPayload(input: ValidSimulationInput): Record<
   }
 
   return payload;
+}
+
+function applyDirectPrivateMessage(
+  snapshot: WorldSnapshot,
+  records: readonly EngineMemoryRecord[],
+  input: ValidSimulationInput,
+  acceptedEvent: SimulationEvent,
+  context: EventFactoryContext,
+  firstEventOrder: number,
+): { snapshot: WorldSnapshot; events: SimulationEvent[]; agentMemories: EngineMemoryRecord[] } {
+  const targetAgentId = input.targetIds[0] as AgentId;
+  const agent = snapshot.agents.find((candidate) => candidate.id === targetAgentId);
+  if (!agent) {
+    throw new Error(`Validated private message target ${targetAgentId} is missing from the snapshot`);
+  }
+
+  const message = input.payload.message;
+  if (typeof message !== "string") {
+    throw new Error(`Validated private message ${input.input.id} is missing its message`);
+  }
+
+  const response = createDeterministicPrivateMessageResponse(agent, message);
+  const conversationId = createPrivateConversationId(agent.id);
+  const existingConversation = snapshot.activeConversations.find((conversation) => conversation.id === conversationId);
+  const incomingMessageIndex = (existingConversation?.messageCount ?? 0) + 1;
+  const responseMessageIndex = incomingMessageIndex + 1;
+  const incomingMessageId = createPrivateMessageId(acceptedEvent.id, "incoming");
+  const responseMessageId = createPrivateMessageId(acceptedEvent.id, "response");
+  const incomingMemoryId = createPrivateMessageMemoryId(incomingMessageId);
+  const responseMemoryId = createPrivateMessageMemoryId(responseMessageId);
+  const events: SimulationEvent[] = [];
+  let nextEventOrder = firstEventOrder;
+
+  if (!existingConversation) {
+    events.push(
+      createSimulationEvent(context, {
+        id: createEventId(context.stepId, nextEventOrder, `${agent.id}_conversation_started`),
+        kind: "conversation.started",
+        source: input.input.source,
+        targetIds: [agent.id],
+        causedByInputId: input.input.id,
+        payload: {
+          conversationId,
+          participantIds: [agent.id],
+          locationId: agent.locationId,
+          state: "participating",
+        },
+      }),
+    );
+    nextEventOrder += 1;
+  }
+
+  const incomingEvent = createSimulationEvent(context, {
+    id: createEventId(context.stepId, nextEventOrder, `${agent.id}_private_message_incoming`),
+    kind: "conversation.messageSent",
+    source: input.input.source,
+    targetIds: [agent.id],
+    causedByInputId: input.input.id,
+    payload: {
+      conversationId,
+      messageId: incomingMessageId,
+      senderId: input.input.source,
+      recipientId: agent.id,
+      content: response.incomingMessage,
+      direction: "incoming",
+      messageIndex: incomingMessageIndex,
+      memoryId: incomingMemoryId,
+    },
+  });
+  events.push(incomingEvent);
+  nextEventOrder += 1;
+
+  const responseEvent = createSimulationEvent(context, {
+    id: createEventId(context.stepId, nextEventOrder, `${agent.id}_private_message_response`),
+    kind: "conversation.messageSent",
+    source: "agent",
+    actorId: agent.id,
+    targetIds: [snapshot.id],
+    causedByInputId: input.input.id,
+    payload: {
+      conversationId,
+      messageId: responseMessageId,
+      senderId: agent.id,
+      recipientId: input.input.source,
+      content: response.responseMessage,
+      direction: "response",
+      messageIndex: responseMessageIndex,
+      memoryId: responseMemoryId,
+      inReplyToMessageId: incomingMessageId,
+    },
+  });
+  events.push(responseEvent);
+
+  const nextConversation = existingConversation
+    ? {
+        ...existingConversation,
+        participants: [...existingConversation.participants],
+        state: "participating" as const,
+        lastMessageAt: context.time,
+        messageCount: responseMessageIndex,
+      }
+    : {
+        id: conversationId,
+        worldId: snapshot.id,
+        participants: [agent.id],
+        state: "participating" as const,
+        locationId: agent.locationId,
+        startedAt: context.time,
+        lastMessageAt: context.time,
+        messageCount: responseMessageIndex,
+      };
+
+  const activeConversations = existingConversation
+    ? snapshot.activeConversations.map((conversation) => conversation.id === conversationId ? nextConversation : conversation)
+    : [...snapshot.activeConversations, nextConversation];
+
+  return {
+    snapshot: { ...snapshot, activeConversations },
+    events,
+    agentMemories: [
+      ...cloneEngineMemoryRecords(records),
+      {
+        id: incomingMemoryId,
+        agentId: agent.id,
+        kind: "intervention",
+        content: `User wrote privately: ${response.incomingMessage}`,
+        createdAt: context.time,
+        lastAccessedAt: context.time,
+        importance: 6,
+        sourceIds: [incomingEvent.id, acceptedEvent.id, input.input.id],
+        relatedMemoryIds: [],
+        visibility: "user-authored",
+        tags: [agent.id, agent.personaId, "conversation", "private", "incoming"],
+        metadata: {
+          stepId: context.stepId,
+          source: "engine",
+          locationId: agent.locationId,
+          conversationId,
+          messageId: incomingMessageId,
+          inputId: input.input.id,
+          messageRole: "incoming",
+        },
+      },
+      {
+        id: responseMemoryId,
+        agentId: agent.id,
+        kind: "conversation",
+        content: response.responseMessage,
+        createdAt: context.time,
+        lastAccessedAt: context.time,
+        importance: 5,
+        sourceIds: [responseEvent.id, incomingEvent.id, acceptedEvent.id, input.input.id],
+        relatedMemoryIds: [incomingMemoryId],
+        visibility: "private",
+        tags: [agent.id, agent.personaId, "conversation", "private", "response"],
+        metadata: {
+          stepId: context.stepId,
+          source: "engine",
+          locationId: agent.locationId,
+          conversationId,
+          messageId: responseMessageId,
+          inputId: input.input.id,
+          messageRole: "response",
+        },
+      },
+    ],
+  };
+}
+
+function createPrivateConversationId(agentId: AgentId): string {
+  return `conversation_user_${agentId}`;
+}
+
+function createPrivateMessageId(acceptedEventId: string, role: "incoming" | "response"): string {
+  return `message_${acceptedEventId}_${role}`;
+}
+
+function createPrivateMessageMemoryId(messageId: string): string {
+  return `memory_${messageId}`;
 }
 
 function createReviewedLlmPlanId(inputId: string, agentId: AgentId): string {

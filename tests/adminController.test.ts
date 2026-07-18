@@ -58,6 +58,27 @@ test("admin state response exposes cloned read-only agent memory records", () =>
   assert.equal(second.agentMemories[0]?.metadata.source, "seed");
 });
 
+test("admin state response deeply clones conversation event payloads", () => {
+  const controller = createAdminController();
+  const submitted = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["agent_elysia"],
+    payload: { message: "Hello Elysia." },
+    source: "user",
+  });
+  assert.equal(submitted.ok, true);
+  if (!submitted.ok) return;
+
+  const started = submitted.body.events.find((event) => event.kind === "conversation.started");
+  assert.ok(started);
+  const participantIds = started.payload.participantIds as string[];
+  participantIds.push("agent_mutated");
+
+  const second = controller.getState();
+  const persisted = second.events.find((event) => event.kind === "conversation.started");
+  assert.deepEqual(persisted?.payload.participantIds, ["agent_elysia"]);
+});
+
 test("admin state response exposes cloned reflection diagnostics", () => {
   const controller = createAdminController();
   const reflected = stepControllerTimes(controller, 72);
@@ -161,6 +182,43 @@ test("admin controller submitInput returns latest diagnostics when agent ticks r
   assert.equal(result.body.snapshot.status, "running");
   assert.equal(result.body.agentTickDiagnostics.length, result.body.snapshot.agents.length);
   assert.ok(result.body.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.some((phase) => phase.phase === "plan")));
+});
+
+test("admin controller exposes the complete private message flow and resets it deterministically", () => {
+  const controller = createAdminController();
+  const first = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["agent_elysia"],
+    payload: { message: "Hello Elysia." },
+    source: "user",
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.body.snapshot.activeConversations[0]?.id, "conversation_user_agent_elysia");
+  assert.equal(first.body.snapshot.activeConversations[0]?.messageCount, 2);
+  assert.deepEqual(first.body.events.filter((event) => event.kind === "conversation.messageSent").map((event) => event.payload.content), [
+    "Hello Elysia.",
+    "I hear you, dear guest. You said: \"Hello Elysia.\" I will keep it in mind.",
+  ]);
+  assert.equal(first.body.agentMemories.filter((memory) => memory.metadata.conversationId === "conversation_user_agent_elysia").length, 2);
+  assert.equal(first.body.timeline.length, first.body.events.length);
+  assert.equal(first.body.replay.timeline.length, first.body.events.length);
+
+  const reset = controller.reset();
+  assert.deepEqual(reset.snapshot.activeConversations, []);
+  assert.equal(reset.agentMemories.filter((memory) => memory.metadata.conversationId !== undefined).length, 0);
+
+  const repeated = controller.submitInput({
+    kind: "directPrivateMessage",
+    targetIds: ["agent_elysia"],
+    payload: { message: "Hello Elysia." },
+    source: "user",
+  });
+  assert.equal(repeated.ok, true);
+  if (!repeated.ok) return;
+  assert.deepEqual(repeated.body.snapshot.activeConversations, first.body.snapshot.activeConversations);
+  assert.deepEqual(repeated.body.events, first.body.events);
+  assert.deepEqual(repeated.body.agentMemories, first.body.agentMemories);
 });
 
 test("admin controller rejects malformed admin requests with structured errors", () => {

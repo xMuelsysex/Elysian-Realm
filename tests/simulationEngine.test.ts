@@ -216,6 +216,152 @@ test("direct private message with unknown target is rejected", () => {
   });
 });
 
+test("direct private message rejects non-user sources", () => {
+  const input = createInterventionInput(
+    "input_llm_dm_source_001",
+    "directPrivateMessage",
+    ["agent_elysia"],
+    { message: "Generated message." },
+  );
+  const result = stepSimulationEngine(queueSimulationInput(createSimulationEngine(), { ...input, source: "llm" }));
+
+  assert.deepEqual(result.state.snapshot.activeConversations, []);
+  assert.equal(result.state.agentMemories.some((memory) => memory.metadata.conversationId !== undefined), false);
+  assert.equal(result.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.deepEqual(result.events.at(-1)?.payload, {
+    inputId: "input_llm_dm_source_001",
+    code: "INVALID_SIMULATION_INPUT",
+    message: "directPrivateMessage input source must be user",
+    commandKind: "directPrivateMessage",
+  });
+});
+
+test("direct private message creates a conversation response and linked memories", () => {
+  const inputId = "input_user_dm_001";
+  const result = stepSimulationEngine(queueSimulationInput(
+    createSimulationEngine(),
+    createInterventionInput(inputId, "directPrivateMessage", ["agent_elysia"], { message: "  Hello Elysia.  " }),
+  ));
+
+  assert.deepEqual(createEventKindTimeline(result.events).slice(-4), [
+    "realm.interventionSubmitted",
+    "conversation.started",
+    "conversation.messageSent",
+    "conversation.messageSent",
+  ]);
+  assert.deepEqual(result.state.snapshot.activeConversations, [{
+    id: "conversation_user_agent_elysia",
+    worldId: OBSERVATION_MVP_WORLD_ID,
+    participants: ["agent_elysia"],
+    state: "participating",
+    locationId: "atrium",
+    startedAt: "2026-05-31T06:05:00.000Z",
+    lastMessageAt: "2026-05-31T06:05:00.000Z",
+    messageCount: 2,
+  }]);
+
+  const messages = result.events.filter((event) => event.kind === "conversation.messageSent");
+  const incoming = messages[0];
+  const response = messages[1];
+  assert.deepEqual(incoming?.payload, {
+    conversationId: "conversation_user_agent_elysia",
+    messageId: "message_evt_0605_001_010_intervention_submitted_incoming",
+    senderId: "user",
+    recipientId: "agent_elysia",
+    content: "Hello Elysia.",
+    direction: "incoming",
+    messageIndex: 1,
+    memoryId: "memory_message_evt_0605_001_010_intervention_submitted_incoming",
+  });
+  assert.equal(response?.actorId, "agent_elysia");
+  assert.equal(response?.source, "agent");
+  assert.deepEqual(response?.payload, {
+    conversationId: "conversation_user_agent_elysia",
+    messageId: "message_evt_0605_001_010_intervention_submitted_response",
+    senderId: "agent_elysia",
+    recipientId: "user",
+    content: "I hear you, dear guest. You said: \"Hello Elysia.\" I will keep it in mind.",
+    direction: "response",
+    messageIndex: 2,
+    memoryId: "memory_message_evt_0605_001_010_intervention_submitted_response",
+    inReplyToMessageId: "message_evt_0605_001_010_intervention_submitted_incoming",
+  });
+
+  const privateMemories = result.state.agentMemories.filter((memory) => memory.metadata.conversationId === "conversation_user_agent_elysia");
+  assert.equal(privateMemories.length, 2);
+  assert.deepEqual(privateMemories.map((memory) => [memory.kind, memory.visibility, memory.metadata.messageRole]), [
+    ["intervention", "user-authored", "incoming"],
+    ["conversation", "private", "response"],
+  ]);
+  assert.deepEqual(privateMemories[1]?.relatedMemoryIds, [privateMemories[0]?.id]);
+  assert.deepEqual(privateMemories[0]?.sourceIds, [
+    "evt_0605_001_012_agent_elysia_private_message_incoming",
+    "evt_0605_001_010_intervention_submitted",
+    inputId,
+  ]);
+  assert.deepEqual(privateMemories[1]?.sourceIds, [
+    "evt_0605_001_013_agent_elysia_private_message_response",
+    "evt_0605_001_012_agent_elysia_private_message_incoming",
+    "evt_0605_001_010_intervention_submitted",
+    inputId,
+  ]);
+  for (const event of result.events) {
+    assert.deepEqual(validateSimulationEvent(event), []);
+  }
+});
+
+test("private messages reuse their conversation and remain deterministic", () => {
+  const run = () => {
+    const first = stepSimulationEngine(queueSimulationInput(
+      createSimulationEngine(),
+      createInterventionInput("input_user_dm_repeat_001", "directPrivateMessage", ["agent_kevin"], { message: "Are you available?" }),
+    ));
+    const second = stepSimulationEngine(queueSimulationInput(
+      first.state,
+      createInterventionInput("input_user_dm_repeat_002", "directPrivateMessage", ["agent_kevin"], { message: "I will keep this brief." }),
+    ));
+    return {
+      snapshot: second.state.snapshot,
+      events: second.state.events,
+      memories: second.state.agentMemories,
+      replay: createReplaySummary(second.state.snapshot, second.state.events),
+    };
+  };
+
+  const first = run();
+  const second = run();
+
+  assert.deepEqual(first, second);
+  assert.equal(first.snapshot.activeConversations.length, 1);
+  assert.equal(first.snapshot.activeConversations[0]?.id, "conversation_user_agent_kevin");
+  assert.equal(first.snapshot.activeConversations[0]?.messageCount, 4);
+  assert.equal(first.snapshot.activeConversations[0]?.startedAt, "2026-05-31T06:05:00.000Z");
+  assert.equal(first.snapshot.activeConversations[0]?.lastMessageAt, "2026-05-31T06:10:00.000Z");
+  assert.equal(first.events.filter((event) => event.kind === "conversation.started").length, 1);
+  assert.deepEqual(first.events.filter((event) => event.kind === "conversation.messageSent").map((event) => event.payload.messageIndex), [1, 2, 3, 4]);
+  assert.equal(first.memories.filter((memory) => memory.metadata.conversationId === "conversation_user_agent_kevin").length, 4);
+});
+
+test("conversation message validator rejects an incomplete payload", () => {
+  const result = stepSimulationEngine(queueSimulationInput(
+    createSimulationEngine(),
+    createInterventionInput("input_user_dm_validator_001", "directPrivateMessage", ["agent_eden"], { message: "Hello." }),
+  ));
+  const message = result.events.find((event) => event.kind === "conversation.messageSent");
+
+  assert.ok(message);
+  assert.deepEqual(validateSimulationEvent({ ...message, payload: {} }), [
+    "event.payload.conversationId must be a non-empty string",
+    "event.payload.messageId must be a non-empty string",
+    "event.payload.senderId must be a non-empty string",
+    "event.payload.recipientId must be a non-empty string",
+    "event.payload.content must be a non-empty string",
+    "event.payload.direction must be one of: incoming, response",
+    "event.payload.messageIndex must be a positive integer",
+    "event.payload.memoryId must be a non-empty string",
+  ]);
+});
+
 test("reviewed LLM move proposals update agent state and append provenance memory", () => {
   const queued = queueSimulationInput(createSimulationEngine(), createReviewedLlmProposalInput("input_user_reviewed_llm_move_001"));
 

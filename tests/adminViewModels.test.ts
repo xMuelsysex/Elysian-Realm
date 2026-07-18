@@ -551,7 +551,23 @@ test("creates rejected receipts diagnostics center memory and message stream pro
   assert.match(receipt.reason ?? "", /私信目标必须且只能包含一个已知角色编号/);
   assert.ok(memory.configuredFacts.some((fact) => fact.provenance === "configured"));
   assert.ok(memory.runtimeMemories.some((runtimeMemory) => runtimeMemory.provenance === "system" || runtimeMemory.provenance === "user"));
-  assert.ok(threads.some((thread) => thread.participantIds.includes("agent_elysia")));
+  const elysiaThread = threads.find((thread) => thread.participantIds.includes("agent_elysia"));
+  assert.ok(elysiaThread);
+  assert.equal(elysiaThread.id, "conversation_user_agent_elysia");
+  assert.deepEqual(elysiaThread.messages.map((threadMessage) => ({
+    senderId: threadMessage.senderId,
+    recipientId: threadMessage.recipientId,
+    direction: threadMessage.direction,
+    body: threadMessage.body,
+  })), [
+    { senderId: "user", recipientId: "agent_elysia", direction: "incoming", body: "Hello Elysia." },
+    {
+      senderId: "agent_elysia",
+      recipientId: "user",
+      direction: "response",
+      body: "I hear you, dear guest. You said: \"Hello Elysia.\" I will keep it in mind.",
+    },
+  ]);
   assert.equal(diagnostics.total, 1);
   assert.equal(diagnostics.rejectedInputs[0]?.inputId, "admin_input_002");
 });

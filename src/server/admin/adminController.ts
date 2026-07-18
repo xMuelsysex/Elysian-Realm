@@ -617,7 +617,7 @@ function cloneEvent(event: SimulationEvent): SimulationEvent {
   return {
     ...event,
     targetIds: [...event.targetIds],
-    payload: { ...event.payload },
+    payload: structuredClone(event.payload),
   };
 }
 

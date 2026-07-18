@@ -409,8 +409,23 @@ export function MessageStreamPanel({ language, threads }: MessageStreamPanelProp
   return (
     <section className="panel" aria-labelledby="messages-heading">
       <PanelTitle eyebrow={language === "zh" ? "对话与消息" : "Conversation/messages"} title={language === "zh" ? "消息流" : "Message stream"} id="messages-heading" />
-      {threads.length === 0 ? <p className="empty-state">{language === "zh" ? "暂无私信或公开消息事件。" : "No private/public message-like events yet."}</p> : threads.map((thread) => (
-        <article className="detail-card" key={thread.id}><h3>{thread.title}</h3><p className="muted">{thread.participantIds.map((id) => formatEntityLabel(language, id)).join(", ") || (language === "zh" ? "领域" : "realm")}</p><ol>{thread.events.map((event) => <li key={event.event.id}>{event.detail}</li>)}</ol></article>
+      {threads.length === 0 ? <p className="empty-state">{language === "zh" ? "暂无私信消息。" : "No private messages yet."}</p> : threads.map((thread) => (
+        <article className="detail-card message-thread" key={thread.id}>
+          <h3>{thread.title}</h3>
+          <p className="muted">{thread.participantIds.map((id) => formatEntityLabel(language, id)).join(", ")}</p>
+          <ol className="message-list" role="log" aria-live="polite" aria-relevant="additions" aria-label={thread.title}>
+            {thread.messages.map((message) => (
+              <li className={`message-item message-item--${message.direction}`} key={message.id}>
+                <div className="message-meta">
+                  <Badge tone={message.source}>{formatSourceLabel(language, message.source)}</Badge>
+                  <strong>{formatEntityLabel(language, message.senderId)}</strong>
+                  <span>{message.time}</span>
+                </div>
+                <p className="message-body">{message.body}</p>
+              </li>
+            ))}
+          </ol>
+        </article>
       ))}
     </section>
   );

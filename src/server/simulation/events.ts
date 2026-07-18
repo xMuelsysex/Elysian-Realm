@@ -1,4 +1,4 @@
-import type { AgentId, EventId, EventSource, InputId, LocationId, PersonaId, WorldId } from "../../shared/domain/index.js";
+import type { AgentId, ConversationId, EventId, EventSource, InputId, LocationId, PersonaId, WorldId } from "../../shared/domain/index.js";
 import type { SimulationEvent } from "../../shared/contracts/index.js";
 
 export const SIMULATION_EVENT_KINDS = [
@@ -9,6 +9,8 @@ export const SIMULATION_EVENT_KINDS = [
   "agent.moved",
   "agent.continuedRoutine",
   "realm.interventionSubmitted",
+  "conversation.started",
+  "conversation.messageSent",
   "simulation.inputRejected",
   "memory.seeded",
 ] as const;
@@ -79,6 +81,25 @@ export interface RealmInterventionSubmittedPayload {
   commandKind: string;
   accepted: true;
   summary: string;
+}
+
+export interface ConversationStartedPayload {
+  conversationId: ConversationId;
+  participantIds: AgentId[];
+  locationId: LocationId;
+  state: "participating";
+}
+
+export interface ConversationMessageSentPayload {
+  conversationId: ConversationId;
+  messageId: string;
+  senderId: string;
+  recipientId: string;
+  content: string;
+  direction: "incoming" | "response";
+  messageIndex: number;
+  memoryId: string;
+  inReplyToMessageId?: string;
 }
 
 export interface SimulationInputRejectedPayload {
@@ -212,6 +233,25 @@ function validateEventPayload(kind: SimulationEventKind, payload: Record<string,
       requirePayloadLiteral(payload, "accepted", true, errors);
       requirePayloadString(payload, "summary", errors);
       return;
+    case "conversation.started":
+      requirePayloadString(payload, "conversationId", errors);
+      requirePayloadStringArray(payload, "participantIds", errors, { allowEmpty: false });
+      requirePayloadString(payload, "locationId", errors);
+      requirePayloadLiteral(payload, "state", "participating", errors);
+      return;
+    case "conversation.messageSent":
+      requirePayloadString(payload, "conversationId", errors);
+      requirePayloadString(payload, "messageId", errors);
+      requirePayloadString(payload, "senderId", errors);
+      requirePayloadString(payload, "recipientId", errors);
+      requirePayloadString(payload, "content", errors);
+      requirePayloadOneOf(payload, "direction", ["incoming", "response"], errors);
+      requirePayloadPositiveInteger(payload, "messageIndex", errors);
+      requirePayloadString(payload, "memoryId", errors);
+      if (payload.inReplyToMessageId !== undefined) {
+        requirePayloadString(payload, "inReplyToMessageId", errors);
+      }
+      return;
     case "simulation.inputRejected":
       requirePayloadString(payload, "inputId", errors);
       requirePayloadLiteral(payload, "code", "INVALID_SIMULATION_INPUT", errors);
@@ -241,6 +281,13 @@ function requirePayloadPositiveNumber(payload: Record<string, unknown>, key: str
   const value = payload[key];
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     errors.push(`event.payload.${key} must be a positive number`);
+  }
+}
+
+function requirePayloadPositiveInteger(payload: Record<string, unknown>, key: string, errors: string[]): void {
+  const value = payload[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    errors.push(`event.payload.${key} must be a positive integer`);
   }
 }
 

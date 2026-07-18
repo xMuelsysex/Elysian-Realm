@@ -194,6 +194,13 @@ function validateDirectPrivateMessage(
   payload: Record<string, unknown>,
   context: SimulationInputValidationContext,
 ): SimulationInputValidationResult {
+  if (input.source !== "user") {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "directPrivateMessage input source must be user" },
+    };
+  }
+
   if (targetIds.length !== 1 || !context.agentIds.includes(targetIds[0])) {
     return {
       ok: false,
