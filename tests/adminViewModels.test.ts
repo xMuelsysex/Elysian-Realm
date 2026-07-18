@@ -5,6 +5,9 @@ import type { SimulationEvent } from "../src/shared/contracts/index.js";
 import type { AdminDiagnostic } from "../src/server/admin/index.js";
 import {
   createAgentDetailViewModel,
+  createAgentMemoryStreamViewModel,
+  createAgentReflectionPolicyViewModel,
+  createAgentTickInspectorViewModel,
   createAgentPlanViewModels,
   createDebugExportViewModel,
   createDiagnosticsCenterViewModel,
@@ -75,7 +78,7 @@ test("creates timeline items with localized user-mode natural event details", ()
   assertEventDetail(zhItems, "agent.spawned", /一位角色已经出现在世界中/);
   assertEventDetail(zhItems, "world.timeAdvanced", /世界时间向前推进/);
   assertEventDetail(zhItems, "agent.startedRoutine", /角色开始执行预设日程/);
-  assertEventDetail(zhItems, "memory.seeded", /记忆种子已记录为事件/);
+  assertEventDetail(zhItems, "memory.seeded", /记忆种子已记录为批次事件/);
 
   assert.ok(zhItems.some((item) => item.title.includes("时间推进")));
   assert.ok(enItems.some((item) => item.title.includes("world.timeAdvanced")));
@@ -247,6 +250,98 @@ test("latest diagnostics returns newest rejected input diagnostics first", () =>
   assert.equal(diagnostics.length, 2);
   assert.equal(diagnostics[0]?.inputId, "admin_input_002");
   assert.equal(diagnostics[1]?.inputId, "admin_input_001");
+});
+
+test("creates agent tick inspector rows with same-step related events", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const empty = createAgentTickInspectorViewModel(initial, createTimelineItems(initial.events, initial.timeline, "en", "debug"), "en");
+
+  assert.equal(empty.stepId, initial.snapshot.lastStepId);
+  assert.deepEqual(empty.rows, []);
+  assert.equal(empty.relatedEventCount, 0);
+
+  const state = stepControllerTimes(controller, 72);
+  const items = createTimelineItems(state.events, state.timeline, "en", "debug");
+  const viewModel = createAgentTickInspectorViewModel(state, items, "en");
+
+  assert.equal(viewModel.stepId, state.snapshot.lastStepId);
+  assert.equal(viewModel.rows.length, state.agentTickDiagnostics.length);
+  assert.ok(viewModel.rows.every((row) => row.phases.map((phase) => phase.phase).includes("plan")));
+  assert.ok(viewModel.rows.some((row) => row.proposal?.intent));
+
+  const rowWithEvents = viewModel.rows.find((row) => row.relatedEvents.length > 0);
+  assert.ok(rowWithEvents);
+  assert.ok(items.some((item) => item.event.stepId !== state.snapshot.lastStepId && item.event.actorId === rowWithEvents.agentId));
+  assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.stepId === state.snapshot.lastStepId));
+  assert.ok(rowWithEvents.relatedEvents.every((item) => item.event.actorId === rowWithEvents.agentId || item.event.targetIds.includes(rowWithEvents.agentId)));
+});
+
+test("creates grouped agent memory stream view model from real memory records", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const initialStream = createAgentMemoryStreamViewModel(initial, "en");
+
+  assert.equal(initialStream.total, 3);
+  assert.equal(initialStream.groups.length, initial.snapshot.agents.length);
+  assert.ok(initialStream.groups.every((group) => group.rows.length === 1));
+  assert.ok(initialStream.groups.every((group) => group.rows[0]?.kind === "observation"));
+
+  const state = stepControllerTimes(controller, 72);
+  const stream = createAgentMemoryStreamViewModel(state, "en");
+  const elysia = stream.groups.find((group) => group.agentId === "agent_elysia");
+
+  assert.equal(stream.total, 9);
+  assert.equal(stream.groups.length, state.snapshot.agents.length);
+  assert.ok(elysia);
+  assert.equal(elysia.displayName, "Elysia");
+  assert.deepEqual(elysia.rows.map((row) => row.id), [
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_step_1200_072_agent_elysia_reflection",
+    "memory_seed_agent_elysia",
+  ]);
+  assert.equal(elysia.rows[0]?.source, "engine");
+  assert.equal(elysia.rows[0]?.kind, "plan");
+  assert.equal(elysia.rows[0]?.importance, 4);
+  assert.deepEqual(elysia.rows[0]?.sourceIds, ["step_1200_072"]);
+  assert.ok(elysia.rows[0]?.tags.includes("performActivity"));
+  assert.equal(elysia.rows[0]?.metadata.locationId, "lounge");
+  assert.equal(elysia.rows[1]?.kind, "reflection");
+  assert.equal(elysia.rows[1]?.metadata.triggerKind, "importance-threshold");
+  assert.equal(elysia.rows[2]?.source, "seed");
+});
+
+test("creates reflection policy diagnostics view model", () => {
+  const controller = createAdminController();
+  const initial = controller.getState();
+  const empty = createAgentReflectionPolicyViewModel(initial, "en");
+
+  assert.equal(empty.stepId, initial.snapshot.lastStepId);
+  assert.deepEqual(empty.rows, []);
+  assert.equal(empty.completedCount, 0);
+
+  const unchanged = controller.step();
+  const skipped = createAgentReflectionPolicyViewModel(controller.step(), "en");
+  assert.equal(unchanged.snapshot.lastStepId, "step_0605_001");
+  assert.equal(skipped.rows.length, skipped.skippedCount);
+  assert.ok(skipped.rows.every((row) => row.reason === "no current-step plan memory"));
+
+  const state = stepControllerTimes(controller, 70);
+  const viewModel = createAgentReflectionPolicyViewModel(state, "en");
+  const elysia = viewModel.rows.find((row) => row.agentId === "agent_elysia");
+
+  assert.equal(viewModel.stepId, "step_1200_072");
+  assert.equal(viewModel.completedCount, state.snapshot.agents.length);
+  assert.equal(viewModel.failedCount, 0);
+  assert.equal(viewModel.skippedCount, 0);
+  assert.ok(elysia);
+  assert.equal(elysia.status, "completed");
+  assert.equal(elysia.trigger?.kind, "importance-threshold");
+  assert.deepEqual(elysia.persistedMemoryIds, ["memory_step_1200_072_agent_elysia_reflection"]);
+  assert.deepEqual(elysia.evidenceMemoryIds, [
+    "memory_step_1200_072_agent_elysia_plan",
+    "memory_seed_agent_elysia",
+  ]);
 });
 
 test("creates enhanced selected agent detail with configured persona facts and runtime memory index", () => {

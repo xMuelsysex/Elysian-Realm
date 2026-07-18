@@ -9,6 +9,9 @@ import {
   queueSimulationInput,
   stepSimulationEngine,
   validateSimulationEvent,
+  type EngineAgentTickDiagnostic,
+  type EngineMemoryRecord,
+  type EngineReflectionDiagnostic,
   type SimulationEngineState,
 } from "../simulation/index.js";
 import type {
@@ -70,19 +73,26 @@ export interface AdminController {
 
 export function createAdminController(initialState: SimulationEngineState = createSimulationEngine(), options: AdminControllerOptions = {}): AdminController {
   let state = initialState;
+  let latestAgentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
+  let latestReflectionDiagnostics: EngineReflectionDiagnostic[] = [];
   let nextInputCounter = 1;
 
   function getState(): AdminStateResponse {
-    return createAdminStateResponse(state);
+    return createAdminStateResponse(state, latestAgentTickDiagnostics, latestReflectionDiagnostics);
   }
 
   function step(): AdminStateResponse {
-    state = stepSimulationEngine(state).state;
+    const result = stepSimulationEngine(state);
+    state = result.state;
+    latestAgentTickDiagnostics = result.agentTickDiagnostics;
+    latestReflectionDiagnostics = result.reflectionDiagnostics;
     return getState();
   }
 
   function reset(): AdminStateResponse {
     state = createSimulationEngine();
+    latestAgentTickDiagnostics = [];
+    latestReflectionDiagnostics = [];
     nextInputCounter = 1;
     return getState();
   }
@@ -115,7 +125,10 @@ export function createAdminController(initialState: SimulationEngineState = crea
     };
     nextInputCounter += 1;
 
-    state = stepSimulationEngine(queueSimulationInput(state, input)).state;
+    const result = stepSimulationEngine(queueSimulationInput(state, input));
+    state = result.state;
+    latestAgentTickDiagnostics = result.agentTickDiagnostics;
+    latestReflectionDiagnostics = result.reflectionDiagnostics;
     return { ok: true, status: 200, body: getState() };
   }
 
@@ -218,7 +231,11 @@ export function createAdminController(initialState: SimulationEngineState = crea
   return { getState, step, reset, submitInput, testLlmRuntimeConfig, proposeLlmAction };
 }
 
-export function createAdminStateResponse(state: SimulationEngineState): AdminStateResponse {
+export function createAdminStateResponse(
+  state: SimulationEngineState,
+  agentTickDiagnostics: readonly EngineAgentTickDiagnostic[] = [],
+  reflectionDiagnostics: readonly EngineReflectionDiagnostic[] = [],
+): AdminStateResponse {
   const events = state.events.map((event) => cloneEvent(event));
   const timeline = events.map(projectTimelineEntry);
   return {
@@ -227,6 +244,9 @@ export function createAdminStateResponse(state: SimulationEngineState): AdminSta
     timeline,
     replay: createReplaySummary(state.snapshot, state.events),
     diagnostics: createDiagnostics(events),
+    agentTickDiagnostics: cloneAgentTickDiagnostics(agentTickDiagnostics),
+    reflectionDiagnostics: cloneReflectionDiagnostics(reflectionDiagnostics),
+    agentMemories: cloneAgentMemories(state.agentMemories),
     personas: clonePersonas(pilotPersonas),
   };
 }
@@ -599,6 +619,42 @@ function cloneEvent(event: SimulationEvent): SimulationEvent {
     targetIds: [...event.targetIds],
     payload: { ...event.payload },
   };
+}
+
+function cloneAgentTickDiagnostics(diagnostics: readonly EngineAgentTickDiagnostic[]): EngineAgentTickDiagnostic[] {
+  return diagnostics.map((diagnostic) => ({
+    agentId: diagnostic.agentId,
+    phases: diagnostic.phases.map((phase) => ({ ...phase })),
+    ...(diagnostic.proposal ? { proposal: { ...diagnostic.proposal } } : {}),
+  }));
+}
+
+function cloneAgentMemories(memories: readonly EngineMemoryRecord[]): EngineMemoryRecord[] {
+  return memories.map((memory) => ({
+    ...memory,
+    sourceIds: [...memory.sourceIds],
+    relatedMemoryIds: [...memory.relatedMemoryIds],
+    tags: [...memory.tags],
+    metadata: { ...memory.metadata },
+  }));
+}
+
+function cloneReflectionDiagnostics(diagnostics: readonly EngineReflectionDiagnostic[]): EngineReflectionDiagnostic[] {
+  return diagnostics.map((diagnostic) => ({
+    ...diagnostic,
+    evidenceMemoryIds: [...diagnostic.evidenceMemoryIds],
+    persistedMemoryIds: [...diagnostic.persistedMemoryIds],
+    diagnostics: diagnostic.diagnostics.map((entry) => ({
+      ...entry,
+      evidenceMemoryIds: entry.evidenceMemoryIds ? [...entry.evidenceMemoryIds] : undefined,
+    })),
+    trigger: diagnostic.trigger
+      ? {
+          ...diagnostic.trigger,
+          sourceIds: [...diagnostic.trigger.sourceIds],
+        }
+      : undefined,
+  }));
 }
 
 function clonePersonas(personas: readonly PersonaSpec[]): PersonaSpec[] {

@@ -7,6 +7,12 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@elysian/simulation-agent": [
+        "packages/simulation-agent/src/index.ts"
+      ]
+    },
     "rootDir": ".",
     "outDir": "dist",
     "types": [
@@ -20,6 +26,7 @@
     "jsx": "react-jsx"
   },
   "include": [
+    "packages/simulation-agent/src/**/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",

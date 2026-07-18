@@ -16,6 +16,13 @@ test("admin controller exposes deterministic initial state", () => {
   assert.deepEqual(state.events, []);
   assert.deepEqual(state.timeline, []);
   assert.deepEqual(state.diagnostics, []);
+  assert.deepEqual(state.agentTickDiagnostics, []);
+  assert.deepEqual(state.reflectionDiagnostics, []);
+  assert.deepEqual(state.agentMemories.map((memory) => memory.id), [
+    "memory_seed_agent_elysia",
+    "memory_seed_agent_kevin",
+    "memory_seed_agent_eden",
+  ]);
   assert.equal(state.personas.length, 3);
   assert.ok(state.personas.some((persona) => persona.id === "elysia"));
 });
@@ -32,6 +39,47 @@ test("admin state response exposes cloned read-only persona fixtures", () => {
   assert.equal(second.personas[0]?.relationships.some((relationship) => relationship.targetPersonaId === "mutated"), false);
 });
 
+test("admin state response exposes cloned read-only agent memory records", () => {
+  const controller = createAdminController();
+  const first = controller.getState();
+  const mutableMemory = first.agentMemories[0] as typeof first.agentMemories[number] & {
+    sourceIds: string[];
+    tags: string[];
+    metadata: { source: "engine" | "seed" };
+  };
+
+  mutableMemory.sourceIds.push("mutated_source");
+  mutableMemory.tags.push("mutated_tag");
+  mutableMemory.metadata.source = "engine";
+
+  const second = controller.getState();
+  assert.deepEqual(second.agentMemories[0]?.sourceIds, ["mvp-current-roster-v1:agent_elysia:initial-memory"]);
+  assert.equal(second.agentMemories[0]?.tags.includes("mutated_tag"), false);
+  assert.equal(second.agentMemories[0]?.metadata.source, "seed");
+});
+
+test("admin state response exposes cloned reflection diagnostics", () => {
+  const controller = createAdminController();
+  const reflected = stepControllerTimes(controller, 72);
+  const mutableDiagnostic = reflected.reflectionDiagnostics[0] as typeof reflected.reflectionDiagnostics[number] & {
+    evidenceMemoryIds: string[];
+    persistedMemoryIds: string[];
+    diagnostics: Array<{ evidenceMemoryIds?: string[] }>;
+    trigger?: { sourceIds: string[] };
+  };
+
+  mutableDiagnostic.evidenceMemoryIds.push("mutated_evidence");
+  mutableDiagnostic.persistedMemoryIds.push("mutated_persisted");
+  mutableDiagnostic.diagnostics[0]?.evidenceMemoryIds?.push("mutated_nested");
+  mutableDiagnostic.trigger?.sourceIds.push("mutated_source");
+
+  const second = controller.getState();
+  assert.equal(second.reflectionDiagnostics[0]?.evidenceMemoryIds.includes("mutated_evidence"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.persistedMemoryIds.includes("mutated_persisted"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.diagnostics[0]?.evidenceMemoryIds?.includes("mutated_nested"), false);
+  assert.equal(second.reflectionDiagnostics[0]?.trigger?.sourceIds.includes("mutated_source"), false);
+});
+
 test("admin controller steps through the simulation engine", () => {
   const controller = createAdminController();
   const stepped = controller.step();
@@ -42,8 +90,36 @@ test("admin controller steps through the simulation engine", () => {
   assert.equal(stepped.timeline.length, stepped.events.length);
 });
 
+test("admin controller exposes latest agent tick diagnostics outside replay events", () => {
+  const controller = createAdminController();
+  const startup = controller.step();
+  const stepped = controller.step();
+
+  assert.deepEqual(startup.agentTickDiagnostics, []);
+  assert.equal(stepped.agentTickDiagnostics.length, stepped.snapshot.agents.length);
+  assert.ok(stepped.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.length === 6));
+  assert.ok(stepped.agentTickDiagnostics.some((diagnostic) => diagnostic.agentId === "agent_elysia"));
+  assert.equal(stepped.agentMemories.length, 3);
+  assert.equal(stepped.reflectionDiagnostics.length, stepped.snapshot.agents.length);
+  assert.ok(stepped.reflectionDiagnostics.every((diagnostic) => diagnostic.status === "skipped"));
+
+  const replayVisible = JSON.stringify({
+    events: stepped.events,
+    timeline: stepped.timeline,
+    replay: stepped.replay,
+  });
+  assert.equal(replayVisible.includes("agentTickDiagnostics"), false);
+  assert.equal(replayVisible.includes("reflectionDiagnostics"), false);
+  assert.equal(replayVisible.includes("\"phases\""), false);
+  assert.equal(replayVisible.includes("agentMemories"), false);
+  assert.equal(replayVisible.includes("starts in atrium with the configured morning routine"), false);
+  assert.equal(stepped.timeline.length, stepped.events.length);
+  assert.equal(stepped.replay.timeline.length, stepped.events.length);
+});
+
 test("admin controller reset returns the deterministic seed", () => {
   const controller = createAdminController();
+  controller.step();
   controller.step();
   const reset = controller.reset();
 
@@ -51,6 +127,7 @@ test("admin controller reset returns the deterministic seed", () => {
   assert.equal(reset.snapshot.status, "paused");
   assert.equal(reset.snapshot.currentTime, "2026-05-31T06:00:00.000Z");
   assert.deepEqual(reset.events, []);
+  assert.deepEqual(reset.agentTickDiagnostics, []);
 });
 
 test("admin controller submits typed observer inputs through the engine", () => {
@@ -67,6 +144,23 @@ test("admin controller submits typed observer inputs through the engine", () => 
   assert.equal(result.body.snapshot.status, "running");
   assert.equal(result.body.events.at(-1)?.kind, "realm.interventionSubmitted");
   assert.equal(result.body.events.at(-1)?.source, "user");
+});
+
+test("admin controller submitInput returns latest diagnostics when agent ticks run", () => {
+  const controller = createAdminController();
+  controller.step();
+
+  const result = controller.submitInput({
+    kind: "observerCommand",
+    targetIds: [OBSERVATION_MVP_WORLD_ID],
+    payload: { action: "resume" },
+    source: "user",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.body.snapshot.status, "running");
+  assert.equal(result.body.agentTickDiagnostics.length, result.body.snapshot.agents.length);
+  assert.ok(result.body.agentTickDiagnostics.every((diagnostic) => diagnostic.phases.some((phase) => phase.phase === "plan")));
 });
 
 test("admin controller rejects malformed admin requests with structured errors", () => {
@@ -97,6 +191,35 @@ test("admin controller surfaces simulation validation diagnostics", () => {
   assert.equal(result.body.events.at(-1)?.kind, "simulation.inputRejected");
   assert.equal(result.body.diagnostics.length, 1);
   assert.match(result.body.diagnostics[0]?.message ?? "", /directPrivateMessage targetIds/);
+});
+
+test("admin controller rejects non-user reviewed LLM proposal submissions", () => {
+  const controller = createAdminController();
+  const result = controller.submitInput({
+    kind: "realmEvent",
+    targetIds: ["agent_elysia", "garden"],
+    source: "llm",
+    payload: {
+      eventKind: "llm.proposal.move",
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: "move",
+      reason: "Generated proposal must still be user-reviewed.",
+      intent: "Move to the garden.",
+      llmOperationId: "llm_action_proposal_step_0600_000_agent_elysia",
+      reviewedBy: "user",
+      targetLocationId: "garden",
+    },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const agent = result.body.snapshot.agents.find((candidate) => candidate.id === "agent_elysia");
+
+  assert.equal(agent?.locationId, "atrium");
+  assert.equal(agent?.currentAction?.id, "elysia.morning.0");
+  assert.equal(result.body.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.match(result.body.diagnostics[0]?.message ?? "", /source must be user/);
 });
 
 test("admin controller tests runtime LLM config without returning API keys", async () => {
@@ -208,6 +331,38 @@ test("admin controller generates sandbox LLM action proposals without mutating s
   assert.deepEqual(before.events, after.events);
   assert.equal(JSON.stringify(result.body).includes("test-secret-key"), false);
   assert.equal(JSON.stringify(calls[0]?.body).includes("test-secret-key"), false);
+
+  const proposal = result.body.proposal;
+  assert.ok(proposal);
+  const reviewed = controller.submitInput({
+    kind: "realmEvent",
+    source: "user",
+    targetIds: ["agent_elysia", "garden"],
+    payload: {
+      eventKind: `llm.proposal.${proposal.action}`,
+      provenance: "user-reviewed-llm-proposal",
+      sandbox: true,
+      agentId: "agent_elysia",
+      proposalAction: proposal.action,
+      reason: proposal.reason,
+      intent: proposal.intent,
+      llmOperationId: result.body.operation.id,
+      reviewedBy: "user",
+      targetLocationId: proposal.targetLocationId,
+    },
+  });
+  assert.equal(reviewed.ok, true);
+  if (!reviewed.ok) return;
+  const reviewedAgent = reviewed.body.snapshot.agents.find((agent) => agent.id === "agent_elysia");
+
+  assert.equal(reviewedAgent?.locationId, "garden");
+  assert.equal(reviewedAgent?.status, "moving");
+  assert.equal(reviewedAgent?.currentAction?.id, "llm.admin_input_001.agent_elysia.move");
+  assert.equal(reviewed.body.events.at(-1)?.kind, "realm.interventionSubmitted");
+  assert.equal(reviewed.body.agentMemories.some((memory) => (
+    memory.id === "memory_step_0605_001_agent_elysia_admin_input_001_llm_proposal" &&
+    memory.metadata.llmOperationId === "llm_action_proposal_step_0600_000_agent_elysia"
+  )), true);
 });
 
 test("admin controller returns failed operation metadata for invalid LLM proposal targets", async () => {
@@ -408,6 +563,14 @@ function closeServer(server: Server): Promise<void> {
       resolve();
     });
   });
+}
+
+function stepControllerTimes(controller: ReturnType<typeof createAdminController>, count: number): AdminStateResponse {
+  let state = controller.getState();
+  for (let index = 0; index < count; index += 1) {
+    state = controller.step();
+  }
+  return state;
 }
 
 async function requestJson<T>(url: string, init: RequestInit): Promise<T> {

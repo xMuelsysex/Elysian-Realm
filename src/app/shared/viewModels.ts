@@ -1,5 +1,5 @@
 import type { AdminDiagnostic, AdminStateResponse, SubmitAdminInputRequest } from "../../server/admin/index.js";
-import type { ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
+import type { EngineAgentTickDiagnostic, EngineMemoryRecord, EngineReflectionDiagnostic, ReplaySummary, TimelineEntry } from "../../server/simulation/index.js";
 import type {
   AgentRuntimeState,
   ConversationRecord,
@@ -202,6 +202,67 @@ export interface AgentPlanViewModel {
     window?: string;
   };
   operationStatus: string;
+}
+
+export interface AgentTickInspectorRow {
+  agentId: string;
+  displayName: string;
+  phases: EngineAgentTickDiagnostic["phases"];
+  proposal?: EngineAgentTickDiagnostic["proposal"];
+  relatedEvents: TimelineItem[];
+}
+
+export interface AgentTickInspectorViewModel {
+  stepId: string;
+  rows: AgentTickInspectorRow[];
+  relatedEventCount: number;
+}
+
+export interface AgentMemoryStreamRow {
+  id: string;
+  agentId: string;
+  displayName: string;
+  kind: EngineMemoryRecord["kind"];
+  content: string;
+  createdAt: string;
+  lastAccessedAt: string;
+  importance: number;
+  visibility: EngineMemoryRecord["visibility"];
+  source: EngineMemoryRecord["metadata"]["source"];
+  sourceIds: string[];
+  relatedMemoryIds: string[];
+  tags: string[];
+  metadata: EngineMemoryRecord["metadata"];
+}
+
+export interface AgentMemoryStreamGroup {
+  agentId: string;
+  displayName: string;
+  rows: AgentMemoryStreamRow[];
+}
+
+export interface AgentMemoryStreamViewModel {
+  total: number;
+  groups: AgentMemoryStreamGroup[];
+}
+
+export interface AgentReflectionPolicyRow {
+  agentId: string;
+  displayName: string;
+  status: EngineReflectionDiagnostic["status"];
+  reason?: string;
+  trigger?: EngineReflectionDiagnostic["trigger"];
+  evidenceMemoryIds: string[];
+  persistedMemoryIds: string[];
+  diagnostics: EngineReflectionDiagnostic["diagnostics"];
+}
+
+export interface AgentReflectionPolicyViewModel {
+  stepId: string;
+  rows: AgentReflectionPolicyRow[];
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
 }
 
 export interface TopologyLocationNode {
@@ -700,6 +761,98 @@ export function createAgentPlanViewModels(snapshot: WorldSnapshot, language: App
   }));
 }
 
+export function createAgentTickInspectorViewModel(
+  state: AdminStateResponse,
+  timelineItems: readonly TimelineItem[],
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): AgentTickInspectorViewModel {
+  const stepId = state.snapshot.lastStepId;
+  const latestStepItems = timelineItems.filter((item) => item.event.stepId === stepId);
+  const agentsById = new Map(state.snapshot.agents.map((agent) => [agent.id, agent]));
+  const rows = state.agentTickDiagnostics.map((diagnostic) => {
+    const agent = agentsById.get(diagnostic.agentId);
+    const relatedEvents = latestStepItems.filter((item) => item.event.actorId === diagnostic.agentId || item.event.targetIds.includes(diagnostic.agentId));
+    return {
+      agentId: diagnostic.agentId,
+      displayName: formatAgentDisplayName(language, diagnostic.agentId, agent?.displayName ?? diagnostic.agentId),
+      phases: diagnostic.phases.map((phase) => ({ ...phase })),
+      ...(diagnostic.proposal ? { proposal: { ...diagnostic.proposal } } : {}),
+      relatedEvents,
+    } satisfies AgentTickInspectorRow;
+  });
+
+  return {
+    stepId,
+    rows,
+    relatedEventCount: rows.reduce((total, row) => total + row.relatedEvents.length, 0),
+  };
+}
+
+export function createAgentMemoryStreamViewModel(
+  state: AdminStateResponse,
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): AgentMemoryStreamViewModel {
+  const agentsById = new Map(state.snapshot.agents.map((agent) => [agent.id, agent]));
+  const memoriesByAgentId = groupMemoriesByAgentId(state.agentMemories);
+  const orderedAgentIds = [
+    ...state.snapshot.agents.map((agent) => agent.id),
+    ...state.agentMemories.map((memory) => memory.agentId).filter((agentId) => !agentsById.has(agentId)),
+  ].filter(uniqueString);
+
+  const groups = orderedAgentIds
+    .map((agentId) => {
+      const agent = agentsById.get(agentId);
+      const rows = (memoriesByAgentId.get(agentId) ?? []).map((memory) => createAgentMemoryStreamRow(memory, agent, language));
+      return {
+        agentId,
+        displayName: formatAgentDisplayName(language, agentId, agent?.displayName ?? agentId),
+        rows,
+      } satisfies AgentMemoryStreamGroup;
+    })
+    .filter((group) => group.rows.length > 0);
+
+  return {
+    total: state.agentMemories.length,
+    groups,
+  };
+}
+
+export function createAgentReflectionPolicyViewModel(
+  state: AdminStateResponse,
+  language: AppLanguage = DEFAULT_LANGUAGE,
+): AgentReflectionPolicyViewModel {
+  const agentsById = new Map(state.snapshot.agents.map((agent) => [agent.id, agent]));
+  const rows = state.reflectionDiagnostics.map((diagnostic) => {
+    const agent = agentsById.get(diagnostic.agentId);
+    return {
+      agentId: diagnostic.agentId,
+      displayName: formatAgentDisplayName(language, diagnostic.agentId, agent?.displayName ?? diagnostic.agentId),
+      status: diagnostic.status,
+      reason: diagnostic.reason,
+      trigger: diagnostic.trigger
+        ? {
+            ...diagnostic.trigger,
+            sourceIds: [...diagnostic.trigger.sourceIds],
+          }
+        : undefined,
+      evidenceMemoryIds: [...diagnostic.evidenceMemoryIds],
+      persistedMemoryIds: [...diagnostic.persistedMemoryIds],
+      diagnostics: diagnostic.diagnostics.map((entry) => ({
+        ...entry,
+        evidenceMemoryIds: entry.evidenceMemoryIds ? [...entry.evidenceMemoryIds] : undefined,
+      })),
+    } satisfies AgentReflectionPolicyRow;
+  });
+
+  return {
+    stepId: state.snapshot.lastStepId,
+    rows,
+    completedCount: rows.filter((row) => row.status === "completed").length,
+    skippedCount: rows.filter((row) => row.status === "skipped").length,
+    failedCount: rows.filter((row) => row.status === "failed").length,
+  };
+}
+
 export function createTopologyViewModel(snapshot: WorldSnapshot, timelineItems: readonly TimelineItem[]): TopologyViewModel {
   const groups = groupAgentsByLocation(snapshot.locations, snapshot.agents);
   const nodes = groups.map((group, index) => ({
@@ -716,6 +869,47 @@ export function createTopologyViewModel(snapshot: WorldSnapshot, timelineItems: 
       summary: item.detail,
     }));
   return { nodes, movementPaths };
+}
+
+function groupMemoriesByAgentId(memories: readonly EngineMemoryRecord[]): Map<string, EngineMemoryRecord[]> {
+  const groups = new Map<string, EngineMemoryRecord[]>();
+  for (const memory of memories) {
+    groups.set(memory.agentId, [...(groups.get(memory.agentId) ?? []), memory]);
+  }
+
+  for (const [agentId, rows] of groups.entries()) {
+    groups.set(agentId, [...rows].sort(compareMemoryNewestFirst));
+  }
+  return groups;
+}
+
+function createAgentMemoryStreamRow(
+  memory: EngineMemoryRecord,
+  agent: AgentRuntimeState | undefined,
+  language: AppLanguage,
+): AgentMemoryStreamRow {
+  return {
+    id: memory.id,
+    agentId: memory.agentId,
+    displayName: formatAgentDisplayName(language, memory.agentId, agent?.displayName ?? memory.agentId),
+    kind: memory.kind,
+    content: memory.content,
+    createdAt: memory.createdAt,
+    lastAccessedAt: memory.lastAccessedAt,
+    importance: memory.importance,
+    visibility: memory.visibility,
+    source: memory.metadata.source,
+    sourceIds: [...memory.sourceIds],
+    relatedMemoryIds: [...memory.relatedMemoryIds],
+    tags: [...memory.tags],
+    metadata: { ...memory.metadata },
+  };
+}
+
+function compareMemoryNewestFirst(left: EngineMemoryRecord, right: EngineMemoryRecord): number {
+  const createdDelta = Date.parse(right.createdAt) - Date.parse(left.createdAt);
+  if (createdDelta !== 0) return createdDelta;
+  return left.id.localeCompare(right.id);
 }
 
 export function createRealmMapViewModel(
@@ -1070,7 +1264,7 @@ function projectMemorySeeded(payload: Record<string, unknown>, language: AppLang
   const memoryCount = readStringArray(payload, "memoryIds").length;
   const note = formatSimulationText(language, readString(payload, "note"));
   const provenance = readString(payload, "provenance");
-  const sentence = language === "zh" ? "记忆种子已记录为事件，实际记忆记录存储仍然延后。" : "Memory seeding was recorded as an event only; MemoryRecord storage is still deferred.";
+  const sentence = language === "zh" ? "记忆种子已记录为批次事件，实际 MemoryRecord 保存在引擎记忆流中。" : "Memory seeding was recorded as a batch event; MemoryRecord entries live in the engine memory stream.";
   return withProjection(sentence, detailMode, language === "zh" ? [["批次", seedBatchId], ["记忆数", memoryCount], ["来源", provenance], ["备注", note]] : [["batch", seedBatchId], ["memories", memoryCount], ["provenance", provenance], ["note", note]]);
 }
 
@@ -1129,6 +1323,10 @@ function noPayloadLabel(language: AppLanguage): string {
 
 function isString(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
+}
+
+function uniqueString(value: string, index: number, array: readonly string[]): boolean {
+  return array.indexOf(value) === index;
 }
 
 function isBetweenAgents(event: SimulationEvent, sourceAgentId: string | undefined, targetAgentId: string | undefined): boolean {

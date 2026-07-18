@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Badge } from "../shared/Badge.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import { formatSourceLabel } from "../shared/i18n.js";
 import type { RealmMapAgentMarker, RealmMapEventPulse, RealmMapLocationNode, RealmMapViewModel } from "../shared/viewModels.js";
-import { RealmPixiStage } from "./RealmPixiStage.js";
+import { RealmIsometricStage } from "./RealmIsometricStage.js";
+import type { RealmMapInspectedItem } from "./RealmIsometricStage.js";
 
 interface RealmMapPanelProps {
   language: AppLanguage;
@@ -12,19 +14,38 @@ interface RealmMapPanelProps {
 }
 
 export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLocation }: RealmMapPanelProps) {
+  const [tiledMapError, setTiledMapError] = useState<string | undefined>();
+  const [inspectedItem, setInspectedItem] = useState<RealmMapInspectedItem | undefined>();
+
   return (
     <section className="panel realm-map-panel" aria-labelledby="realm-map-heading">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">{language === "zh" ? "像素地图" : "Pixel map"}</p>
-          <h2 id="realm-map-heading">{language === "zh" ? "乐土 2D 地图" : "2D Realm map"}</h2>
+          <p className="eyebrow">{language === "zh" ? "2.5D 地图" : "2.5D map"}</p>
+          <h2 id="realm-map-heading">{language === "zh" ? "乐土宿舍场景" : "Realm dorm scene"}</h2>
         </div>
         <span className="realm-map-mode">{language === "zh" ? "后端快照投影" : "Backend snapshot projection"}</span>
       </div>
 
       <p className="realm-map-summary">{viewModel.summary}</p>
 
-      <RealmPixiStage language={language} viewModel={viewModel} onSelectAgent={onSelectAgent} onSelectLocation={onSelectLocation} />
+      <RealmIsometricStage
+        language={language}
+        viewModel={viewModel}
+        inspectedItem={inspectedItem}
+        onInspectItemChange={setInspectedItem}
+        onSelectAgent={onSelectAgent}
+        onSelectLocation={onSelectLocation}
+        onTiledMapErrorChange={setTiledMapError}
+      />
+
+      {tiledMapError ? (
+        <p className="realm-map-diagnostic" role="status">
+          <strong>{language === "zh" ? "Tiled 地图加载失败" : "Tiled map failed to load"}</strong>
+          <span>{language === "zh" ? "当前显示程序化回退场景。" : "Showing procedural fallback scene."}</span>
+          <code>{tiledMapError}</code>
+        </p>
+      ) : null}
 
       <div className="realm-map-dom-fallback" role="group" aria-label={language === "zh" ? "位置与角色地图文本控件" : "Location and agent map text controls"}>
         {viewModel.locations.map((location) => (
@@ -34,6 +55,7 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
             location={location}
             agents={viewModel.agents.filter((agent) => agent.locationId === location.id)}
             pulses={viewModel.pulses.filter((pulse) => pulse.locationId === location.id && (pulse.source !== "system" || pulse.tone === "error")).slice(0, 3)}
+            onInspectItemChange={setInspectedItem}
             onSelectAgent={onSelectAgent}
             onSelectLocation={onSelectLocation}
           />
@@ -58,11 +80,12 @@ export function RealmMapPanel({ language, viewModel, onSelectAgent, onSelectLoca
   );
 }
 
-function MapLocation({ language, location, agents, pulses, onSelectAgent, onSelectLocation }: {
+function MapLocation({ language, location, agents, pulses, onInspectItemChange, onSelectAgent, onSelectLocation }: {
   language: AppLanguage;
   location: RealmMapLocationNode;
   agents: RealmMapAgentMarker[];
   pulses: RealmMapEventPulse[];
+  onInspectItemChange: (item: RealmMapInspectedItem | undefined) => void;
   onSelectAgent: (agentId: string) => void;
   onSelectLocation: (locationId: string) => void;
 }) {
@@ -73,7 +96,9 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
         className={location.selected ? "realm-map-location realm-map-location--selected" : "realm-map-location"}
         aria-pressed={location.selected}
         aria-label={`${language === "zh" ? "选择地点" : "Select location"}: ${location.displayName}`}
+        onBlur={() => onInspectItemChange(undefined)}
         onClick={() => onSelectLocation(location.id)}
+        onFocus={() => onInspectItemChange({ kind: "location", id: location.id })}
       >
         <span className="realm-map-location-title">{location.displayName}</span>
         <span className="realm-map-location-code">{location.id}</span>
@@ -91,7 +116,9 @@ function MapLocation({ language, location, agents, pulses, onSelectAgent, onSele
             style={{ transform: `translate(${agent.xOffset}px, ${agent.yOffset}px)` }}
             aria-pressed={agent.selected}
             aria-label={`${language === "zh" ? "选择角色" : "Select agent"}: ${agent.displayName}; ${language === "zh" ? "状态" : "status"}: ${agent.status}`}
+            onBlur={() => onInspectItemChange(undefined)}
             onClick={() => onSelectAgent(agent.id)}
+            onFocus={() => onInspectItemChange({ kind: "agent", id: agent.id })}
             title={agent.currentIntent ?? agent.status}
           >
             <span className="realm-map-agent-face" aria-hidden="true">{createAgentInitials(agent.displayName)}</span>

@@ -119,10 +119,16 @@ test("maps a structured proposal review form back to a typed admin input", () =>
   assert.equal(parsed.value.source, "user");
   assert.deepEqual(parsed.value.targetIds, ["agent_elysia", "garden", "agent_kevin"]);
   assert.equal(parsed.value.payload.description, "User reviewed and softened the movement proposal.");
+  assert.equal(parsed.value.payload.eventKind, "llm.proposal.move");
   assert.equal(parsed.value.payload.reason, "Keep the morning greeting gentle.");
   assert.equal(parsed.value.payload.intent, "Walk slowly toward the garden path.");
   assert.equal(parsed.value.payload.provenance, "user-reviewed-llm-proposal");
   assert.equal(parsed.value.payload.reviewedBy, "user");
+  assert.equal(parsed.value.payload.sandbox, true);
+  assert.equal(parsed.value.payload.llmOperationId, "llm_action_proposal_step_001_agent_elysia");
+  assert.equal(parsed.value.payload.agentId, "agent_elysia");
+  assert.equal(parsed.value.payload.proposalAction, "move");
+  assert.equal(parsed.value.payload.targetLocationId, "garden");
   assert.equal(parsed.value.payload.customDebugNote, "preserved for advanced review");
   assert.equal("apiKey" in parsed.value.payload, false);
   assert.equal(JSON.stringify(parsed.value).includes("apiKey"), false);
