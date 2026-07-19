@@ -1,5 +1,10 @@
 import type { SimulationInput } from "../../shared/contracts/index.js";
 import type { AgentId, EventSource, InterventionKind, LocationId, WorldId } from "../../shared/domain/index.js";
+import {
+  MAX_CONVERSATION_MESSAGE_LENGTH,
+  MAX_CONVERSATION_REPLY_LENGTH,
+  MAX_CONVERSATION_TONE_LENGTH,
+} from "../conversation/conversationContracts.js";
 
 export type SupportedObserverAction = "step" | "pause" | "resume" | "setTimeScale";
 export type ReviewedLlmProposalAction = "continue" | "move" | "wait" | "performActivity" | "reflect";
@@ -17,6 +22,7 @@ export interface ValidSimulationInput {
   payload: Record<string, unknown>;
   summary: string;
   reviewedLlmProposal?: ReviewedLlmProposalPayload;
+  reviewedConversationTurn?: ReviewedConversationTurnPayload;
 }
 
 export interface InvalidSimulationInput {
@@ -39,12 +45,26 @@ export interface ReviewedLlmProposalPayload {
   targetAgentId?: AgentId;
 }
 
+export interface ReviewedConversationTurnPayload {
+  provenance: "user-reviewed-llm-conversation";
+  sandbox: true;
+  agentId: AgentId;
+  message: string;
+  reply: string;
+  tone: string;
+  memoryImportance: number;
+  shouldContinue: boolean;
+  llmOperationId: string;
+  reviewedBy: string;
+  referencedMemoryIds: string[];
+}
+
 export type SimulationInputValidationResult =
   | { ok: true; value: ValidSimulationInput }
   | { ok: false; error: InvalidSimulationInput };
 
 const EVENT_SOURCES = new Set<EventSource>(["system", "user", "agent", "llm", "test"]);
-const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage"]);
+const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage", "conversationTurn"]);
 const OBSERVER_ACTIONS = new Set<SupportedObserverAction>(["step", "pause", "resume", "setTimeScale"]);
 const REVIEWED_LLM_PROPOSAL_ACTIONS = new Set<ReviewedLlmProposalAction>(["continue", "move", "wait", "performActivity", "reflect"]);
 const REVIEWED_LLM_PROPOSAL_PROVENANCE = "user-reviewed-llm-proposal";
@@ -88,7 +108,10 @@ export function validateSimulationInput(input: SimulationInput, context: Simulat
   if (kind === "realmEvent") {
     return validateRealmEvent(input, kind, targetIds, payload, context);
   }
-  return validateDirectPrivateMessage(input, kind, targetIds, payload, context);
+  if (kind === "directPrivateMessage") {
+    return validateDirectPrivateMessage(input, kind, targetIds, payload, context);
+  }
+  return validateReviewedConversationTurn(input, kind, targetIds, payload, context);
 }
 
 function validateInputEnvelope(input: SimulationInput, expectedWorldId: WorldId): string | undefined {
@@ -216,6 +239,131 @@ function validateDirectPrivateMessage(
   }
 
   return { ok: true, value: { input, commandKind: kind, targetIds: [...targetIds], payload, summary: "directPrivateMessage" } };
+}
+
+function validateReviewedConversationTurn(
+  input: SimulationInput,
+  kind: InterventionKind,
+  targetIds: string[],
+  payload: Record<string, unknown>,
+  context: SimulationInputValidationContext,
+): SimulationInputValidationResult {
+  if (input.source !== "user") {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn input source must be user" },
+    };
+  }
+
+  if (targetIds.length !== 1 || !context.agentIds.includes(targetIds[0])) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn targetIds must contain exactly one known agent id" },
+    };
+  }
+
+  const agentId = readNonEmptyString(payload.agentId);
+  if (!agentId || !context.agentIds.includes(agentId) || agentId !== targetIds[0]) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn payload.agentId must match the target agent" },
+    };
+  }
+  if (payload.provenance !== "user-reviewed-llm-conversation") {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn provenance must be user-reviewed-llm-conversation" },
+    };
+  }
+  if (payload.sandbox !== true) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn sandbox must be true" },
+    };
+  }
+
+  const message = readBoundedString(payload.message, MAX_CONVERSATION_MESSAGE_LENGTH);
+  if (!message) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: `conversationTurn message must be a non-empty string of at most ${MAX_CONVERSATION_MESSAGE_LENGTH} characters` },
+    };
+  }
+  const reply = readBoundedString(payload.reply, MAX_CONVERSATION_REPLY_LENGTH);
+  if (!reply) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: `conversationTurn reply must be a non-empty string of at most ${MAX_CONVERSATION_REPLY_LENGTH} characters` },
+    };
+  }
+  const tone = readBoundedString(payload.tone, MAX_CONVERSATION_TONE_LENGTH);
+  if (!tone) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: `conversationTurn tone must be a non-empty string of at most ${MAX_CONVERSATION_TONE_LENGTH} characters` },
+    };
+  }
+
+  const memoryImportance = payload.memoryImportance;
+  if (typeof memoryImportance !== "number" || !Number.isInteger(memoryImportance) || memoryImportance < 1 || memoryImportance > 10) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn memoryImportance must be an integer from 1 through 10" },
+    };
+  }
+  if (typeof payload.shouldContinue !== "boolean") {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn shouldContinue must be a boolean" },
+    };
+  }
+
+  const llmOperationId = readNonEmptyString(payload.llmOperationId);
+  if (!llmOperationId) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn llmOperationId must be a non-empty string" },
+    };
+  }
+  const reviewedBy = readNonEmptyString(payload.reviewedBy);
+  if (!reviewedBy) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn reviewedBy must be a non-empty string" },
+    };
+  }
+  const referencedMemoryIds = readStringArray(payload.referencedMemoryIds);
+  if (!referencedMemoryIds) {
+    return {
+      ok: false,
+      error: { input, commandKind: kind, message: "conversationTurn referencedMemoryIds must be a string array" },
+    };
+  }
+
+  const reviewedConversationTurn: ReviewedConversationTurnPayload = {
+    provenance: "user-reviewed-llm-conversation",
+    sandbox: true,
+    agentId: agentId as AgentId,
+    message,
+    reply,
+    tone,
+    memoryImportance,
+    shouldContinue: payload.shouldContinue,
+    llmOperationId,
+    reviewedBy,
+    referencedMemoryIds,
+  };
+  return {
+    ok: true,
+    value: {
+      input,
+      commandKind: kind,
+      targetIds: [...targetIds],
+      payload,
+      summary: "conversationTurn",
+      reviewedConversationTurn,
+    },
+  };
 }
 
 function getPayload(command: Record<string, unknown>): Record<string, unknown> {
@@ -346,6 +494,17 @@ function readOptionalKnownAgent(
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+function readBoundedString(value: unknown, maximumLength: number): string | undefined {
+  const trimmed = readNonEmptyString(value);
+  return trimmed && trimmed.length <= maximumLength ? trimmed : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  if (value.some((item) => typeof item !== "string" || item.trim() === "")) return undefined;
+  return [...new Set(value.map((item) => item.trim()))];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -742,6 +742,70 @@ test("routine progression covers evening and night period transitions", () => {
   assert.ok(atNight.events.some((event) => event.kind === "agent.continuedRoutine" && event.payload.period === "night"));
 });
 
+test("reviewed conversation turn writes generated provenance and linked memories", () => {
+  const input = createReviewedConversationTurnInput("input_user_conversation_turn_001");
+  const result = stepSimulationEngine(queueSimulationInput(createSimulationEngine(), input));
+
+  assert.deepEqual(createEventKindTimeline(result.events).slice(-4), [
+    "realm.interventionSubmitted",
+    "conversation.started",
+    "conversation.messageSent",
+    "conversation.messageSent",
+  ]);
+  const messages = result.events.filter((event) => event.kind === "conversation.messageSent");
+  assert.equal(messages[0]?.payload.content, "How does the garden feel tonight?");
+  assert.deepEqual(messages[1]?.payload, {
+    conversationId: "conversation_user_agent_elysia",
+    messageId: "message_evt_0605_001_010_intervention_submitted_response",
+    senderId: "agent_elysia",
+    recipientId: "user",
+    content: "It feels quiet enough to let a sincere thought breathe, dear guest.",
+    direction: "response",
+    messageIndex: 2,
+    memoryId: "memory_message_evt_0605_001_010_intervention_submitted_response",
+    inReplyToMessageId: "message_evt_0605_001_010_intervention_submitted_incoming",
+    provenance: "user-reviewed-llm-conversation",
+    tone: "warm and reflective",
+    memoryImportance: 8,
+    shouldContinue: true,
+    llmOperationId: "llm_conversation_turn_step_0600_000_agent_elysia_001",
+    reviewedBy: "user",
+    referencedMemoryIds: ["memory_seed_agent_elysia"],
+  });
+  for (const event of messages) {
+    assert.deepEqual(validateSimulationEvent(event), []);
+  }
+
+  const conversation = result.state.snapshot.activeConversations[0];
+  assert.equal(conversation?.state, "participating");
+  assert.equal(conversation?.messageCount, 2);
+  const responseMemory = result.state.agentMemories.find((memory) => memory.metadata.llmOperationId !== undefined);
+  assert.equal(responseMemory?.importance, 8);
+  assert.deepEqual(responseMemory?.relatedMemoryIds, [
+    "memory_message_evt_0605_001_010_intervention_submitted_incoming",
+    "memory_seed_agent_elysia",
+  ]);
+  assert.equal(responseMemory?.metadata.responseProvenance, "user-reviewed-llm-conversation");
+  assert.equal(responseMemory?.metadata.responseTone, "warm and reflective");
+});
+
+test("reviewed conversation turn can close the conversation and rejects malformed provenance", () => {
+  const closed = stepSimulationEngine(queueSimulationInput(
+    createSimulationEngine(),
+    createReviewedConversationTurnInput("input_user_conversation_turn_close_001", { shouldContinue: false }),
+  ));
+  assert.equal(closed.state.snapshot.activeConversations[0]?.state, "ended");
+  assert.equal(closed.state.snapshot.activeConversations[0]?.endedAt, "2026-05-31T06:05:00.000Z");
+
+  const rejected = stepSimulationEngine(queueSimulationInput(
+    createSimulationEngine(),
+    createReviewedConversationTurnInput("input_user_conversation_turn_bad_001", { provenance: "generated" }),
+  ));
+  assert.equal(rejected.events.at(-1)?.kind, "simulation.inputRejected");
+  assert.match(String(rejected.events.at(-1)?.payload.message), /provenance/);
+  assert.deepEqual(rejected.state.snapshot.activeConversations, []);
+});
+
 test("setTimeScale input affects later time advancement events", () => {
   const queued = queueSimulationInput(createSimulationEngine(), createObserverInput("input_user_scale_002", "setTimeScale", { timeScale: 120 }));
   const firstStep = stepSimulationEngine(queued);
@@ -807,7 +871,24 @@ function createReviewedLlmProposalInput(
   return overrides.source ? { ...input, source: overrides.source } : input;
 }
 
-function createInterventionInput(id: string, kind: "observerCommand" | "realmEvent" | "directPrivateMessage", targetIds: string[], payload: Record<string, unknown>): SimulationInput {
+function createReviewedConversationTurnInput(id: string, payloadOverrides: Record<string, unknown> = {}): SimulationInput {
+  return createInterventionInput(id, "conversationTurn", ["agent_elysia"], {
+    provenance: "user-reviewed-llm-conversation",
+    sandbox: true,
+    agentId: "agent_elysia",
+    message: "How does the garden feel tonight?",
+    reply: "It feels quiet enough to let a sincere thought breathe, dear guest.",
+    tone: "warm and reflective",
+    memoryImportance: 8,
+    shouldContinue: true,
+    llmOperationId: "llm_conversation_turn_step_0600_000_agent_elysia_001",
+    reviewedBy: "user",
+    referencedMemoryIds: ["memory_seed_agent_elysia"],
+    ...payloadOverrides,
+  });
+}
+
+function createInterventionInput(id: string, kind: "observerCommand" | "realmEvent" | "directPrivateMessage" | "conversationTurn", targetIds: string[], payload: Record<string, unknown>): SimulationInput {
   return {
     id,
     worldId: OBSERVATION_MVP_WORLD_ID,

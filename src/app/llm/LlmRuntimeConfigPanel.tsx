@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from "react";
 import type {
   LlmActionProposalResponse,
+  LlmConversationTurnResponse,
   LlmRuntimeApiMode,
   LlmRuntimeTestResponse,
   SubmitAdminInputRequest,
   SubmitLlmActionProposalRequest,
+  SubmitLlmConversationTurnRequest,
   SubmitLlmRuntimeTestRequest,
 } from "../../server/admin/index.js";
-import { proposeLlmAction, testLlmRuntimeConfig } from "../adminApi.js";
+import { proposeLlmAction, proposeLlmConversationTurn, testLlmRuntimeConfig } from "../adminApi.js";
 import type { AppLanguage } from "../shared/i18n.js";
 import {
   createLlmProposalInterventionDraft,
@@ -41,6 +43,17 @@ interface LlmRuntimeFormState {
   prompt: string;
 }
 
+interface ConversationTurnReviewForm {
+  agentId: string;
+  message: string;
+  reply: string;
+  tone: string;
+  memoryImportance: string;
+  shouldContinue: boolean;
+  llmOperationId: string;
+  referencedMemoryIds: string[];
+}
+
 const DEFAULT_FORM: LlmRuntimeFormState = {
   baseUrl: "https://api.openai.com/v1",
   model: "",
@@ -56,15 +69,19 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
   const [importText, setImportText] = useState("");
   const [result, setResult] = useState<LlmRuntimeTestResponse>();
   const [proposal, setProposal] = useState<LlmActionProposalResponse>();
+  const [conversationMessage, setConversationMessage] = useState("");
+  const [conversationResult, setConversationResult] = useState<LlmConversationTurnResponse>();
+  const [conversationReview, setConversationReview] = useState<ConversationTurnReviewForm>();
   const [reviewDraft, setReviewDraft] = useState<LlmProposalReviewDraftForm>();
   const [advancedDraftText, setAdvancedDraftText] = useState("");
   const [formError, setFormError] = useState<string>();
   const [testing, setTesting] = useState(false);
   const [proposing, setProposing] = useState(false);
+  const [generatingConversation, setGeneratingConversation] = useState(false);
   const [submittingDraft, setSubmittingDraft] = useState(false);
 
   const copy = createCopy(language);
-  const busy = testing || proposing || submittingDraft;
+  const busy = testing || proposing || generatingConversation || submittingDraft;
   const proposalAgentId = selectedAgentId ?? agents[0]?.id ?? "";
   const proposalDraft = proposal ? createLlmProposalInterventionDraft(proposal) : undefined;
 
@@ -100,6 +117,8 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
     setForm((current) => ({ ...current, apiKey: "" }));
     setResult(undefined);
     setProposal(undefined);
+    setConversationResult(undefined);
+    setConversationReview(undefined);
     setReviewDraft(undefined);
     setAdvancedDraftText("");
   };
@@ -145,6 +164,108 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
       setFormError(caught instanceof Error ? caught.message : copy.unknownError);
     } finally {
       setProposing(false);
+    }
+  };
+
+  const submitConversationTurn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(undefined);
+    setConversationResult(undefined);
+    setConversationReview(undefined);
+
+    const request = createConversationTurnRequest(form, proposalAgentId, conversationMessage);
+    if (!request.ok) {
+      setFormError(copy.errors[request.error]);
+      return;
+    }
+
+    setGeneratingConversation(true);
+    try {
+      const generated = await proposeLlmConversationTurn(request.value);
+      setConversationResult(generated);
+      if (generated.draft) {
+        setConversationReview({
+          agentId: generated.agentId,
+          message: generated.message,
+          reply: generated.draft.reply,
+          tone: generated.draft.tone,
+          memoryImportance: String(generated.draft.memoryImportance),
+          shouldContinue: generated.draft.shouldContinue,
+          llmOperationId: generated.operation.id,
+          referencedMemoryIds: [...generated.draft.referencedMemoryIds],
+        });
+      }
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : copy.unknownError);
+    } finally {
+      setGeneratingConversation(false);
+    }
+  };
+
+  const updateConversationReviewField = <Key extends keyof ConversationTurnReviewForm>(
+    key: Key,
+    value: ConversationTurnReviewForm[Key],
+  ) => {
+    setConversationReview((current) => current ? { ...current, [key]: value } : current);
+  };
+
+  const discardConversationReview = () => {
+    setFormError(undefined);
+    setConversationReview(undefined);
+    setConversationResult(undefined);
+  };
+
+  const applyConversationTurn = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(undefined);
+    if (!conversationReview) {
+      setFormError(copy.conversationDraftUnavailableError);
+      return;
+    }
+
+    const reply = conversationReview.reply.trim();
+    const tone = conversationReview.tone.trim();
+    const memoryImportance = Number(conversationReview.memoryImportance);
+    if (!reply) {
+      setFormError(copy.errors.reply);
+      return;
+    }
+    if (!tone) {
+      setFormError(copy.errors.tone);
+      return;
+    }
+    if (!Number.isInteger(memoryImportance) || memoryImportance < 1 || memoryImportance > 10) {
+      setFormError(copy.errors.memoryImportance);
+      return;
+    }
+
+    setSubmittingDraft(true);
+    try {
+      await onSubmitInput({
+        kind: "conversationTurn",
+        targetIds: [conversationReview.agentId],
+        source: "user",
+        payload: {
+          provenance: "user-reviewed-llm-conversation",
+          sandbox: true,
+          agentId: conversationReview.agentId,
+          message: conversationReview.message,
+          reply,
+          tone,
+          memoryImportance,
+          shouldContinue: conversationReview.shouldContinue,
+          llmOperationId: conversationReview.llmOperationId,
+          reviewedBy: "user",
+          referencedMemoryIds: [...conversationReview.referencedMemoryIds],
+        },
+      });
+      setConversationMessage("");
+      setConversationReview(undefined);
+      setConversationResult(undefined);
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : copy.unknownError);
+    } finally {
+      setSubmittingDraft(false);
     }
   };
 
@@ -306,6 +427,110 @@ export function LlmRuntimeConfigPanel({ language, disabled, agents, selectedAgen
 
       {result ? <LlmRuntimeResult language={language} result={result} /> : null}
 
+      <form className="stacked-form llm-proposal-form" onSubmit={submitConversationTurn}>
+        <div>
+          <h3>{copy.conversationTitle}</h3>
+          <p className="muted">{copy.conversationDescription}</p>
+        </div>
+        <label htmlFor="llm-conversation-agent">{copy.conversationAgent}</label>
+        <select
+          id="llm-conversation-agent"
+          value={proposalAgentId}
+          disabled={disabled || busy || agents.length === 0}
+          onChange={(event) => onSelectAgent(event.target.value)}
+        >
+          {agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>{agent.displayName}</option>
+          ))}
+        </select>
+        <label htmlFor="llm-conversation-message">{copy.conversationMessage}</label>
+        <textarea
+          id="llm-conversation-message"
+          rows={4}
+          value={conversationMessage}
+          disabled={disabled || busy}
+          onChange={(event) => setConversationMessage(event.target.value)}
+        />
+        <button type="submit" disabled={disabled || busy || agents.length === 0}>
+          {generatingConversation ? copy.generatingConversation : copy.generateConversation}
+        </button>
+      </form>
+
+      {conversationResult ? <ConversationTurnResult language={language} result={conversationResult} /> : null}
+
+      {conversationReview ? (
+        <form className="stacked-form llm-apply-draft-form llm-conversation-review-form" onSubmit={applyConversationTurn}>
+          <div>
+            <h3>{copy.conversationReviewTitle}</h3>
+            <p className="muted">{copy.conversationReviewDescription}</p>
+          </div>
+          <label htmlFor="llm-conversation-original-message">
+            {copy.conversationOriginalMessage}
+            <textarea id="llm-conversation-original-message" rows={3} value={conversationReview.message} readOnly />
+          </label>
+          <label htmlFor="llm-conversation-reply">
+            {copy.conversationReply}
+            <textarea
+              id="llm-conversation-reply"
+              rows={5}
+              value={conversationReview.reply}
+              disabled={disabled || busy}
+              onChange={(event) => updateConversationReviewField("reply", event.target.value)}
+            />
+          </label>
+          <div className="llm-review-grid">
+            <label htmlFor="llm-conversation-tone">
+              {copy.conversationTone}
+              <input
+                id="llm-conversation-tone"
+                value={conversationReview.tone}
+                disabled={disabled || busy}
+                onChange={(event) => updateConversationReviewField("tone", event.target.value)}
+              />
+            </label>
+            <label htmlFor="llm-conversation-importance">
+              {copy.conversationImportance}
+              <input
+                id="llm-conversation-importance"
+                type="number"
+                min="1"
+                max="10"
+                step="1"
+                value={conversationReview.memoryImportance}
+                disabled={disabled || busy}
+                onChange={(event) => updateConversationReviewField("memoryImportance", event.target.value)}
+              />
+            </label>
+            <label className="llm-conversation-checkbox" htmlFor="llm-conversation-continue">
+              <input
+                id="llm-conversation-continue"
+                type="checkbox"
+                checked={conversationReview.shouldContinue}
+                disabled={disabled || busy}
+                onChange={(event) => updateConversationReviewField("shouldContinue", event.target.checked)}
+              />
+              {copy.conversationShouldContinue}
+            </label>
+          </div>
+          <dl className="compact-metrics llm-review-audit" aria-label={copy.conversationAuditLabel}>
+            <div><dt>{copy.operation}</dt><dd><code>{conversationReview.llmOperationId}</code></dd></div>
+            <div><dt>{copy.provenance}</dt><dd>user-reviewed-llm-conversation</dd></div>
+            <div><dt>{copy.referencedMemories}</dt><dd>{conversationReview.referencedMemoryIds.length}</dd></div>
+          </dl>
+          {conversationReview.referencedMemoryIds.length > 0 ? (
+            <p className="muted">{copy.referencedMemories}: <code>{conversationReview.referencedMemoryIds.join(", ")}</code></p>
+          ) : null}
+          <div className="button-row">
+            <button type="submit" disabled={disabled || busy}>
+              {submittingDraft ? copy.submittingDraft : copy.applyConversation}
+            </button>
+            <button type="button" className="secondary-button" disabled={disabled || busy} onClick={discardConversationReview}>
+              {copy.discardConversation}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
       <form className="stacked-form llm-proposal-form" onSubmit={submitProposal}>
         <div>
           <h3>{copy.proposalTitle}</h3>
@@ -452,6 +677,35 @@ function LlmRuntimeResult({ language, result }: { language: AppLanguage; result:
   );
 }
 
+function ConversationTurnResult({ language, result }: { language: AppLanguage; result: LlmConversationTurnResponse }) {
+  const copy = createCopy(language);
+  const status = result.operation.status;
+  return (
+    <div className={status === "completed" && result.draft ? "llm-runtime-result llm-runtime-result--success" : "llm-runtime-result llm-runtime-result--error"}>
+      <h3>{copy.conversationResultTitle}</h3>
+      <dl className="compact-metrics">
+        <div><dt>{copy.status}</dt><dd>{status}</dd></div>
+        <div><dt>{copy.sandbox}</dt><dd>{String(result.sandbox)}</dd></div>
+        <div><dt>{copy.provenance}</dt><dd>{result.provenance}</dd></div>
+      </dl>
+      {result.draft ? (
+        <dl className="llm-proposal-preview">
+          <div><dt>{copy.conversationReply}</dt><dd>{result.draft.reply}</dd></div>
+          <div><dt>{copy.conversationTone}</dt><dd>{result.draft.tone}</dd></div>
+          <div><dt>{copy.conversationImportance}</dt><dd>{result.draft.memoryImportance}</dd></div>
+          <div><dt>{copy.conversationShouldContinue}</dt><dd>{String(result.draft.shouldContinue)}</dd></div>
+          <div><dt>{copy.referencedMemories}</dt><dd>{result.draft.referencedMemoryIds.join(", ") || "—"}</dd></div>
+        </dl>
+      ) : <p className="muted">{copy.noConversationDraft}</p>}
+      {result.operation.error ? <p className="form-error">{result.operation.error.code}: {result.operation.error.message}</p> : null}
+      <details className="json-details">
+        <summary>{copy.operationJson}</summary>
+        <pre>{JSON.stringify(result.operation, null, 2)}</pre>
+      </details>
+    </div>
+  );
+}
+
 function LlmActionProposalResult({
   language,
   result,
@@ -527,7 +781,19 @@ function LlmActionProposalResult({
   );
 }
 
-type LlmRuntimeValidationError = "baseUrl" | "model" | "apiKey" | "prompt" | "timeoutMs" | "agentId" | "draftJson" | "draftShape";
+type LlmRuntimeValidationError =
+  | "baseUrl"
+  | "model"
+  | "apiKey"
+  | "prompt"
+  | "timeoutMs"
+  | "agentId"
+  | "message"
+  | "reply"
+  | "tone"
+  | "memoryImportance"
+  | "draftJson"
+  | "draftShape";
 
 function createRequest(form: LlmRuntimeFormState): { ok: true; value: SubmitLlmRuntimeTestRequest } | { ok: false; error: LlmRuntimeValidationError } {
   const baseUrl = form.baseUrl.trim();
@@ -583,6 +849,40 @@ function createProposalRequest(form: LlmRuntimeFormState, agentId: string): { ok
   };
 }
 
+function createConversationTurnRequest(
+  form: LlmRuntimeFormState,
+  agentId: string,
+  message: string,
+): { ok: true; value: SubmitLlmConversationTurnRequest } | { ok: false; error: LlmRuntimeValidationError } {
+  const baseUrl = form.baseUrl.trim();
+  const model = form.model.trim();
+  const apiKey = form.apiKey.trim();
+  const timeoutMs = Number(form.timeoutMs);
+  const trimmedAgentId = agentId.trim();
+  const trimmedMessage = message.trim();
+
+  if (!baseUrl) return { ok: false, error: "baseUrl" };
+  if (!model) return { ok: false, error: "model" };
+  if (!apiKey) return { ok: false, error: "apiKey" };
+  if (!trimmedAgentId) return { ok: false, error: "agentId" };
+  if (!trimmedMessage) return { ok: false, error: "message" };
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return { ok: false, error: "timeoutMs" };
+
+  return {
+    ok: true,
+    value: {
+      baseUrl,
+      model,
+      apiKey,
+      agentId: trimmedAgentId,
+      message: trimmedMessage,
+      providerName: form.providerName.trim() || undefined,
+      apiMode: form.apiMode,
+      timeoutMs,
+    },
+  };
+}
+
 function createCopy(language: AppLanguage) {
   if (language === "zh") {
     return {
@@ -605,6 +905,26 @@ function createCopy(language: AppLanguage) {
       testButton: "测试 LLM 连接",
       testing: "测试中…",
       resultTitle: "测试结果",
+      conversationTitle: "Persona 私信回复 Sandbox",
+      conversationDescription: "结合角色人格、当前地点、最近消息和相关记忆生成回复草稿。生成阶段不会修改世界状态，只有审阅后才会写入事件和记忆。",
+      conversationAgent: "回复角色",
+      conversationMessage: "用户消息",
+      generateConversation: "生成角色回复",
+      generatingConversation: "正在生成回复…",
+      conversationResultTitle: "回复草稿结果",
+      conversationReviewTitle: "审阅角色回复",
+      conversationReviewDescription: "可以编辑回复、语气和记忆重要度；原始消息、角色、Operation 和引用记忆保持绑定。",
+      conversationOriginalMessage: "原始用户消息",
+      conversationReply: "回复草稿",
+      conversationTone: "语气",
+      conversationImportance: "记忆重要度（1–10）",
+      conversationShouldContinue: "保持会话继续",
+      conversationAuditLabel: "对话回复审计元数据",
+      referencedMemories: "引用记忆",
+      applyConversation: "审阅并发送",
+      discardConversation: "放弃草稿",
+      noConversationDraft: "没有可审阅的回复草稿；请查看 Operation 错误元数据。",
+      conversationDraftUnavailableError: "当前没有可应用的对话回复草稿。",
       proposalTitle: "行动建议 Sandbox",
       proposalDescription: "为选中的角色生成一条结构化行动建议。结果在审阅并应用前只用于预览，不会提交干预、推进步进或修改世界状态。",
       proposalAgent: "建议对象",
@@ -654,6 +974,10 @@ function createCopy(language: AppLanguage) {
         prompt: "测试提示词不能为空。",
         timeoutMs: "超时必须是正数。",
         agentId: "请先选择一个角色。",
+        message: "用户消息不能为空。",
+        reply: "回复草稿不能为空。",
+        tone: "语气不能为空。",
+        memoryImportance: "记忆重要度必须是 1 到 10 的整数。",
         draftJson: "草稿必须是合法 JSON。",
         draftShape: "草稿必须是用户来源的 realmEvent，并包含合法 targetIds 和 payload。",
       },
@@ -680,6 +1004,26 @@ function createCopy(language: AppLanguage) {
     testButton: "Test LLM connection",
     testing: "Testing…",
     resultTitle: "Test result",
+    conversationTitle: "Persona private-reply sandbox",
+    conversationDescription: "Generate a reply draft from the persona, current location, recent messages, and relevant memories. Generation does not mutate world state; only a reviewed draft is written to events and memory.",
+    conversationAgent: "Replying agent",
+    conversationMessage: "User message",
+    generateConversation: "Generate persona reply",
+    generatingConversation: "Generating reply…",
+    conversationResultTitle: "Reply draft result",
+    conversationReviewTitle: "Review persona reply",
+    conversationReviewDescription: "You may edit the reply, tone, and memory importance. The original message, agent, operation, and referenced memories remain bound.",
+    conversationOriginalMessage: "Original user message",
+    conversationReply: "Reply draft",
+    conversationTone: "Tone",
+    conversationImportance: "Memory importance (1–10)",
+    conversationShouldContinue: "Keep conversation open",
+    conversationAuditLabel: "Conversation reply audit metadata",
+    referencedMemories: "Referenced memories",
+    applyConversation: "Review and send",
+    discardConversation: "Discard draft",
+    noConversationDraft: "No reviewable reply draft is available; inspect operation error metadata.",
+    conversationDraftUnavailableError: "There is no conversation reply draft to apply.",
     proposalTitle: "Action proposal sandbox",
     proposalDescription: "Generate one structured action proposal for the selected agent. The result is preview-only until reviewed and applied, and does not submit intervention, step time, or mutate world state before that.",
     proposalAgent: "Proposal agent",
@@ -729,6 +1073,10 @@ function createCopy(language: AppLanguage) {
       prompt: "Test prompt is required.",
       timeoutMs: "Timeout must be a positive number.",
       agentId: "Select an agent first.",
+      message: "User message is required.",
+      reply: "Reply draft is required.",
+      tone: "Tone is required.",
+      memoryImportance: "Memory importance must be an integer from 1 through 10.",
       draftJson: "Draft must be valid JSON.",
       draftShape: "Draft must be a user-sourced realmEvent with valid targetIds and payload.",
     },

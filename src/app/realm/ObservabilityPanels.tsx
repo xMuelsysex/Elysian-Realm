@@ -418,10 +418,16 @@ export function MessageStreamPanel({ language, threads }: MessageStreamPanelProp
               <li className={`message-item message-item--${message.direction}`} key={message.id}>
                 <div className="message-meta">
                   <Badge tone={message.source}>{formatSourceLabel(language, message.source)}</Badge>
+                  {message.provenance ? <Badge tone="neutral">{message.provenance}</Badge> : null}
                   <strong>{formatEntityLabel(language, message.senderId)}</strong>
                   <span>{message.time}</span>
                 </div>
                 <p className="message-body">{message.body}</p>
+                {message.tone ? <p className="muted">{language === "zh" ? "语气" : "Tone"}: {message.tone}</p> : null}
+                {message.llmOperationId ? <p className="muted">Operation: <code>{message.llmOperationId}</code></p> : null}
+                {message.referencedMemoryIds.length > 0 ? (
+                  <p className="muted">{language === "zh" ? "引用记忆" : "Referenced memories"}: <code>{message.referencedMemoryIds.join(", ")}</code></p>
+                ) : null}
               </li>
             ))}
           </ol>

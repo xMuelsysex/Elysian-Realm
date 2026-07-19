@@ -105,6 +105,17 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse,
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/admin/llm/conversation-turn") {
+    const body = await readJsonBody(request);
+    if (!body.ok) {
+      writeError(response, 400, "INVALID_JSON", body.message);
+      return;
+    }
+    const result = await controller.proposeConversationTurn(body.value);
+    writeJson(response, result.status, result.body);
+    return;
+  }
+
   writeError(response, 404, "NOT_FOUND", "Route not found.");
 }
 

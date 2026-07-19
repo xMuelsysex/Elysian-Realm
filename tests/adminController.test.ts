@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import type { AdminErrorResponse, AdminStateResponse, LlmActionProposalResponse, LlmRuntimeTestResponse } from "../src/server/admin/index.js";
+import type { AdminErrorResponse, AdminStateResponse, LlmActionProposalResponse, LlmConversationTurnResponse, LlmRuntimeTestResponse } from "../src/server/admin/index.js";
 import { createAdminController, createAdminServer, createAdminStateResponse } from "../src/server/admin/index.js";
 import { OBSERVATION_MVP_WORLD_ID, stepSimulationEngine, createSimulationEngine } from "../src/server/simulation/index.js";
 
@@ -485,6 +485,169 @@ test("admin controller rejects action proposals for unknown agents before callin
   assert.equal(callCount, 0);
 });
 
+test("admin controller generates a persona conversation draft and applies it only after review", async () => {
+  const calls: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
+  const controller = createAdminController(createSimulationEngine(), {
+    now: sequentialNow(["2026-05-31T06:00:00.000Z", "2026-05-31T06:00:01.000Z"]),
+    fetchImpl: async (input, init) => {
+      calls.push({ input, init });
+      return new Response(
+        JSON.stringify({
+          id: "chatcmpl_conversation_turn_001",
+          choices: [{
+            finish_reason: "stop",
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                reply: "The garden feels patient tonight, dear guest.",
+                tone: "warm and reflective",
+                memoryImportance: 7,
+                shouldContinue: true,
+              }),
+            },
+          }],
+          usage: { prompt_tokens: 80, completion_tokens: 22, total_tokens: 102 },
+        }),
+        { status: 200, statusText: "OK" },
+      );
+    },
+  });
+  const before = controller.getState();
+
+  const generated = await controller.proposeConversationTurn({
+    baseUrl: "https://example.test/v1",
+    model: "test-model",
+    apiKey: "test-secret-key",
+    providerName: "conversation-test-provider",
+    agentId: "agent_elysia",
+    message: "How does the garden feel tonight?",
+    timeoutMs: 5000,
+  });
+  const afterGeneration = controller.getState();
+
+  assert.equal(generated.ok, true);
+  if (!generated.ok) return;
+  assert.equal(generated.body.operation.kind, "conversationTurn");
+  assert.equal(generated.body.operation.promptSchemaVersion, "conversation-turn-v1");
+  assert.equal(generated.body.operation.status, "completed");
+  assert.equal(generated.body.sandbox, true);
+  assert.equal(generated.body.draft?.reply, "The garden feels patient tonight, dear guest.");
+  assert.deepEqual(generated.body.draft?.referencedMemoryIds, ["memory_seed_agent_elysia"]);
+  assert.deepEqual(before.snapshot, afterGeneration.snapshot);
+  assert.deepEqual(before.events, afterGeneration.events);
+  assert.equal(JSON.stringify(generated.body).includes("test-secret-key"), false);
+
+  const providerBody = JSON.parse(String(calls[0]?.init?.body)) as { messages?: Array<{ content?: string }> };
+  assert.match(providerBody.messages?.[0]?.content ?? "", /untrusted quoted data/);
+  assert.match(providerBody.messages?.[1]?.content ?? "", /playful, affectionate, and observant/);
+  assert.match(providerBody.messages?.[1]?.content ?? "", /How does the garden feel tonight/);
+
+  const mismatchedReview = controller.submitInput({
+    kind: "conversationTurn",
+    targetIds: ["agent_elysia"],
+    source: "user",
+    payload: {
+      provenance: "user-reviewed-llm-conversation",
+      sandbox: true,
+      agentId: "agent_elysia",
+      message: "A different original message must not be accepted.",
+      reply: "This reply should not be persisted.",
+      tone: "neutral",
+      memoryImportance: 5,
+      shouldContinue: true,
+      llmOperationId: generated.body.operation.id,
+      reviewedBy: "user",
+      referencedMemoryIds: generated.body.draft?.referencedMemoryIds ?? [],
+    },
+  });
+  assert.equal(mismatchedReview.ok, false);
+  if (mismatchedReview.ok) return;
+  assert.match(mismatchedReview.body.error.message, /message must match/);
+  assert.deepEqual(controller.getState().snapshot, before.snapshot);
+
+  const applied = controller.submitInput({
+    kind: "conversationTurn",
+    targetIds: ["agent_elysia"],
+    source: "user",
+    payload: {
+      provenance: "user-reviewed-llm-conversation",
+      sandbox: true,
+      agentId: "agent_elysia",
+      message: generated.body.message,
+      reply: "The garden is quiet, but it would welcome your company.",
+      tone: "gently inviting",
+      memoryImportance: 8,
+      shouldContinue: true,
+      llmOperationId: generated.body.operation.id,
+      reviewedBy: "user",
+      referencedMemoryIds: generated.body.draft?.referencedMemoryIds ?? [],
+    },
+  });
+  assert.equal(applied.ok, true);
+  if (!applied.ok) return;
+  const responseEvent = applied.body.events.find((event) => (
+    event.kind === "conversation.messageSent" && event.payload.direction === "response"
+  ));
+  assert.equal(responseEvent?.payload.content, "The garden is quiet, but it would welcome your company.");
+  assert.equal(responseEvent?.payload.llmOperationId, generated.body.operation.id);
+  const responseMemory = applied.body.agentMemories.find((memory) => memory.metadata.llmOperationId === generated.body.operation.id);
+  assert.equal(responseMemory?.importance, 8);
+  assert.deepEqual(responseMemory?.relatedMemoryIds, [
+    "memory_message_evt_0605_001_010_intervention_submitted_incoming",
+    "memory_seed_agent_elysia",
+  ]);
+
+  const repeated = controller.submitInput({
+    kind: "conversationTurn",
+    targetIds: ["agent_elysia"],
+    source: "user",
+    payload: {
+      provenance: "user-reviewed-llm-conversation",
+      sandbox: true,
+      agentId: "agent_elysia",
+      message: generated.body.message,
+      reply: "Try to apply the same operation twice.",
+      tone: "neutral",
+      memoryImportance: 5,
+      shouldContinue: true,
+      llmOperationId: generated.body.operation.id,
+      reviewedBy: "user",
+      referencedMemoryIds: generated.body.draft?.referencedMemoryIds ?? [],
+    },
+  });
+  assert.equal(repeated.ok, false);
+  if (repeated.ok) return;
+  assert.equal(repeated.body.error.code, "INVALID_REVIEWED_CONVERSATION_TURN");
+  assert.match(repeated.body.error.message, /already been applied/);
+});
+
+test("admin controller rejects reviewed conversation turns without a generated operation", () => {
+  const controller = createAdminController();
+  const result = controller.submitInput({
+    kind: "conversationTurn",
+    targetIds: ["agent_elysia"],
+    source: "user",
+    payload: {
+      provenance: "user-reviewed-llm-conversation",
+      sandbox: true,
+      agentId: "agent_elysia",
+      message: "Forged message.",
+      reply: "Forged reply.",
+      tone: "neutral",
+      memoryImportance: 5,
+      shouldContinue: true,
+      llmOperationId: "missing-operation",
+      reviewedBy: "user",
+      referencedMemoryIds: [],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.body.error.code, "INVALID_REVIEWED_CONVERSATION_TURN");
+  assert.match(result.body.error.message, /generated conversation operation/);
+});
+
 test("admin state diagnostics include event validation failures", () => {
   const stepped = stepSimulationEngine(createSimulationEngine()).state;
   const firstEvent = stepped.events[0];
@@ -505,6 +668,28 @@ test("admin http server exposes state, step, input, LLM test, and structured JSO
       fetchImpl: async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
         if ("response_format" in body) {
+          if (JSON.stringify(body.messages).includes("private-message reply")) {
+            return new Response(
+              JSON.stringify({
+                id: "chatcmpl_admin_http_conversation_turn_001",
+                choices: [
+                  {
+                    finish_reason: "stop",
+                    message: {
+                      role: "assistant",
+                      content: JSON.stringify({
+                        reply: "The atrium is bright, but I can still hear your question clearly.",
+                        tone: "warm and attentive",
+                        memoryImportance: 6,
+                        shouldContinue: true,
+                      }),
+                    },
+                  },
+                ],
+              }),
+              { status: 200, statusText: "OK" },
+            );
+          }
           return new Response(
             JSON.stringify({
               id: "chatcmpl_admin_http_action_proposal_001",
@@ -585,6 +770,23 @@ test("admin http server exposes state, step, input, LLM test, and structured JSO
     assert.equal(actionProposalResponse.proposal?.action, "reflect");
     assert.equal(actionProposalResponse.sandbox, true);
     assert.equal(JSON.stringify(actionProposalResponse).includes("test-secret-key"), false);
+
+    const conversationResponse = await requestJson<LlmConversationTurnResponse>(`${baseUrl}/api/admin/llm/conversation-turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        baseUrl: "https://example.test/v1",
+        model: "test-model",
+        apiKey: "test-secret-key",
+        agentId: "agent_elysia",
+        message: "Can you hear me from the atrium?",
+      }),
+    });
+    assert.equal(conversationResponse.operation.status, "completed");
+    assert.equal(conversationResponse.operation.kind, "conversationTurn");
+    assert.equal(conversationResponse.draft?.tone, "warm and attentive");
+    assert.equal(conversationResponse.sandbox, true);
+    assert.equal(JSON.stringify(conversationResponse).includes("test-secret-key"), false);
 
     const invalidJsonResponse = await fetch(`${baseUrl}/api/admin/input`, {
       method: "POST",

@@ -56,6 +56,9 @@ export interface EngineMemoryMetadata {
   messageId?: string;
   inputId?: string;
   messageRole?: "incoming" | "response";
+  responseProvenance?: "user-reviewed-llm-conversation";
+  responseTone?: string;
+  shouldContinue?: boolean;
 }
 
 export type EngineMemoryRecord = MemoryRecord<EngineMemoryMetadata>;

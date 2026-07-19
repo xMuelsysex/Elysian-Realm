@@ -346,6 +346,13 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
         messageIndex: "消息序号",
         memoryId: "记忆编号",
         inReplyToMessageId: "回复消息编号",
+        tone: "语气",
+        memoryImportance: "记忆重要度",
+        shouldContinue: "继续会话",
+        llmOperationId: "LLM 操作编号",
+        reviewedBy: "审阅者",
+        referencedMemoryIds: "引用记忆编号",
+        reviewedConversationTurn: "已审阅对话回合",
         seedBatchId: "种子批次编号",
         memoryIds: "记忆编号",
         note: "备注",
@@ -545,6 +552,13 @@ export const UI_COPY: Record<AppLanguage, CopyBundle> = {
         messageIndex: "messageIndex",
         memoryId: "memoryId",
         inReplyToMessageId: "inReplyToMessageId",
+        tone: "tone",
+        memoryImportance: "memoryImportance",
+        shouldContinue: "shouldContinue",
+        llmOperationId: "llmOperationId",
+        reviewedBy: "reviewedBy",
+        referencedMemoryIds: "referencedMemoryIds",
+        reviewedConversationTurn: "reviewedConversationTurn",
         seedBatchId: "seedBatchId",
         memoryIds: "memoryIds",
         note: "note",
@@ -669,6 +683,7 @@ export function formatCommandKindLabel(language: AppLanguage, commandKind: strin
     observerCommand: "观察者命令",
     realmEvent: "领域事件",
     directPrivateMessage: "私信",
+    conversationTurn: "已审阅对话回合",
   }[commandKind] ?? commandKind;
 }
 
@@ -679,6 +694,7 @@ export function formatCommandSummary(language: AppLanguage, summary: string | un
     "observerCommand:resume": "观察者命令：继续",
     "observerCommand:setTimeScale": "观察者命令：设置时间倍率",
     directPrivateMessage: "私信",
+    conversationTurn: "已审阅对话回合",
   };
   if (summary.startsWith("realmEvent:")) return `领域事件：${summary.slice("realmEvent:".length)}`;
   return summaries[summary] ?? summary;

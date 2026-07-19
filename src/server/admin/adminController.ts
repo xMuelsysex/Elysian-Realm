@@ -1,5 +1,14 @@
 import type { AgentId, EventSource, InterventionKind } from "../../shared/domain/index.js";
 import type { LlmOperationMetadata, PersonaSpec, SimulationEvent, SimulationInput, WorldSnapshot } from "../../shared/contracts/index.js";
+import {
+  CONVERSATION_TURN_PROMPT_SCHEMA_VERSION,
+  CONVERSATION_TURN_SCHEMA,
+  MAX_CONVERSATION_MESSAGE_LENGTH,
+  createConversationTurnContext,
+  createConversationTurnMessages,
+  validateConversationTurnOperation,
+  type GeneratedConversationTurnRecord,
+} from "../conversation/index.js";
 import { OpenAiCompatibleProvider, runLlmOperation, isLlmProviderError, type FetchLike, type LlmChatMessage, type OpenAiCompatibleApiMode } from "../llm/index.js";
 import { pilotPersonas } from "../personas/index.js";
 import {
@@ -17,6 +26,7 @@ import {
 import type {
   AdminDiagnostic,
   AdminLlmActionProposalRouteResult,
+  AdminLlmConversationTurnRouteResult,
   AdminLlmRuntimeTestRouteResult,
   AdminRouteResult,
   AdminStateResponse,
@@ -26,11 +36,12 @@ import type {
   LlmRuntimeProviderSummary,
   SubmitAdminInputRequest,
   SubmitLlmActionProposalRequest,
+  SubmitLlmConversationTurnRequest,
   SubmitLlmRuntimeTestRequest,
 } from "./adminContracts.js";
 
 const DEFAULT_INPUT_SOURCE: EventSource = "user";
-const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage"]);
+const INTERVENTION_KINDS = new Set<InterventionKind>(["observerCommand", "realmEvent", "directPrivateMessage", "conversationTurn"]);
 const EVENT_SOURCES = new Set<EventSource>(["system", "user", "agent", "llm", "test"]);
 const LLM_RUNTIME_API_MODES = new Set<LlmRuntimeApiMode>(["chat_completions", "responses"]);
 const ACTION_PROPOSAL_KINDS = new Set<LlmActionProposalKind>(["continue", "move", "wait", "performActivity", "reflect"]);
@@ -69,6 +80,7 @@ export interface AdminController {
   submitInput(request: unknown): AdminRouteResult;
   testLlmRuntimeConfig(request: unknown): Promise<AdminLlmRuntimeTestRouteResult>;
   proposeLlmAction(request: unknown): Promise<AdminLlmActionProposalRouteResult>;
+  proposeConversationTurn(request: unknown): Promise<AdminLlmConversationTurnRouteResult>;
 }
 
 export function createAdminController(initialState: SimulationEngineState = createSimulationEngine(), options: AdminControllerOptions = {}): AdminController {
@@ -76,6 +88,8 @@ export function createAdminController(initialState: SimulationEngineState = crea
   let latestAgentTickDiagnostics: EngineAgentTickDiagnostic[] = [];
   let latestReflectionDiagnostics: EngineReflectionDiagnostic[] = [];
   let nextInputCounter = 1;
+  let nextConversationOperationCounter = 1;
+  const generatedConversationTurns = new Map<string, GeneratedConversationTurnRecord>();
 
   function getState(): AdminStateResponse {
     return createAdminStateResponse(state, latestAgentTickDiagnostics, latestReflectionDiagnostics);
@@ -94,6 +108,8 @@ export function createAdminController(initialState: SimulationEngineState = crea
     latestAgentTickDiagnostics = [];
     latestReflectionDiagnostics = [];
     nextInputCounter = 1;
+    nextConversationOperationCounter = 1;
+    generatedConversationTurns.clear();
     return getState();
   }
 
@@ -110,6 +126,13 @@ export function createAdminController(initialState: SimulationEngineState = crea
           },
         },
       };
+    }
+
+    const conversationTurnRecord = request.value.kind === "conversationTurn"
+      ? validateConversationTurnSubmission(request.value, generatedConversationTurns)
+      : undefined;
+    if (conversationTurnRecord && !conversationTurnRecord.ok) {
+      return createLlmRequestError("INVALID_REVIEWED_CONVERSATION_TURN", conversationTurnRecord.message);
     }
 
     const input: SimulationInput = {
@@ -129,6 +152,11 @@ export function createAdminController(initialState: SimulationEngineState = crea
     state = result.state;
     latestAgentTickDiagnostics = result.agentTickDiagnostics;
     latestReflectionDiagnostics = result.reflectionDiagnostics;
+    if (conversationTurnRecord?.ok && result.events.some((event) => (
+      event.kind === "realm.interventionSubmitted" && event.causedByInputId === input.id
+    ))) {
+      conversationTurnRecord.value.consumed = true;
+    }
     return { ok: true, status: 200, body: getState() };
   }
 
@@ -228,7 +256,87 @@ export function createAdminController(initialState: SimulationEngineState = crea
     }
   }
 
-  return { getState, step, reset, submitInput, testLlmRuntimeConfig, proposeLlmAction };
+  async function proposeConversationTurn(rawRequest: unknown): Promise<AdminLlmConversationTurnRouteResult> {
+    const request = parseSubmitLlmConversationTurnRequest(rawRequest, state.snapshot);
+    if (!request.ok) {
+      return createLlmRequestError("INVALID_LLM_CONVERSATION_TURN_REQUEST", request.message);
+    }
+
+    const context = createConversationTurnContext(state, request.value.agentId, request.value.message);
+    if (!context.ok) {
+      return createLlmRequestError("INVALID_LLM_CONVERSATION_TURN_CONTEXT", context.message);
+    }
+
+    try {
+      const { provider, summary } = createRuntimeProvider(request.value, options.fetchImpl);
+      const operationId = [
+        "llm_conversation_turn",
+        state.snapshot.lastStepId,
+        request.value.agentId,
+        String(nextConversationOperationCounter).padStart(3, "0"),
+      ].join("_");
+      nextConversationOperationCounter += 1;
+      const operation = await runLlmOperation({
+        id: operationId,
+        worldId: state.snapshot.id,
+        agentId: request.value.agentId as AgentId,
+        kind: "conversationTurn",
+        inputRef: context.value.conversationId,
+        promptSchemaVersion: CONVERSATION_TURN_PROMPT_SCHEMA_VERSION,
+        provider,
+        chat: {
+          messages: createConversationTurnMessages(context.value),
+          responseFormat: {
+            type: "json_schema",
+            jsonSchema: {
+              name: "conversation_turn",
+              strict: true,
+              schema: CONVERSATION_TURN_SCHEMA,
+            },
+          },
+          temperature: 0.5,
+          maxTokens: 500,
+        },
+        structuredOutputSchema: CONVERSATION_TURN_SCHEMA,
+        timeoutMs: summary.timeoutMs,
+        now: options.now,
+      });
+      const validation = operation.status === "completed"
+        ? validateConversationTurnOperation(
+            operation,
+            context.value.relevantMemories.map((memory) => memory.id),
+          )
+        : { operation };
+
+      if (validation.operation.status === "completed" && validation.draft) {
+        generatedConversationTurns.set(validation.operation.id, {
+          operationId: validation.operation.id,
+          agentId: request.value.agentId as AgentId,
+          message: context.value.incomingMessage,
+          draft: structuredClone(validation.draft),
+          consumed: false,
+        });
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          provider: summary,
+          agentId: request.value.agentId,
+          message: context.value.incomingMessage,
+          sandbox: true,
+          provenance: "generated",
+          operation: validation.operation,
+          draft: validation.draft,
+        },
+      };
+    } catch (caught) {
+      return createLlmProviderConfigError(caught);
+    }
+  }
+
+  return { getState, step, reset, submitInput, testLlmRuntimeConfig, proposeLlmAction, proposeConversationTurn };
 }
 
 export function createAdminStateResponse(
@@ -294,7 +402,7 @@ function parseSubmitAdminInputRequest(rawRequest: unknown): { ok: true; value: S
 
   const kind = rawRequest.kind;
   if (typeof kind !== "string" || !INTERVENTION_KINDS.has(kind as InterventionKind)) {
-    return { ok: false, message: "kind must be observerCommand, realmEvent, or directPrivateMessage" };
+    return { ok: false, message: "kind must be observerCommand, realmEvent, directPrivateMessage, or conversationTurn" };
   }
 
   const targetIds = rawRequest.targetIds;
@@ -406,6 +514,99 @@ function parseSubmitLlmActionProposalRequest(rawRequest: unknown, snapshot: Worl
       timeoutMs,
     },
   };
+}
+
+function parseSubmitLlmConversationTurnRequest(
+  rawRequest: unknown,
+  snapshot: WorldSnapshot,
+): { ok: true; value: SubmitLlmConversationTurnRequest } | { ok: false; message: string } {
+  if (!isRecord(rawRequest)) {
+    return { ok: false, message: "request body must be an object" };
+  }
+
+  const baseUrl = readRequiredString(rawRequest.baseUrl, "baseUrl");
+  if (!baseUrl.ok) return baseUrl;
+  const model = readRequiredString(rawRequest.model, "model");
+  if (!model.ok) return model;
+  const apiKey = readRequiredString(rawRequest.apiKey, "apiKey");
+  if (!apiKey.ok) return apiKey;
+  const agentId = readRequiredString(rawRequest.agentId, "agentId");
+  if (!agentId.ok) return agentId;
+  if (!snapshot.agents.some((agent) => agent.id === agentId.value)) {
+    return { ok: false, message: "agentId must reference a known agent" };
+  }
+  const message = readRequiredString(rawRequest.message, "message");
+  if (!message.ok) return message;
+  if (message.value.length > MAX_CONVERSATION_MESSAGE_LENGTH) {
+    return { ok: false, message: `message must be at most ${MAX_CONVERSATION_MESSAGE_LENGTH} characters` };
+  }
+
+  const providerName = rawRequest.providerName === undefined ? undefined : readOptionalString(rawRequest.providerName, "providerName");
+  if (providerName && !providerName.ok) return providerName;
+
+  const apiMode = rawRequest.apiMode ?? "chat_completions";
+  if (typeof apiMode !== "string" || !LLM_RUNTIME_API_MODES.has(apiMode as LlmRuntimeApiMode)) {
+    return { ok: false, message: "apiMode must be chat_completions or responses" };
+  }
+
+  const timeoutMs = rawRequest.timeoutMs === undefined ? undefined : Number(rawRequest.timeoutMs);
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    return { ok: false, message: "timeoutMs must be a positive number" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      baseUrl: baseUrl.value,
+      model: model.value,
+      apiKey: apiKey.value,
+      agentId: agentId.value,
+      message: message.value,
+      providerName: providerName?.value,
+      apiMode: apiMode as LlmRuntimeApiMode,
+      timeoutMs,
+    },
+  };
+}
+
+function validateConversationTurnSubmission(
+  request: SubmitAdminInputRequest,
+  generatedConversationTurns: ReadonlyMap<string, GeneratedConversationTurnRecord>,
+): { ok: true; value: GeneratedConversationTurnRecord } | { ok: false; message: string } {
+  if ((request.source ?? DEFAULT_INPUT_SOURCE) !== "user") {
+    return { ok: false, message: "reviewed conversation turn source must be user" };
+  }
+  if (request.targetIds.length !== 1) {
+    return { ok: false, message: "reviewed conversation turn must target exactly one agent" };
+  }
+
+  const llmOperationId = readNonEmptyString(request.payload.llmOperationId);
+  if (!llmOperationId) {
+    return { ok: false, message: "reviewed conversation turn llmOperationId must be a non-empty string" };
+  }
+  const generated = generatedConversationTurns.get(llmOperationId);
+  if (!generated) {
+    return { ok: false, message: "reviewed conversation turn must reference a generated conversation operation" };
+  }
+  if (generated.consumed) {
+    return { ok: false, message: "reviewed conversation turn operation has already been applied" };
+  }
+
+  const agentId = readNonEmptyString(request.payload.agentId);
+  if (!agentId || agentId !== generated.agentId || request.targetIds[0] !== generated.agentId) {
+    return { ok: false, message: "reviewed conversation turn agent must match the generated operation" };
+  }
+  const message = readNonEmptyString(request.payload.message);
+  if (!message || message !== generated.message) {
+    return { ok: false, message: "reviewed conversation turn message must match the generated operation" };
+  }
+
+  const referencedMemoryIds = readStringArray(request.payload.referencedMemoryIds);
+  if (!referencedMemoryIds || !equalStringSets(referencedMemoryIds, generated.draft.referencedMemoryIds)) {
+    return { ok: false, message: "reviewed conversation turn referencedMemoryIds must match the generated operation" };
+  }
+
+  return { ok: true, value: generated };
 }
 
 function readRequiredString(value: unknown, field: string): { ok: true; value: string } | { ok: false; message: string } {
@@ -580,6 +781,18 @@ function failActionProposalOperation(operation: LlmOperationMetadata, message: s
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  if (value.some((item) => typeof item !== "string" || item.trim() === "")) return undefined;
+  return [...new Set(value.map((item) => item.trim()))];
+}
+
+function equalStringSets(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightValues = new Set(right);
+  return left.every((value) => rightValues.has(value));
 }
 
 function toProviderApiMode(apiMode: LlmRuntimeApiMode): OpenAiCompatibleApiMode {

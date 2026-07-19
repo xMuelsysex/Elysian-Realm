@@ -35,15 +35,15 @@ test("private message reaches one conversation, two memories, and the message st
 
   await page.goto("/");
   await page.getByRole("tab", { name: /控制$/ }).click();
-  await page.getByRole("combobox", { name: "角色" }).selectOption(AGENT_ID);
-  await page.getByRole("textbox", { name: "消息" }).fill(MESSAGE);
+  await page.getByRole("combobox", { name: "角色", exact: true }).selectOption(AGENT_ID);
+  await page.getByRole("textbox", { name: "消息", exact: true }).fill(MESSAGE);
 
   const [submitResponse] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith("/api/admin/input") && response.request().method() === "POST"),
     page.getByRole("button", { name: "发送消息" }).click(),
   ]);
   expect(submitResponse.ok()).toBeTruthy();
-  await expect(page.getByRole("textbox", { name: "消息" })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "消息", exact: true })).toHaveValue("");
 
   await page.getByRole("tab", { name: /角色$/ }).click();
   const messagePanel = page.getByRole("region", { name: "消息流" });

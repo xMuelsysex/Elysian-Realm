@@ -2,8 +2,13 @@ import type { InterventionCommand, PlanAction, SimulationInput, WorldSnapshot, S
 import type { AgentId, AgentStatus, LocationId } from "../../shared/domain/index.js";
 import { InMemoryMemoryStore } from "@elysian/simulation-agent";
 import { createSimulationEvent, type EventFactoryContext } from "./events.js";
-import { validateSimulationInput, type ReviewedLlmProposalPayload, type ValidSimulationInput } from "./inputs.js";
-import { createDeterministicPrivateMessageResponse } from "./privateMessages.js";
+import { validateSimulationInput, type ReviewedConversationTurnPayload, type ReviewedLlmProposalPayload, type ValidSimulationInput } from "./inputs.js";
+import {
+  createDeterministicPrivateMessageResponse,
+  createReviewedPrivateMessageResponse,
+  type DeterministicPrivateMessageResponse,
+  type ReviewedPrivateMessageResponse,
+} from "./privateMessages.js";
 import { runAgentCognitiveTickForEngine, runAgentReflectionForEngine, type EngineAgentTickDiagnostic, type EngineAgentTickResult, type EngineMemoryMetadata, type EngineMemoryRecord, type EngineReflectionDiagnostic } from "./agentRuntimeAdapter.js";
 import {
   createObservationMvpSnapshot,
@@ -127,6 +132,21 @@ export function stepSimulationEngine(state: SimulationEngineState): SimulationSt
       nextSnapshot = directMessage.snapshot;
       nextAgentMemories = directMessage.agentMemories;
       stepEvents.push(...directMessage.events);
+    }
+
+    if (result.value.reviewedConversationTurn) {
+      const reviewedConversation = applyReviewedConversationTurn(
+        nextSnapshot,
+        nextAgentMemories,
+        result.value,
+        result.value.reviewedConversationTurn,
+        acceptedEvent,
+        context,
+        stepEvents.length + 1,
+      );
+      nextSnapshot = reviewedConversation.snapshot;
+      nextAgentMemories = reviewedConversation.agentMemories;
+      stepEvents.push(...reviewedConversation.events);
     }
 
     if (result.value.reviewedLlmProposal) {
@@ -317,6 +337,9 @@ function createAcceptedInterventionPayload(input: ValidSimulationInput): Record<
   if (input.reviewedLlmProposal) {
     payload.reviewedLlmProposal = cloneReviewedLlmProposalPayload(input.reviewedLlmProposal);
   }
+  if (input.reviewedConversationTurn) {
+    payload.reviewedConversationTurn = cloneReviewedConversationTurnPayload(input.reviewedConversationTurn);
+  }
 
   return payload;
 }
@@ -341,6 +364,45 @@ function applyDirectPrivateMessage(
   }
 
   const response = createDeterministicPrivateMessageResponse(agent, message);
+  return applyPrivateConversationTurn(snapshot, records, input, response, acceptedEvent, context, firstEventOrder);
+}
+
+function applyReviewedConversationTurn(
+  snapshot: WorldSnapshot,
+  records: readonly EngineMemoryRecord[],
+  input: ValidSimulationInput,
+  reviewedTurn: ReviewedConversationTurnPayload,
+  acceptedEvent: SimulationEvent,
+  context: EventFactoryContext,
+  firstEventOrder: number,
+): { snapshot: WorldSnapshot; events: SimulationEvent[]; agentMemories: EngineMemoryRecord[] } {
+  return applyPrivateConversationTurn(
+    snapshot,
+    records,
+    input,
+    createReviewedPrivateMessageResponse(reviewedTurn),
+    acceptedEvent,
+    context,
+    firstEventOrder,
+  );
+}
+
+function applyPrivateConversationTurn(
+  snapshot: WorldSnapshot,
+  records: readonly EngineMemoryRecord[],
+  input: ValidSimulationInput,
+  response: DeterministicPrivateMessageResponse | ReviewedPrivateMessageResponse,
+  acceptedEvent: SimulationEvent,
+  context: EventFactoryContext,
+  firstEventOrder: number,
+): { snapshot: WorldSnapshot; events: SimulationEvent[]; agentMemories: EngineMemoryRecord[] } {
+  const targetAgentId = input.targetIds[0] as AgentId;
+  const agent = snapshot.agents.find((candidate) => candidate.id === targetAgentId);
+  if (!agent) {
+    throw new Error(`Validated private message target ${targetAgentId} is missing from the snapshot`);
+  }
+
+  const reviewedResponse = isReviewedPrivateMessageResponse(response) ? response : undefined;
   const conversationId = createPrivateConversationId(agent.id);
   const existingConversation = snapshot.activeConversations.find((conversation) => conversation.id === conversationId);
   const incomingMessageIndex = (existingConversation?.messageCount ?? 0) + 1;
@@ -408,27 +470,39 @@ function applyDirectPrivateMessage(
       messageIndex: responseMessageIndex,
       memoryId: responseMemoryId,
       inReplyToMessageId: incomingMessageId,
+      ...(reviewedResponse ? {
+        provenance: reviewedResponse.provenance,
+        tone: reviewedResponse.tone,
+        memoryImportance: reviewedResponse.memoryImportance,
+        shouldContinue: reviewedResponse.shouldContinue,
+        llmOperationId: reviewedResponse.llmOperationId,
+        reviewedBy: reviewedResponse.reviewedBy,
+        referencedMemoryIds: reviewedResponse.referencedMemoryIds,
+      } : {}),
     },
   });
   events.push(responseEvent);
 
+  const conversationState = reviewedResponse && !reviewedResponse.shouldContinue ? "ended" as const : "participating" as const;
   const nextConversation = existingConversation
     ? {
         ...existingConversation,
         participants: [...existingConversation.participants],
-        state: "participating" as const,
+        state: conversationState,
         lastMessageAt: context.time,
         messageCount: responseMessageIndex,
+        endedAt: conversationState === "ended" ? context.time : undefined,
       }
     : {
         id: conversationId,
         worldId: snapshot.id,
         participants: [agent.id],
-        state: "participating" as const,
+        state: conversationState,
         locationId: agent.locationId,
         startedAt: context.time,
         lastMessageAt: context.time,
         messageCount: responseMessageIndex,
+        ...(conversationState === "ended" ? { endedAt: context.time } : {}),
       };
 
   const activeConversations = existingConversation
@@ -469,11 +543,18 @@ function applyDirectPrivateMessage(
         content: response.responseMessage,
         createdAt: context.time,
         lastAccessedAt: context.time,
-        importance: 5,
+        importance: reviewedResponse?.memoryImportance ?? 5,
         sourceIds: [responseEvent.id, incomingEvent.id, acceptedEvent.id, input.input.id],
-        relatedMemoryIds: [incomingMemoryId],
+        relatedMemoryIds: [incomingMemoryId, ...(reviewedResponse?.referencedMemoryIds ?? [])],
         visibility: "private",
-        tags: [agent.id, agent.personaId, "conversation", "private", "response"],
+        tags: [
+          agent.id,
+          agent.personaId,
+          "conversation",
+          "private",
+          "response",
+          ...(reviewedResponse ? ["llm", "user-reviewed"] : []),
+        ],
         metadata: {
           stepId: context.stepId,
           source: "engine",
@@ -482,10 +563,24 @@ function applyDirectPrivateMessage(
           messageId: responseMessageId,
           inputId: input.input.id,
           messageRole: "response",
+          ...(reviewedResponse ? {
+            proposalKind: "conversationTurn",
+            llmOperationId: reviewedResponse.llmOperationId,
+            reviewedBy: reviewedResponse.reviewedBy,
+            responseProvenance: reviewedResponse.provenance,
+            responseTone: reviewedResponse.tone,
+            shouldContinue: reviewedResponse.shouldContinue,
+          } : {}),
         },
       },
     ],
   };
+}
+
+function isReviewedPrivateMessageResponse(
+  response: DeterministicPrivateMessageResponse | ReviewedPrivateMessageResponse,
+): response is ReviewedPrivateMessageResponse {
+  return "provenance" in response && response.provenance === "user-reviewed-llm-conversation";
 }
 
 function createPrivateConversationId(agentId: AgentId): string {
@@ -616,6 +711,22 @@ function cloneReviewedLlmProposalPayload(proposal: ReviewedLlmProposalPayload): 
     reviewedBy: proposal.reviewedBy,
     ...(proposal.targetLocationId ? { targetLocationId: proposal.targetLocationId } : {}),
     ...(proposal.targetAgentId ? { targetAgentId: proposal.targetAgentId } : {}),
+  };
+}
+
+function cloneReviewedConversationTurnPayload(turn: ReviewedConversationTurnPayload): Record<string, unknown> {
+  return {
+    provenance: turn.provenance,
+    sandbox: turn.sandbox,
+    agentId: turn.agentId,
+    message: turn.message,
+    reply: turn.reply,
+    tone: turn.tone,
+    memoryImportance: turn.memoryImportance,
+    shouldContinue: turn.shouldContinue,
+    llmOperationId: turn.llmOperationId,
+    reviewedBy: turn.reviewedBy,
+    referencedMemoryIds: [...turn.referencedMemoryIds],
   };
 }
 

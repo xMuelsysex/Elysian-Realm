@@ -1,6 +1,7 @@
 import type { EventSource, InterventionKind } from "../../shared/domain/index.js";
 import type { LlmOperationMetadata, PersonaSpec, SimulationEvent, WorldSnapshot } from "../../shared/contracts/index.js";
 import type { EngineAgentTickDiagnostic, EngineMemoryRecord, EngineReflectionDiagnostic, ReplaySummary, TimelineEntry } from "../simulation/index.js";
+import type { ConversationTurnDraft } from "../conversation/index.js";
 
 export interface AdminDiagnostic {
   id: string;
@@ -85,6 +86,27 @@ export interface LlmActionProposalResponse {
   proposal?: LlmActionProposalPreview;
 }
 
+export interface SubmitLlmConversationTurnRequest {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  agentId: string;
+  message: string;
+  providerName?: string;
+  apiMode?: LlmRuntimeApiMode;
+  timeoutMs?: number;
+}
+
+export interface LlmConversationTurnResponse {
+  provider: LlmRuntimeProviderSummary;
+  agentId: string;
+  message: string;
+  sandbox: true;
+  provenance: "generated";
+  operation: LlmOperationMetadata;
+  draft?: ConversationTurnDraft;
+}
+
 export interface AdminErrorResponse {
   error: {
     code: string;
@@ -103,4 +125,8 @@ export type AdminLlmRuntimeTestRouteResult =
 
 export type AdminLlmActionProposalRouteResult =
   | { ok: true; status: number; body: LlmActionProposalResponse }
+  | { ok: false; status: number; body: AdminErrorResponse };
+
+export type AdminLlmConversationTurnRouteResult =
+  | { ok: true; status: number; body: LlmConversationTurnResponse }
   | { ok: false; status: number; body: AdminErrorResponse };

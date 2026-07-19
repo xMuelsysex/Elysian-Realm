@@ -22,3 +22,14 @@ To try a real compatible endpoint locally:
 4. Keep `.env` local. It is gitignored and must not be committed.
 
 The simulation engine does not call the real provider directly in this MVP. Model calls must go through `src/server/llm/**`, where provider failures, timeouts, refusals, incomplete Responses API statuses, and structured-output validation errors are recorded visibly instead of being converted into fake successful agent behavior. Responses API requests are sent with `store: false` by default from this boundary.
+
+### Persona conversation drafts
+
+The Control tab can generate a private-message reply through the configured OpenAI-compatible provider. The backend builds a bounded context from the selected Persona, current location and action, nearby agents, the last eight conversation messages, and up to five agent-scoped relevant memories.
+
+Generation is sandbox-only and does not mutate the simulation. A user must review the reply, tone, memory importance, and continuation flag before applying it. The reviewed submission is bound to the generated operation, selected agent, original message, and referenced memories; successful operations are single-use. Applying a review writes normal conversation events, conversation state, and linked memory records through the synchronous simulation engine.
+
+Relevant local admin routes:
+
+- `POST /api/admin/llm/conversation-turn` generates and validates a sandbox draft.
+- `POST /api/admin/input` applies the reviewed draft with `kind: "conversationTurn"`.

@@ -2,9 +2,11 @@ import type {
   AdminErrorResponse,
   AdminStateResponse,
   LlmActionProposalResponse,
+  LlmConversationTurnResponse,
   LlmRuntimeTestResponse,
   SubmitAdminInputRequest,
   SubmitLlmActionProposalRequest,
+  SubmitLlmConversationTurnRequest,
   SubmitLlmRuntimeTestRequest,
 } from "../server/admin/index.js";
 
@@ -40,6 +42,14 @@ export async function testLlmRuntimeConfig(input: SubmitLlmRuntimeTestRequest): 
 
 export async function proposeLlmAction(input: SubmitLlmActionProposalRequest): Promise<LlmActionProposalResponse> {
   return requestJson<LlmActionProposalResponse>(`${ADMIN_BASE_PATH}/llm/action-proposal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function proposeLlmConversationTurn(input: SubmitLlmConversationTurnRequest): Promise<LlmConversationTurnResponse> {
+  return requestJson<LlmConversationTurnResponse>(`${ADMIN_BASE_PATH}/llm/conversation-turn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

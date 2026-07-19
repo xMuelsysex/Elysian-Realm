@@ -178,6 +178,10 @@ export interface MessageItemViewModel {
   time: string;
   source: EventSource;
   inReplyToMessageId?: string;
+  provenance?: string;
+  tone?: string;
+  llmOperationId?: string;
+  referencedMemoryIds: string[];
 }
 
 export interface MessageThreadViewModel {
@@ -723,6 +727,10 @@ export function createMessageStreamViewModel(timelineItems: readonly TimelineIte
       time: item.event.time,
       source: item.event.source,
       inReplyToMessageId: readString(item.event.payload, "inReplyToMessageId"),
+      provenance: readString(item.event.payload, "provenance"),
+      tone: readString(item.event.payload, "tone"),
+      llmOperationId: readString(item.event.payload, "llmOperationId"),
+      referencedMemoryIds: readStringArray(item.event.payload, "referencedMemoryIds"),
     });
     threads.set(conversationId, thread);
   }

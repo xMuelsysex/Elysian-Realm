@@ -100,6 +100,13 @@ export interface ConversationMessageSentPayload {
   messageIndex: number;
   memoryId: string;
   inReplyToMessageId?: string;
+  provenance?: "user-reviewed-llm-conversation";
+  tone?: string;
+  memoryImportance?: number;
+  shouldContinue?: boolean;
+  llmOperationId?: string;
+  reviewedBy?: string;
+  referencedMemoryIds?: string[];
 }
 
 export interface SimulationInputRejectedPayload {
@@ -251,6 +258,27 @@ function validateEventPayload(kind: SimulationEventKind, payload: Record<string,
       if (payload.inReplyToMessageId !== undefined) {
         requirePayloadString(payload, "inReplyToMessageId", errors);
       }
+      if (payload.provenance !== undefined) {
+        requirePayloadLiteral(payload, "provenance", "user-reviewed-llm-conversation", errors);
+      }
+      if (payload.tone !== undefined) {
+        requirePayloadString(payload, "tone", errors);
+      }
+      if (payload.memoryImportance !== undefined) {
+        requirePayloadIntegerRange(payload, "memoryImportance", 1, 10, errors);
+      }
+      if (payload.shouldContinue !== undefined && typeof payload.shouldContinue !== "boolean") {
+        errors.push("event.payload.shouldContinue must be a boolean");
+      }
+      if (payload.llmOperationId !== undefined) {
+        requirePayloadString(payload, "llmOperationId", errors);
+      }
+      if (payload.reviewedBy !== undefined) {
+        requirePayloadString(payload, "reviewedBy", errors);
+      }
+      if (payload.referencedMemoryIds !== undefined) {
+        requirePayloadStringArray(payload, "referencedMemoryIds", errors, { allowEmpty: true });
+      }
       return;
     case "simulation.inputRejected":
       requirePayloadString(payload, "inputId", errors);
@@ -288,6 +316,19 @@ function requirePayloadPositiveInteger(payload: Record<string, unknown>, key: st
   const value = payload[key];
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
     errors.push(`event.payload.${key} must be a positive integer`);
+  }
+}
+
+function requirePayloadIntegerRange(
+  payload: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+  errors: string[],
+): void {
+  const value = payload[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < minimum || value > maximum) {
+    errors.push(`event.payload.${key} must be an integer from ${minimum} through ${maximum}`);
   }
 }
 
